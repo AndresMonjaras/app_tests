@@ -132,3 +132,12 @@ export {
   sendRecommendation,
   sendTopicNotification,
 } from './src/notifications/index.mjs';
+export { setUserRole } from './src/roles/index.mjs';
+export {
+  listUsers,
+  setUserDisabled,
+  upsertPromotion,
+  deactivatePromotion,
+  upsertScholarship,
+  revokeScholarship,
+} from './src/admin/index.mjs';

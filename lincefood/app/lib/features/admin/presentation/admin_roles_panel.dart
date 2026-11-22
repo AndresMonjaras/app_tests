@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_router.dart';
+import 'admin_catalog_providers.dart';
 import 'admin_roles_form_controller.dart';
 
 class AdminRolesPanel extends ConsumerStatefulWidget {
@@ -26,6 +28,13 @@ class _AdminRolesPanelState extends ConsumerState<AdminRolesPanel> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        if (ref.watch(adminAccessProvider).value == true)
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings_outlined),
+            title: const Text('Panel de administración'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).pushNamed(AppRouter.adminPanel),
+          ),
         Text(
           'Equipo y permisos',
           style: Theme.of(context).textTheme.headlineSmall,

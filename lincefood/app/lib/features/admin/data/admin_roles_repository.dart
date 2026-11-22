@@ -19,9 +19,11 @@ class CallableAdminRolesRepository implements AdminRolesRepository {
     required bool admin,
     required bool enabled,
   }) async {
-    await functions
-        .httpsCallable(admin ? 'setAdminRole' : 'setStaffRole')
-        .call<Object?>({'uid': uid, 'enabled': enabled});
+    await functions.httpsCallable('setUserRole').call<Object?>({
+      'uid': uid,
+      'role': admin ? 'superadmin' : 'cafeteria_staff',
+      'enabled': enabled,
+    });
   }
 }
 

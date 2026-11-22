@@ -12,7 +12,7 @@ final adminAuthUserProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
 });
 
-final adminAccessProvider = FutureProvider<bool>((ref) async {
+Future<bool> _hasAdminClaim(Ref ref) async {
   final user = await ref.watch(adminAuthUserProvider.future);
   if (user == null) return false;
 
@@ -22,7 +22,12 @@ final adminAccessProvider = FutureProvider<bool>((ref) async {
   } catch (_) {
     return false;
   }
-});
+}
+
+final adminAccessProvider = FutureProvider<bool>(_hasAdminClaim);
+final adminPanelAccessProvider = FutureProvider.autoDispose<bool>(
+  _hasAdminClaim,
+);
 
 final adminCatalogRepositoryProvider = Provider<AdminCatalogRepository>((ref) {
   return CallableAdminCatalogRepository(

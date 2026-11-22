@@ -2,6 +2,29 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "adminWriteLock": {
+      ".read": false,
+      ".write": false
+    },
+    "adminAudit": {
+      ".read": "auth != null && auth.token.admin === true",
+      ".write": false
+    },
+    "promotions": {
+      ".read": "(auth != null && auth.token.admin === true) || (query.orderByChild === 'active' && query.equalTo === true)",
+      ".write": false,
+      ".indexOn": ["active"],
+      "$promotionId": {
+        ".read": "data.child('active').val() === true"
+      }
+    },
+    "scholarships": {
+      ".read": "auth != null && auth.token.admin === true",
+      ".write": false,
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
     "cafeteria": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true",

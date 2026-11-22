@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/admin/presentation/admin_catalog_screen.dart';
+import '../features/admin/presentation/admin_panel_screen.dart';
 
 import '../features/cart/presentation/cart_screen.dart';
 import '../features/catalog/presentation/catalog_screen.dart';
@@ -22,6 +23,7 @@ class AppRouter {
   static const home = '/home';
   static const catalog = '/catalog';
   static const admin = '/admin';
+  static const adminPanel = '/admin/panel';
   static const cart = '/cart';
   static const orders = '/orders';
   static const staffOrders = '/orders/staff';
@@ -42,6 +44,7 @@ class AppRouter {
     final page = switch (settings.name) {
       onboarding || auth || emailVerification || home => const AuthGateScreen(),
       admin => const ProtectedRoute(child: AdminCatalogScreen()),
+      adminPanel => const ProtectedRoute(child: AdminPanelScreen()),
       catalog => const ProtectedRoute(child: CatalogScreen()),
       cart => const ProtectedRoute(child: CartScreen()),
       orders => ProtectedRoute(child: OrdersScreen(orderId: orderId)),

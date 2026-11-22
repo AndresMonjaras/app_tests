@@ -1,76 +1,94 @@
 import { AppError } from '../app_error.mjs';
+import {
+  auditAuthChange,
+  callerUid,
+  findTargetUser,
+  requireAdmin,
+  requireAnotherAdmin,
+  withAdminWrite,
+} from '../admin/admin_access.mjs';
 
-function requireUid(value) {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new AppError('unauthenticated', 'Inicia sesión para continuar.');
-  }
-  return value;
+export const roleClaims = new Map([
+  ['superadmin', 'admin'],
+  ['cafeteria_staff', 'staff'],
+  ['delivery_staff', 'delivery'],
+]);
+
+export function createSetUserRoleHandler(deps, legacyRole) {
+  const { auth, database, bootstrapEmail = '' } = deps;
+  return async (request) => {
+    const actorUid = callerUid(request);
+    const data = request.data ?? {};
+    const role = legacyRole ?? data.role;
+    const claim = roleClaims.get(role);
+    if (!claim || typeof data.enabled !== 'boolean') {
+      throw new AppError('invalid-argument', 'Indica un rol válido y si debe estar activo.');
+    }
+
+    const bootstrap = legacyRole === 'superadmin' &&
+      request.auth.token?.admin !== true && data.enabled && data.uid === actorUid;
+
+    if (bootstrap) {
+      requireBootstrapAccount(await findTargetUser(auth, data), bootstrapEmail);
+    } else {
+      await requireAdmin(auth, request);
+    }
+
+    return withAdminWrite(database, async () => {
+      const target = await findTargetUser(auth, data);
+      const uid = target.uid;
+      const claims = { ...target.customClaims };
+      if (bootstrap) {
+        requireBootstrapAccount(target, bootstrapEmail);
+        await requireNoOtherAdmin(auth, uid);
+      } else {
+        await requireAdmin(auth, request);
+      }
+      if (claim === 'admin' && !data.enabled) {
+        if (actorUid === uid) {
+          throw new AppError('failed-precondition', 'Pide a otra persona administradora que retire tu permiso.');
+        }
+        if (claims.admin === true) await requireAnotherAdmin(auth, uid);
+      }
+
+      const previous = claims[claim] === true;
+      if (data.enabled) {
+        claims[claim] = true;
+      } else {
+        delete claims[claim];
+      }
+      await auditAuthChange(deps, actorUid, 'setUserRole', uid,
+        { role, enabled: previous }, { role, enabled: data.enabled },
+        () => auth.setCustomUserClaims(uid, claims));
+      return { uid, [claim]: data.enabled };
+    });
+  };
 }
 
-function requireTargetUid(value) {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
-    throw new AppError('invalid-argument', 'La cuenta no es válida.');
-  }
-  return value;
-}
-
-function requireAdmin(request) {
-  requireUid(request.auth?.uid);
-  if (request.auth.token?.admin !== true) {
+function requireBootstrapAccount(target, bootstrapEmail) {
+  const email = bootstrapEmail.trim().toLowerCase();
+  const allowed = email && target.email?.toLowerCase() === email &&
+    !target.disabled && target.emailVerified === true &&
+    target.customClaims?.staff !== true && target.customClaims?.delivery !== true;
+  if (!allowed) {
     throw new AppError('permission-denied', 'Solo administración puede asignar roles.');
   }
 }
 
-async function updateClaim(auth, uid, claim, enabled) {
-  const user = await auth.getUser(uid);
-  const claims = { ...(user.customClaims ?? {}) };
-  if (enabled) {
-    claims[claim] = true;
-  } else {
-    delete claims[claim];
+async function requireNoOtherAdmin(auth, uid) {
+  try {
+    await requireAnotherAdmin(auth, uid);
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'failed-precondition') return;
+    throw error;
   }
-  await auth.setCustomUserClaims(uid, claims);
-  return { uid, [claim]: enabled };
+  throw new AppError('permission-denied', 'Solo administración puede asignar roles.');
 }
 
-export function createSetStaffRoleHandler({ auth }) {
-  return async (request) => {
-    requireAdmin(request);
-    const uid = requireTargetUid(request.data?.uid);
-    const enabled = request.data?.enabled;
-    if (typeof enabled !== 'boolean') {
-      throw new AppError('invalid-argument', 'Indica si el rol debe estar activo.');
-    }
-    return updateClaim(auth, uid, 'staff', enabled);
-  };
+export function createSetStaffRoleHandler(deps) {
+  return createSetUserRoleHandler(deps, 'cafeteria_staff');
 }
 
-export function createSetAdminRoleHandler({ auth, bootstrapEmail = '' }) {
-  return async (request) => {
-    const callerUid = requireUid(request.auth?.uid);
-    const uid = requireTargetUid(request.data?.uid);
-    const enabled = request.data?.enabled;
-    if (typeof enabled !== 'boolean') {
-      throw new AppError('invalid-argument', 'Indica si el rol debe estar activo.');
-    }
-
-    if (callerUid === uid && !enabled) {
-      throw new AppError('failed-precondition', 'Pide a otra persona administradora que retire tu permiso.');
-    }
-
-    if (request.auth.token?.admin !== true) {
-      const caller = await auth.getUser(callerUid);
-      const canBootstrap =
-        enabled === true &&
-        bootstrapEmail.trim().length > 0 &&
-        callerUid === uid &&
-        caller.email?.toLowerCase() === bootstrapEmail.trim().toLowerCase() &&
-        caller.emailVerified === true;
-      if (!canBootstrap) {
-        throw new AppError('permission-denied', 'Solo administración puede asignar roles.');
-      }
-    }
-
-    return updateClaim(auth, uid, 'admin', enabled);
-  };
+export function createSetAdminRoleHandler(deps) {
+  return createSetUserRoleHandler(deps, 'superadmin');
 }
