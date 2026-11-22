@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +11,7 @@ final cafeteriaLocationRepositoryProvider =
     });
 
 final cafeteriaLocationProvider = StreamProvider<CafeteriaLocation?>((ref) {
+  if (Firebase.apps.isEmpty) return Stream.value(null);
   return ref.watch(cafeteriaLocationRepositoryProvider).watchLocation();
 });
 

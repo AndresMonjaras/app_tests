@@ -42,10 +42,7 @@ void main() {
     final authenticator = _FakeBiometricAuthenticator()..available = false;
     final service = BiometricQrProtectionService(authenticator);
 
-    expect(
-      await service.authorizeQrReveal(protectionEnabled: true),
-      isFalse,
-    );
+    expect(await service.authorizeQrReveal(protectionEnabled: true), isFalse);
     expect(authenticator.promptCount, 1);
   });
 

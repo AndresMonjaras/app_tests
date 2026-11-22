@@ -1,16 +1,16 @@
-import 'dart:typed_data';
+import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../admin/presentation/admin_catalog_providers.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_router.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
-import '../../biometrics/biometric_protection.dart';
 import '../../auth/presentation/auth_controller.dart';
-import '../../navigation/auth_gate_screen.dart';
-import '../../../core/notifications/firebase_notification_service.dart';
-import '../../../core/notifications/notification_providers.dart';
-import '../data/firebase_profile_repository.dart';
+import '../../biometrics/biometric_protection.dart';
+import '../domain/avatar_rules.dart';
+import 'profile_controller.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -18,278 +18,291 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authUserProvider);
+    final preferences = ref.watch(appPreferencesProvider);
+    final biometricAvailability = ref.watch(biometricAvailabilityProvider);
+    final avatarState = ref.watch(profileControllerProvider);
+
     return auth.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, _) => const AuthGateScreen(),
+      error: (_, _) => const Scaffold(
+        body: Center(child: Text('No pudimos cargar tu perfil.')),
+      ),
       data: (user) {
-        if (user == null) return const AuthGateScreen();
-        return _ProfileContent(user: user);
-      },
-    );
-  }
-}
+        if (user == null) {
+          return const Scaffold(
+            body: Center(child: Text('No hay una sesión activa.')),
+          );
+        }
 
-class _ProfileContent extends ConsumerWidget {
-  const _ProfileContent({required this.user});
+        final themeMode =
+            preferences.asData?.value.themeMode ?? ThemeMode.system;
+        final displayName = user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : 'Estudiante';
+        final providerId = user.providerData.length == 1
+            ? user.providerData.single.providerId
+            : '';
+        final canChangeAvatar = puedeEditarAvatar(providerId);
 
-  final User user;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(customerProfileProvider);
-    final avatar = ref.watch(profileAvatarProvider);
-    final eligibility = ref.watch(avatarEligibilityProvider);
-    final upload = ref.watch(avatarUploadProvider);
-    final preferences = ref.watch(appPreferencesProvider).asData?.value;
-    final notifications = ref.watch(notificationPreferencesProvider);
-    final biometricAvailability = ref.watch(biometricAvailabilityProvider);
-    final providerIds = user.providerData
-        .map((item) => item.providerId)
-        .toSet();
-    final providerLabel = providerIds.contains('google.com')
-        ? 'Google'
-        : providerIds.contains('facebook.com')
-        ? 'Facebook'
-        : 'Correo electrónico';
-    final profileValue = profile.asData?.value;
-    final displayName = profileValue?.name.trim().isNotEmpty == true
-        ? profileValue!.name
-        : user.displayName?.trim().isNotEmpty == true
-        ? user.displayName!
-        : 'Estudiante';
-    final themeMode = preferences?.themeMode ?? ThemeMode.system;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mi perfil')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Center(
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.bottomRight,
+        return Scaffold(
+          appBar: AppBar(title: const Text('Mi perfil')),
+          body: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Center(
+                child: Column(
                   children: [
-                    _ProfileAvatar(
-                      user: user,
-                      storedBytes: avatar.asData?.value,
-                      size: 104,
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundImage: user.photoURL == null
+                          ? null
+                          : NetworkImage(user.photoURL!),
+                      child: user.photoURL == null
+                          ? const Icon(Icons.person_outline, size: 44)
+                          : null,
                     ),
-                    eligibility.asData?.value == true
-                        ? IconButton.filled(
-                            tooltip: 'Cambiar foto de perfil',
-                            onPressed: upload.isLoading
+                    const SizedBox(height: 12),
+                    Text(
+                      displayName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(user.email ?? ''),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.emailVerified
+                          ? 'Correo verificado'
+                          : 'Correo pendiente de verificación',
+                    ),
+                    if (canChangeAvatar) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: avatarState.isBusy || !user.emailVerified
                                 ? null
-                                : () => ref
-                                      .read(avatarUploadProvider.notifier)
-                                      .upload(),
-                            icon: upload.isLoading
-                                ? const SizedBox.square(
-                                    dimension: 18,
+                                : () => unawaited(
+                                    ref
+                                        .read(
+                                          profileControllerProvider.notifier,
+                                        )
+                                        .seleccionarAvatar(user.uid),
+                                  ),
+                            icon: avatarState.isBusy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(Icons.edit_outlined),
-                          )
-                        : const SizedBox.shrink(),
+                                : const Icon(Icons.add_a_photo_outlined),
+                            label: Text(
+                              user.photoURL == null
+                                  ? 'Añadir avatar'
+                                  : 'Cambiar avatar',
+                            ),
+                          ),
+                          if (user.photoURL != null)
+                            OutlinedButton.icon(
+                              onPressed:
+                                  avatarState.isBusy || !user.emailVerified
+                                  ? null
+                                  : () => unawaited(
+                                      ref
+                                          .read(
+                                            profileControllerProvider.notifier,
+                                          )
+                                          .eliminarAvatar(user.uid),
+                                    ),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Eliminar avatar'),
+                            ),
+                        ],
+                      ),
+                      if (!user.emailVerified) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Verifica tu correo para cambiar el avatar.',
+                        ),
+                      ],
+                      if (avatarState.errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          avatarState.errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  displayName,
-                  style: Theme.of(context).textTheme.titleLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(user.email ?? ''),
-                const SizedBox(height: 4),
-                Text('Acceso con $providerLabel'),
-                Text(
-                  user.emailVerified
-                      ? 'Correo verificado'
-                      : 'Correo pendiente de verificación',
-                ),
-                if (avatar.hasError)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'No se pudo cargar la foto guardada.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                if (upload.hasError)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      upload.error is StateError
-                          ? (upload.error! as StateError).message
-                          : 'No se pudo actualizar la foto. Revisa Firebase Storage.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                if (eligibility.hasError &&
-                    providerLabel == 'Correo electrónico')
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'La edición de foto requiere que el servicio seguro de Firebase esté configurado.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.palette_outlined),
-              title: const Text('Apariencia'),
-              trailing: DropdownButton<ThemeMode>(
-                value: themeMode,
-                onChanged: (mode) {
-                  if (mode != null) {
-                    ref
-                        .read(appPreferencesProvider.notifier)
-                        .setThemeMode(mode);
-                  }
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: ThemeMode.system,
-                    child: Text('Sistema'),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.light,
-                    child: Text('Claro'),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.dark,
-                    child: Text('Oscuro'),
-                  ),
-                ],
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Avisos generales',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Son canales públicos; no incluyen folios ni datos privados de pedidos.',
-          ),
-          notifications.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (_, _) =>
-                const Text('No se pudieron cargar tus preferencias de avisos.'),
-            data: (values) => Column(
-              children: [
-                for (final entry in FirebaseNotificationService.topics.entries)
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(entry.value),
-                    value: values[entry.key] ?? false,
-                    onChanged: (enabled) => ref
-                        .read(notificationPreferencesProvider.notifier)
-                        .setPreference(entry.key, enabled),
+              const SizedBox(height: 24),
+              if (ref.watch(adminAccessProvider).value == true)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: const Text('Administración'),
+                    subtitle: const Text(
+                      'Productos, precios y permisos del equipo.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRouter.admin),
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
+                ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: const Text('Notificaciones'),
+                  subtitle: const Text('Configura los avisos de la cafetería.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRouter.notificationPreferences),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.workspace_premium_outlined),
+                  title: const Text('Planes de servicio'),
+                  subtitle: const Text('Compara reservas de recogida.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).pushNamed(AppRouter.plans),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.palette_outlined),
+                  title: const Text('Apariencia'),
+                  trailing: DropdownButton<ThemeMode>(
+                    value: themeMode,
+                    onChanged: preferences.isLoading
+                        ? null
+                        : (mode) {
+                            if (mode != null) {
+                              unawaited(_changeTheme(context, ref, mode));
+                            }
+                          },
+                    items: const [
+                      DropdownMenuItem(
+                        value: ThemeMode.system,
+                        child: Text('Sistema'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.light,
+                        child: Text('Claro'),
+                      ),
+                      DropdownMenuItem(
+                        value: ThemeMode.dark,
+                        child: Text('Oscuro'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: SwitchListTile(
                   secondary: const Icon(Icons.fingerprint),
                   title: const Text('Proteger QR con biometría'),
                   subtitle: const Text(
                     'Solicita huella o rostro antes de mostrar el código de recogida.',
                   ),
-                  value: preferences?.protectPickupQrWithBiometrics ?? false,
-                  onChanged: (enabled) async {
-                    if (!enabled) {
-                      await ref
-                          .read(appPreferencesProvider.notifier)
-                          .setPickupQrBiometrics(false);
-                      return;
-                    }
-                    if (biometricAvailability.asData?.value != true) {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Configura una huella o rostro en el dispositivo para activar esta protección.',
-                            ),
-                          ),
-                        );
-                      return;
-                    }
-                    await ref
-                        .read(appPreferencesProvider.notifier)
-                        .setPickupQrBiometrics(true);
-                  },
+                  value:
+                      preferences.asData?.value.protectPickupQrWithBiometrics ??
+                      false,
+                  onChanged:
+                      preferences.isLoading || biometricAvailability.isLoading
+                      ? null
+                      : (enabled) => unawaited(
+                          _setPickupQrProtection(context, ref, enabled),
+                        ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('Ubicación de la cafetería'),
+                  subtitle: const Text('Consulta el punto de recogida.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRouter.cafeteriaLocation),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => unawaited(_signOut(context, ref)),
+                icon: const Icon(Icons.logout),
+                label: const Text('Cerrar sesión'),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () async {
-              await ref.read(firebaseAuthServiceProvider).signOut();
-            },
-            icon: const Icon(Icons.logout),
-            label: const Text('Cerrar sesión'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
-}
 
-class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({
-    required this.user,
-    required this.storedBytes,
-    required this.size,
-  });
+  Future<void> _changeTheme(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeMode mode,
+  ) async {
+    try {
+      await ref.read(appPreferencesProvider.notifier).setThemeMode(mode);
+    } catch (_) {
+      if (context.mounted) _showError(context, 'No se pudo guardar el tema.');
+    }
+  }
 
-  final User user;
-  final Uint8List? storedBytes;
-  final double size;
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(firebaseAuthServiceProvider).signOut();
+    } catch (_) {
+      if (context.mounted) {
+        _showError(context, 'No se pudo cerrar la sesión. Inténtalo de nuevo.');
+      }
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final ImageProvider<Object>? image = storedBytes != null
-        ? MemoryImage(storedBytes!)
-        : user.photoURL != null
-        ? NetworkImage(user.photoURL!)
-        : null;
-    final initials =
-        (user.displayName?.trim().isNotEmpty == true
-                ? user.displayName!.trim().substring(0, 1)
-                : user.email?.trim().isNotEmpty == true
-                ? user.email!.trim().substring(0, 1)
-                : 'L')
-            .toUpperCase();
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundImage: image,
-      child: image == null
-          ? Text(initials, style: TextStyle(fontSize: size / 3))
-          : null,
-    );
+  Future<void> _setPickupQrProtection(
+    BuildContext context,
+    WidgetRef ref,
+    bool enabled,
+  ) async {
+    if (enabled &&
+        ref.read(biometricAvailabilityProvider).asData?.value != true) {
+      _showError(
+        context,
+        'Configura una huella o rostro en el dispositivo para activar esta protección.',
+      );
+      return;
+    }
+    try {
+      await ref
+          .read(appPreferencesProvider.notifier)
+          .setPickupQrBiometrics(enabled);
+    } catch (_) {
+      if (context.mounted) {
+        _showError(context, 'No se pudo guardar la protección biométrica.');
+      }
+    }
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

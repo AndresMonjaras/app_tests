@@ -79,3 +79,9 @@ final protectPickupQrProvider = Provider<bool>((ref) {
           .protectPickupQrWithBiometrics ??
       false;
 });
+
+Future<bool> authorizePickupQrReveal(WidgetRef ref) {
+  return ref
+      .read(biometricQrProtectionServiceProvider)
+      .authorizeQrReveal(protectionEnabled: ref.read(protectPickupQrProvider));
+}
