@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/firebase_auth_service.dart';
 
@@ -14,7 +14,7 @@ final firebaseAuthServiceProvider = Provider<FirebaseAuthService>(
 );
 
 final authUserProvider = StreamProvider<User?>(
-  (ref) => ref.watch(firebaseAuthServiceProvider).changes,
+  (ref) => ref.watch(firebaseAuthServiceProvider).userChanges,
 );
 
 enum AuthFormMode { signIn, register, recover }
@@ -40,12 +40,14 @@ class AuthFormState {
     String? notice,
     bool clearError = false,
     bool clearNotice = false,
-  }) => AuthFormState(
-    mode: mode ?? this.mode,
-    isBusy: isBusy ?? this.isBusy,
-    error: clearError ? null : error ?? this.error,
-    notice: clearNotice ? null : notice ?? this.notice,
-  );
+  }) {
+    return AuthFormState(
+      mode: mode ?? this.mode,
+      isBusy: isBusy ?? this.isBusy,
+      error: clearError ? null : error ?? this.error,
+      notice: clearNotice ? null : notice ?? this.notice,
+    );
+  }
 }
 
 class AuthFormController extends Notifier<AuthFormState> {
@@ -53,6 +55,7 @@ class AuthFormController extends Notifier<AuthFormState> {
   AuthFormState build() => const AuthFormState();
 
   void selectMode(AuthFormMode mode) {
+    if (state.isBusy) return;
     state = state.copyWith(mode: mode, clearError: true, clearNotice: true);
   }
 
@@ -60,90 +63,123 @@ class AuthFormController extends Notifier<AuthFormState> {
     required String email,
     required String password,
     String? name,
-  }) => _perform(() async {
-    final service = ref.read(firebaseAuthServiceProvider);
-    if (state.mode == AuthFormMode.register) {
-      final user = await service.register(
-        name: name ?? '',
-        email: email,
-        password: password,
-      );
-      await _saveVerificationTimestamp(user);
-      state = state.copyWith(notice: 'Te enviamos un correo de verificación.');
-    } else if (state.mode == AuthFormMode.signIn) {
-      await service.signInWithEmail(email, password);
-    } else {
-      await service.recoverPassword(email);
-      state = state.copyWith(
-        mode: AuthFormMode.signIn,
-        notice: 'Si el correo está registrado, recibirás instrucciones.',
-      );
-    }
-  });
+  }) async {
+    final mode = state.mode;
+    await _perform(() async {
+      final service = ref.read(firebaseAuthServiceProvider);
+      if (mode == AuthFormMode.register) {
+        await service.register(
+          name: name ?? '',
+          email: email,
+          password: password,
+        );
+        if (!ref.mounted) return;
+        state = state.copyWith(
+          notice: 'Te enviamos un correo de verificación.',
+        );
+      } else if (mode == AuthFormMode.signIn) {
+        await service.signInWithEmail(email, password);
+      } else {
+        try {
+          await service.recoverPassword(email);
+        } on FirebaseAuthException catch (error) {
+          if (error.code != 'user-not-found') rethrow;
+        }
+        if (!ref.mounted) return;
+        state = state.copyWith(
+          mode: AuthFormMode.signIn,
+          notice: 'Si el correo está registrado, recibirás instrucciones.',
+        );
+      }
+    });
+  }
 
   Future<void> signInWithGoogle() => _perform(() async {
-    final user = await ref.read(firebaseAuthServiceProvider).signInWithGoogle();
-    await _sendVerificationIfNeeded(user);
+    if (!ref.read(authProviderAvailabilityProvider).google) {
+      throw FirebaseAuthException(code: 'operation-not-allowed');
+    }
+    await ref.read(firebaseAuthServiceProvider).signInWithGoogle();
   });
 
   Future<void> signInWithFacebook() => _perform(() async {
-    final user = await ref
-        .read(firebaseAuthServiceProvider)
-        .signInWithFacebook();
-    await _sendVerificationIfNeeded(user);
+    if (!ref.read(authProviderAvailabilityProvider).facebook) {
+      throw FirebaseAuthException(code: 'operation-not-allowed');
+    }
+    await ref.read(firebaseAuthServiceProvider).signInWithFacebook();
   });
 
-  Future<void> _sendVerificationIfNeeded(User user) async {
-    if (!user.emailVerified) {
-      await user.sendEmailVerification();
-      await _saveVerificationTimestamp(user);
-      state = state.copyWith(
-        notice: 'Verifica tu correo antes de continuar con tus pedidos.',
-      );
-    }
-  }
-
-  Future<void> _saveVerificationTimestamp(User user) async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setInt(
-      'verification_sent_at_${user.uid}',
-      DateTime.now().millisecondsSinceEpoch,
-    );
-  }
-
   Future<void> _perform(Future<void> Function() action) async {
+    if (state.isBusy) return;
     state = state.copyWith(isBusy: true, clearError: true, clearNotice: true);
     try {
       await action();
+    } on GoogleSignInException catch (error) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          error: error.code == GoogleSignInExceptionCode.canceled
+              ? 'Se canceló el acceso con Google.'
+              : 'No se pudo acceder con Google. Inténtalo de nuevo o usa correo y contraseña.',
+        );
+      }
     } on FirebaseAuthException catch (error) {
-      state = state.copyWith(error: _messageFor(error));
+      if (ref.mounted) {
+        state = state.copyWith(error: _messageFor(error));
+      }
     } catch (_) {
-      state = state.copyWith(
-        error: 'No se pudo completar la operación. Revisa tu conexión e inténtalo de nuevo.',
-      );
+      if (ref.mounted) {
+        state = state.copyWith(
+          error: 'No se pudo completar la operación. Inténtalo de nuevo.',
+        );
+      }
     } finally {
-      state = state.copyWith(isBusy: false);
+      if (ref.mounted) state = state.copyWith(isBusy: false);
     }
   }
 
   String _messageFor(FirebaseAuthException error) => switch (error.code) {
-    'email-already-in-use' => 'Ese correo ya tiene una cuenta. Inicia sesión.',
+    'email-already-in-use' => 'No se pudo crear la cuenta con esos datos.',
     'invalid-credential' ||
     'wrong-password' ||
     'user-not-found' => 'El correo o la contraseña no coinciden.',
-    'weak-password' => 'Usa una contraseña más segura.',
+    'weak-password' => 'La contraseña debe tener al menos 8 caracteres.',
     'invalid-email' => 'Escribe un correo válido.',
-    'too-many-requests' => 'Espera antes de volver a intentarlo.',
-    'operation-not-allowed' => 'Ese proveedor no está habilitado en Firebase.',
-    'email-required' => error.message ?? 'La cuenta requiere un correo válido.',
-    'account-exists-with-different-credential' => 'Ese correo ya está asociado a otro método. Inicia sesión con el método que usaste antes.',
+    'too-many-requests' => 'Espera un momento antes de volver a intentarlo.',
+    'network-request-failed' => 'Revisa tu conexión e inténtalo de nuevo.',
+    'operation-not-allowed' =>
+      'Este método de acceso no está disponible en este momento.',
+    'account-exists-with-different-credential' || 'credential-already-in-use' => 'Usa el método con el que creaste tu cuenta. Si necesitas vincular otro proveedor, contacta a administración desde tu cuenta.',
+    'popup-closed-by-user' ||
+    'cancelled-popup-request' => 'Se canceló el acceso.',
     'facebook-login-cancelled' =>
       error.message ?? 'Se canceló el acceso con Facebook.',
     'missing-google-token' =>
       error.message ?? 'No se pudo obtener la credencial de Google.',
-    _ => error.message ?? 'No se pudo autenticar la cuenta.',
+    'email-required' =>
+      error.message ?? 'La cuenta necesita un correo válido para continuar.',
+    _ => 'No se pudo completar la operación. Inténtalo de nuevo.',
   };
 }
 
 final authFormControllerProvider =
     NotifierProvider<AuthFormController, AuthFormState>(AuthFormController.new);
+
+class AuthProviderAvailability {
+  const AuthProviderAvailability({
+    required this.google,
+    required this.facebook,
+  });
+
+  final bool google;
+  final bool facebook;
+
+  bool get hasProviders => google || facebook;
+}
+
+final authProviderAvailabilityProvider = Provider<AuthProviderAvailability>((
+  ref,
+) {
+  return const AuthProviderAvailability(
+    google: bool.fromEnvironment('GOOGLE_SIGN_IN_ENABLED'),
+    facebook: bool.fromEnvironment('FACEBOOK_SIGN_IN_ENABLED'),
+  );
+});

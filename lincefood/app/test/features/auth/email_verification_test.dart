@@ -3,17 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/features/auth/domain/auth_gateway.dart';
 import 'package:lincefood_app/features/auth/domain/email_verification_policy.dart';
+import 'package:lincefood_app/features/auth/presentation/auth_gateway_provider.dart';
 import 'package:lincefood_app/features/auth/presentation/email_verification_controller.dart';
 import 'package:lincefood_app/features/auth/presentation/email_verification_screen.dart';
 
 class _FakeAuthGateway implements AuthGateway {
-  _FakeAuthGateway({this.currentEmail = 'cliente@example.com'});
-
   @override
-  String? currentEmail;
-
-  @override
-  String? get currentUid => null;
+  String? currentEmail = 'cliente@example.com';
 
   int sendCount = 0;
   bool isVerified = false;
@@ -27,6 +23,9 @@ class _FakeAuthGateway implements AuthGateway {
     sendCount++;
     if (failSend) throw StateError('Error ficticio de envío');
   }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {}
 
   @override
   Future<bool> reloadUser() async {
@@ -165,16 +164,11 @@ void main() {
     });
   });
 
-  testWidgets('oculta las acciones si no hay una sesión activa', (
+  testWidgets('oculta las acciones si Firebase no está configurado', (
     tester,
   ) async {
-    final gateway = _FakeAuthGateway(currentEmail: null);
-
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [authGatewayProvider.overrideWith((ref) => gateway)],
-        child: const MaterialApp(home: EmailVerificationScreen()),
-      ),
+      const ProviderScope(child: MaterialApp(home: EmailVerificationScreen())),
     );
 
     expect(

@@ -52,12 +52,7 @@ class EmailVerificationScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () async {
-                    final signedOut = await controller.signOut();
-                    if (signedOut && context.mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  },
+                  onPressed: controller.signOut,
                   child: const Text('Cerrar sesión'),
                 ),
               ] else
