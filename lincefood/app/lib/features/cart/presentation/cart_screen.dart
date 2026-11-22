@@ -78,8 +78,9 @@ class CartScreen extends ConsumerWidget {
                       ),
                   ],
                   selected: {pickupMode},
-                  onSelectionChanged: (selection) =>
-                      ref.read(pickupModeProvider.notifier).select(selection.first),
+                  onSelectionChanged: (selection) => ref
+                      .read(pickupModeProvider.notifier)
+                      .select(selection.first),
                 ),
                 if (uid == null || uid.isEmpty) ...[
                   const SizedBox(height: 12),
@@ -89,7 +90,9 @@ class CartScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(
                     actionState.errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
               ],
@@ -127,15 +130,25 @@ class CartScreen extends ConsumerWidget {
                         width: double.infinity,
                         child: FilledButton(
                           onPressed:
-                              uid == null || uid.isEmpty || actionState.isWorking
+                              uid == null ||
+                                  uid.isEmpty ||
+                                  actionState.isWorking
                               ? null
-                              : () => _submit(context, ref, cart, uid, pickupMode),
+                              : () => _submit(
+                                  context,
+                                  ref,
+                                  cart,
+                                  uid,
+                                  pickupMode,
+                                ),
                           child: actionState.isWorking
                               ? SizedBox.square(
                                   dimension: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Theme.of(context).colorScheme.onPrimary,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimary,
                                     semanticsLabel: 'Confirmando pedido',
                                   ),
                                 )
@@ -189,32 +202,56 @@ class _CartLineTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final variant = line.variant == null ? '' : ' (${line.variant!.label})';
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text('${line.product.name}$variant'),
-      subtitle: Text(
-        '${formatMoney(line.unitPriceCents)} c/u · ${formatMoney(line.totalCents)}',
-      ),
-      leading: IconButton(
-        tooltip: 'Quitar ${line.product.name}$variant',
-        onPressed: onRemove,
-        icon: const Icon(Icons.delete_outline),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    final theme = Theme.of(context);
+    final nombre = '${line.product.name}$variant';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IconButton(
-            tooltip: 'Reducir cantidad de ${line.product.name}$variant',
+            tooltip: 'Quitar $nombre',
+            onPressed: onRemove,
+            icon: const Icon(Icons.delete_outline),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nombre, style: theme.textTheme.bodyLarge),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${formatMoney(line.unitPriceCents)} c/u',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Subtotal ${formatMoney(line.totalCents)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Reducir cantidad de $nombre',
             onPressed: onDecrease,
             icon: const Icon(Icons.remove_circle_outline),
           ),
-          Semantics(
-            label: 'Cantidad: ${line.quantity}',
-            excludeSemantics: true,
-            child: Text('${line.quantity}'),
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Semantics(
+              label: 'Cantidad: ${line.quantity}',
+              excludeSemantics: true,
+              child: Text('${line.quantity}'),
+            ),
           ),
           IconButton(
-            tooltip: 'Aumentar cantidad de ${line.product.name}$variant',
+            tooltip: 'Aumentar cantidad de $nombre',
             onPressed: onIncrease,
             icon: const Icon(Icons.add_circle_outline),
           ),

@@ -140,11 +140,13 @@ class CatalogScreen extends ConsumerWidget {
                           const SizedBox(height: 8),
                           LayoutBuilder(
                             builder: (context, constraints) => _CategoryGrid(
-                              columns: _columnasCategorias(constraints.maxWidth),
+                              columns: _columnasCategorias(
+                                constraints.maxWidth,
+                              ),
                               children: [
                                 for (final categoria in categories)
                                   _CategoryTile(
-                                    label: categoria.isEmpty ? 'Otros' : categoria,
+                                    label: _categoryLabel(categoria),
                                     count: items
                                         .where((p) => p.categoryId == categoria)
                                         .length,
@@ -161,9 +163,7 @@ class CatalogScreen extends ConsumerWidget {
                           Text(
                             selected == null
                                 ? 'Para tu próxima pausa'
-                                : selected.isEmpty
-                                ? 'Otros'
-                                : selected,
+                                : _categoryLabel(selected),
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ],
@@ -216,9 +216,28 @@ class CatalogScreen extends ConsumerWidget {
 // Evita que el contenido se estire en escritorio.
 const _anchoMaximoCatalogo = 960.0;
 
+// Los ids de Firebase se conservan; solo se traduce lo que ve el usuario.
+String _categoryLabel(String category) {
+  switch (category.trim().toLowerCase()) {
+    case '':
+      return 'Otros';
+    case 'breakfast':
+      return 'Desayunos';
+    case 'lunch':
+      return 'Comidas';
+    case 'drinks':
+      return 'Bebidas';
+    default:
+      return category;
+  }
+}
+
 IconData _categoryIcon(String category) {
   final name = category.toLowerCase();
-  if (name.contains('beb') || name.contains('café') || name.contains('cafe')) {
+  if (name.contains('drink') ||
+      name.contains('beb') ||
+      name.contains('café') ||
+      name.contains('cafe')) {
     return Icons.local_cafe_outlined;
   }
   if (name.contains('post') || name.contains('dul')) return Icons.cake_outlined;
