@@ -104,16 +104,23 @@ class NotificationService implements LocalAdvicePreferenceHandler {
   Future<void> setLocalAdviceEnabled(bool enabled) async {
     await start();
     if (enabled) {
-      final settings = await _messaging.requestPermission();
-      final canNotify =
-          settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-      if (!canNotify) {
+      final androidNotifications = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      var canNotify = await androidNotifications?.areNotificationsEnabled();
+      if (canNotify != true) {
+        final settings = await _messaging.requestPermission();
+        canNotify =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
+      }
+      if (canNotify != true) {
         throw StateError(
           'Permite las notificaciones para activar los consejos.',
         );
       }
-      await _localAdviceScheduler.scheduleHourlyAdvice();
+      await _localAdviceScheduler.scheduleDailyAdvice();
     } else {
       await _localAdviceScheduler.cancel();
     }
@@ -180,7 +187,11 @@ class NotificationService implements LocalAdvicePreferenceHandler {
 
   Future<void> _showForegroundMessage(RemoteMessage message) async {
     final content = _mapper?.mapPayload(message.data);
-    if (content == null) return;
+    if (content == null) {
+      // Las campañas de la consola no traen "tipo"; se muestra su título y texto.
+      await _showConsoleMessage(message);
+      return;
+    }
 
     await _localNotifications.show(
       id: message.messageId?.hashCode ?? content.key.hashCode,
@@ -201,6 +212,30 @@ class NotificationService implements LocalAdvicePreferenceHandler {
         'tipo': content.key,
         if (content.orderId != null) 'orderId': content.orderId,
       }),
+    );
+  }
+
+  Future<void> _showConsoleMessage(RemoteMessage message) async {
+    final notification = message.notification;
+    final title = notification?.title?.trim() ?? '';
+    final body = notification?.body?.trim() ?? '';
+    if (title.isEmpty && body.isEmpty) return;
+
+    await _localNotifications.show(
+      id: message.messageId?.hashCode ?? '$title$body'.hashCode,
+      title: title.isEmpty ? 'Lincefood' : title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+          icon: 'ic_notification',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
     );
   }
 
@@ -261,12 +296,15 @@ class NotificationService implements LocalAdvicePreferenceHandler {
           .get();
       if (_authentication.currentUser?.uid != uid) return;
       if (snapshot.value == true) {
-        await _localAdviceScheduler.scheduleHourlyAdvice();
+        await _localAdviceScheduler.scheduleDailyAdvice();
       } else {
         await _localAdviceScheduler.cancel();
       }
-    } catch (_) {
-      // La app seguirá abierta aunque no pueda sincronizar el aviso local.
+    } catch (error, stack) {
+      // La app sigue abierta, pero el fallo debe verse en el log del dispositivo.
+      debugPrint(
+        'No se pudo sincronizar el recordatorio local: $error\n$stack',
+      );
     }
   }
 
@@ -286,6 +324,8 @@ class NotificationService implements LocalAdvicePreferenceHandler {
         ? switch (content.target) {
             NotificationTarget.catalog => AppRouter.catalog,
             NotificationTarget.orders => AppRouter.orders,
+            NotificationTarget.pickupQr =>
+              content.orderId == null ? AppRouter.orders : AppRouter.pickupQr,
           }
         : AppRouter.auth;
     navigator.pushNamed(

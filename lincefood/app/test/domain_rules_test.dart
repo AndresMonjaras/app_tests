@@ -127,25 +127,32 @@ void main() {
       );
     });
 
-    test('bloquea cancelación desde preparing y edición de líneas desde paid', () {
-      final preparing = OrderRecord(
-        id: 'pedido-1',
-        status: OrderStatus.preparing,
-        lines: const [],
-      );
-      final paid = OrderRecord(
-        id: 'pedido-2',
-        status: OrderStatus.paid,
-        lines: const [],
-      );
+    test(
+      'bloquea cancelación desde preparing y edición de líneas desde paid',
+      () {
+        final preparing = OrderRecord(
+          id: 'pedido-1',
+          status: OrderStatus.preparing,
+          lines: const [],
+        );
+        final paid = OrderRecord(
+          id: 'pedido-2',
+          status: OrderStatus.paid,
+          lines: const [],
+        );
 
-      expect(() => preparing.cancel(), throwsA(isA<DomainException>()));
-      expect(() => paid.editLines(const []), throwsA(isA<DomainException>()));
-    });
+        expect(() => preparing.cancel(), throwsA(isA<DomainException>()));
+        expect(() => paid.editLines(const []), throwsA(isA<DomainException>()));
+      },
+    );
 
     test('permite cancelar desde paid y confirmed antes de cocina', () {
       for (final status in [OrderStatus.paid, OrderStatus.confirmed]) {
-        final order = OrderRecord(id: 'pedido-1', status: status, lines: const []);
+        final order = OrderRecord(
+          id: 'pedido-1',
+          status: status,
+          lines: const [],
+        );
         expect(order.cancel().isCancelled, isTrue);
       }
     });

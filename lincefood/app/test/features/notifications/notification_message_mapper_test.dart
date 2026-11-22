@@ -54,7 +54,12 @@ void main() {
         });
 
         expect(notice, isNotNull);
-        expect(notice!.target, NotificationTarget.orders);
+        expect(
+          notice!.target,
+          type == 'pedido_listo'
+              ? NotificationTarget.pickupQr
+              : NotificationTarget.orders,
+        );
         expect(notice.orderId, 'pedido-42');
         expect(notice.title, isNot(contains('LF-12345678')));
         expect(notice.body, isNot(contains('950.00')));

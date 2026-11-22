@@ -9,6 +9,7 @@ import '../features/navigation/auth_gate_screen.dart';
 import '../features/notifications/presentation/notification_preferences_screen.dart';
 import '../features/notifications/presentation/notifications_inbox_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
+import '../features/pickup_qr/presentation/pickup_qr_screen.dart';
 import '../features/orders/presentation/staff_orders_screen.dart';
 import '../features/plans/presentation/plans_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -28,9 +29,14 @@ class AppRouter {
   static const profile = '/profile';
   static const notificationPreferences = '/notification-preferences';
   static const notifications = '/notifications';
+  static const pickupQr = '/pickup-qr';
   static const plans = '/plans';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    final arguments = settings.arguments;
+    final orderId = arguments is Map && arguments['orderId'] is String
+        ? arguments['orderId'] as String
+        : null;
     final page = switch (settings.name) {
       onboarding || auth || emailVerification || home => const AuthGateScreen(),
       admin => const ProtectedRoute(child: AdminCatalogScreen()),
@@ -46,6 +52,11 @@ class AppRouter {
         child: NotificationPreferencesScreen(),
       ),
       notifications => const ProtectedRoute(child: NotificationsInboxScreen()),
+      pickupQr => ProtectedRoute(
+        child: orderId == null
+            ? const OrdersScreen()
+            : PickupQrScreen(orderId: orderId),
+      ),
       plans => const ProtectedRoute(child: PlansScreen()),
       _ => const _NotFoundScreen(),
     };

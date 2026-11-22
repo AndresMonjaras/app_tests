@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/features/notifications/data/notification_inbox_gateway.dart';
+import 'package:lincefood_app/features/notifications/data/notification_tip_dismissals_gateway.dart';
 import 'package:lincefood_app/features/notifications/domain/notification_inbox_item.dart';
 import 'package:lincefood_app/features/notifications/presentation/notification_preferences_controller.dart';
 import 'package:lincefood_app/features/notifications/presentation/notifications_inbox_screen.dart';
@@ -21,14 +22,20 @@ NotificationInboxItem _aviso(String id, {bool leido = false, String? pedido}) {
 Future<void> _montar(
   WidgetTester tester,
   _FakeInboxGateway gateway,
-  List<NotificationInboxItem> items,
-) async {
+  List<NotificationInboxItem> items, {
+  Set<String> dismissed = const {},
+  _FakeDismissalsGateway? dismissals,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         notificationUserIdProvider.overrideWith((ref) => 'usuario-1'),
         notificationInboxGatewayProvider.overrideWithValue(gateway),
         notificationInboxProvider.overrideWith((ref) => Stream.value(items)),
+        notificationTipDismissalsGatewayProvider.overrideWithValue(
+          dismissals ?? _FakeDismissalsGateway(),
+        ),
+        dismissedTipIdsProvider.overrideWith((ref) => Stream.value(dismissed)),
       ],
       child: const MaterialApp(home: NotificationsInboxScreen()),
     ),
@@ -64,10 +71,47 @@ void main() {
     expect(gateway.markedOne, ['a']);
   });
 
+  testWidgets('muestra los consejos y no muestra los que el usuario eliminó', (
+    tester,
+  ) async {
+    await _montar(
+      tester,
+      _FakeInboxGateway(),
+      const [],
+      dismissed: {'tip_receso'},
+    );
+
+    expect(find.text('Consejos de la cafetería'), findsOneWidget);
+    expect(
+      find.text('Realiza tu pedido antes del receso para evitar filas.'),
+      findsNothing,
+    );
+    expect(
+      find.text('Consulta el menú para conocer los platillos disponibles.'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.close), findsNWidgets(4));
+  });
+
+  testWidgets('eliminar un consejo lo guarda para el usuario', (tester) async {
+    final dismissals = _FakeDismissalsGateway();
+    await _montar(
+      tester,
+      _FakeInboxGateway(),
+      const [],
+      dismissals: dismissals,
+    );
+
+    await tester.tap(find.byIcon(Icons.close).first);
+    await tester.pumpAndSettle();
+
+    expect(dismissals.dismissed, ['usuario-1:tip_receso']);
+  });
+
   testWidgets('sin avisos muestra un mensaje claro', (tester) async {
     await _montar(tester, _FakeInboxGateway(), const []);
 
-    expect(find.text('Todavía no tienes avisos.'), findsOneWidget);
+    expect(find.text('Todavía no tienes avisos.'), findsNothing);
     expect(find.text('Marcar todos'), findsNothing);
   });
 }
@@ -91,5 +135,17 @@ class _FakeInboxGateway implements NotificationInboxGateway {
     Iterable<String> notificationIds,
   ) async {
     markedAll = notificationIds.toList();
+  }
+}
+
+class _FakeDismissalsGateway implements NotificationTipDismissalsGateway {
+  final List<String> dismissed = [];
+
+  @override
+  Stream<Set<String>> watch(String uid) => Stream.value(const {});
+
+  @override
+  Future<void> dismiss(String uid, String tipId) async {
+    dismissed.add('$uid:$tipId');
   }
 }

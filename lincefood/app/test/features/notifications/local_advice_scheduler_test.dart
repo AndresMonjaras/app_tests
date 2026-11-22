@@ -6,7 +6,7 @@ void main() {
     final notifications = _FakeLocalAdviceNotifications();
     final scheduler = LocalAdviceScheduler(notifications);
 
-    await scheduler.scheduleHourlyAdvice();
+    await scheduler.scheduleDailyAdvice();
     await scheduler.cancel();
 
     expect(notifications.scheduled, isTrue);
@@ -19,7 +19,7 @@ class _FakeLocalAdviceNotifications implements LocalAdviceNotificationClient {
   bool cancelled = false;
 
   @override
-  Future<void> scheduleHourlyAdvice() async {
+  Future<void> scheduleDailyAdvice() async {
     scheduled = true;
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/notification_preferences_gateway.dart';
 import '../data/notification_inbox_gateway.dart';
+import '../data/notification_tip_dismissals_gateway.dart';
 import '../data/notification_token_registration.dart';
 import '../domain/notification_inbox_item.dart';
 import '../domain/notification_topic_preferences.dart';
@@ -37,6 +39,20 @@ final notificationInboxProvider = StreamProvider<List<NotificationInboxItem>>((
     return Stream.value(const <NotificationInboxItem>[]);
   }
   return ref.watch(notificationInboxGatewayProvider).watch(uid);
+});
+
+final notificationTipDismissalsGatewayProvider =
+    Provider<NotificationTipDismissalsGateway>((ref) {
+      return FirebaseNotificationTipDismissalsGateway(
+        FirebaseDatabase.instance,
+      );
+    });
+
+/// Ids de consejos que el usuario activo ya eliminó.
+final dismissedTipIdsProvider = StreamProvider<Set<String>>((ref) {
+  final uid = ref.watch(notificationUserIdProvider);
+  if (uid == null) return Stream.value(const <String>{});
+  return ref.watch(notificationTipDismissalsGatewayProvider).watch(uid);
 });
 
 final notificationPreferencesGatewayProvider =
@@ -133,13 +149,16 @@ class NotificationPreferencesController
     );
 
     final gateway = ref.read(notificationPreferencesGatewayProvider);
+    var step = 'guardar la preferencia';
     try {
       await gateway.save(uid, updated);
+      step = 'programar el consejo periódico';
       await ref
           .read(localAdvicePreferenceHandlerProvider)
           .setLocalAdviceEnabled(enabled);
       state = AsyncData(NotificationPreferencesViewState(preferences: updated));
-    } catch (_) {
+    } catch (error, stack) {
+      debugPrint('Consejo periódico: fallo al $step: $error\n$stack');
       try {
         await gateway.save(uid, current.preferences);
       } catch (_) {

@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
-const notificationCopySeedAsset = '../firebase/seeds/notificaciones.seed.json';
+// Copia del seed de firebase/seeds; Flutter no empaqueta archivos fuera de app/.
+const notificationCopySeedAsset =
+    'assets/notifications/notificaciones.seed.json';
 
-enum NotificationTarget { catalog, orders }
+enum NotificationTarget { catalog, orders, pickupQr }
 
 class NotificationPresentation {
   const NotificationPresentation({
@@ -66,9 +68,11 @@ class NotificationMessageMapper {
       key: key,
       title: copy['titulo']!,
       body: customBody,
-      target: key.startsWith('pedido_')
-          ? NotificationTarget.orders
-          : NotificationTarget.catalog,
+      target: switch (key) {
+        'pedido_listo' => NotificationTarget.pickupQr,
+        _ when key.startsWith('pedido_') => NotificationTarget.orders,
+        _ => NotificationTarget.catalog,
+      },
       orderId: payload['orderId'] is String
           ? payload['orderId'] as String
           : null,

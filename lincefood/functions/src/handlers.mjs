@@ -1,3 +1,5 @@
+import { error as logError } from 'firebase-functions/logger';
+
 import { AppError } from './app_error.mjs';
 import { validateAndPriceOrderLines } from './order_pricing.mjs';
 import {
@@ -90,15 +92,33 @@ export function createCreatePaymentIntentHandler({ database, stripe }) {
       );
     }
 
-    const intent = await stripe.paymentIntents.create(
-      {
-        amount: order.totalCents,
-        currency: 'mxn',
-        automatic_payment_methods: { enabled: true },
-        metadata: { orderId, uid },
-      },
-      { idempotencyKey: 'order-' + orderId },
-    );
+    let intent;
+    try {
+      intent = await stripe.paymentIntents.create(
+        {
+          amount: order.totalCents,
+          currency: 'mxn',
+          automatic_payment_methods: { enabled: true },
+          metadata: { orderId, uid },
+        },
+        { idempotencyKey: 'order-' + orderId },
+      );
+    } catch (error) {
+      const stripeErrorType = error?.type;
+      if (
+        stripeErrorType === 'StripeAuthenticationError' ||
+        stripeErrorType === 'StripePermissionError'
+      ) {
+        logError('Stripe rechazó las credenciales de createPaymentIntent.', {
+          stripeErrorType,
+        });
+        throw new AppError(
+          'failed-precondition',
+          'No se pudo completar la operación. Inténtalo de nuevo.',
+        );
+      }
+      throw error;
+    }
     if (!intent.client_secret) {
       throw new AppError('internal', 'Stripe no devolvió el pago solicitado.');
     }

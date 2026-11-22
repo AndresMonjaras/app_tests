@@ -9,13 +9,13 @@ class LocalAdviceScheduler {
 
   final LocalAdviceNotificationClient _client;
 
-  Future<void> scheduleHourlyAdvice() => _client.scheduleHourlyAdvice();
+  Future<void> scheduleDailyAdvice() => _client.scheduleDailyAdvice();
 
   Future<void> cancel() => _client.cancelAdvice();
 }
 
 abstract interface class LocalAdviceNotificationClient {
-  Future<void> scheduleHourlyAdvice();
+  Future<void> scheduleDailyAdvice();
 
   Future<void> cancelAdvice();
 }
@@ -31,9 +31,9 @@ class FlutterLocalAdviceNotificationClient
   final FlutterLocalNotificationsPlugin _notifications;
 
   @override
-  Future<void> scheduleHourlyAdvice() => _notifications.periodicallyShow(
+  Future<void> scheduleDailyAdvice() => _notifications.periodicallyShow(
     id: LocalAdviceScheduler.notificationId,
-    repeatInterval: RepeatInterval.hourly,
+    repeatInterval: RepeatInterval.daily,
     androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     notificationDetails: const NotificationDetails(
       android: AndroidNotificationDetails(

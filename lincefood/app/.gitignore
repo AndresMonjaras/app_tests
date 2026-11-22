@@ -49,3 +49,6 @@ app.*.map.json
 
 # Configuración local de Firebase
 /lib/firebase_options.dart
+
+# Claves locales para --dart-define-from-file (no subir)
+dart_defines.local.json

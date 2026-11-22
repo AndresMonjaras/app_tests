@@ -87,8 +87,28 @@ void main() {
     );
 
     expect(subscribed, ['cafeteria_menu', 'cafeteria_avisos']);
-    expect(unsubscribed, ['cafeteria_ofertas']);
+    expect(unsubscribed, ['cafeteria_ofertas', 'cafeteria_consejos']);
   });
+
+  test(
+    'el topic de consejos se guarda y se lee con la clave cafeteria_consejos',
+    () {
+      final updated = const NotificationTopicPreferences().withTopic(
+        NotificationTopic.tips,
+        true,
+      );
+
+      expect(updated.toMap()['cafeteria_consejos'], isTrue);
+      expect(
+        NotificationTopicPreferences.fromMap(updated.toMap()).tips,
+        isTrue,
+      );
+      expect(
+        NotificationTopic.fromKey('cafeteria_consejos'),
+        NotificationTopic.tips,
+      );
+    },
+  );
 }
 
 class _FakeGateway implements NotificationPreferencesGateway {

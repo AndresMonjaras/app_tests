@@ -28,9 +28,10 @@ void main() {
     expect(find.text('Menú de la cafetería'), findsOneWidget);
     expect(find.text('Ofertas'), findsOneWidget);
     expect(find.text('Avisos de la cafetería'), findsOneWidget);
-    expect(find.text('Consejos de cafetería'), findsOneWidget);
     expect(find.text('Historial'), findsOneWidget);
-    expect(find.byType(SwitchListTile), findsNWidgets(4));
+    expect(find.text('Consejos de la cafetería'), findsOneWidget);
+    expect(find.text('Recordatorio local de consejos'), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsNWidgets(5));
   });
 }
 

@@ -1,6 +1,7 @@
 export const notificationTopicKeys = Object.freeze([
   'cafeteria_menu',
   'cafeteria_ofertas',
+  'cafeteria_consejos',
   'cafeteria_avisos',
 ]);
 

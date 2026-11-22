@@ -2,7 +2,6 @@
   "rules": {
     ".read": false,
     ".write": false,
-
     "cafeteria": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true",
@@ -15,46 +14,53 @@
         }
       }
     },
-
     "categories": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true"
     },
-
     "products": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true",
       "$productId": {
         ".validate": "newData.hasChildren(['name', 'categoryId', 'available', 'prepMinutes']) && (newData.hasChild('variants') || newData.hasChild('priceCents'))",
-        "priceCents": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0" },
-        "available": { ".validate": "newData.isBoolean()" },
-        "prepMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 240" },
+        "priceCents": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "available": {
+          ".validate": "newData.isBoolean()"
+        },
+        "prepMinutes": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 240"
+        },
         "variants": {
           ".validate": "newData.hasChildren(['0'])",
           "$variantIndex": {
             ".validate": "($variantIndex === '0' || ($variantIndex === '1' && newData.parent().hasChildren(['0', '1'])) || ($variantIndex === '2' && newData.parent().hasChildren(['0', '1', '2'])) || ($variantIndex === '3' && newData.parent().hasChildren(['0', '1', '2', '3'])) || ($variantIndex === '4' && newData.parent().hasChildren(['0', '1', '2', '3', '4'])) || ($variantIndex === '5' && newData.parent().hasChildren(['0', '1', '2', '3', '4', '5']))) && newData.hasChildren(['label', 'priceCents'])",
-            "label": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
-            "priceCents": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0" },
-            "$other": { ".validate": false }
+            "label": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+            },
+            "priceCents": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+            },
+            "$other": {
+              ".validate": false
+            }
           }
         }
       }
     },
-
     "profiles": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.staff === true)",
         ".write": "auth != null && auth.uid === $uid"
       }
     },
-
     "ordersByUser": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": false
       }
     },
-
     "orders": {
       "$orderId": {
         ".read": "auth != null && (data.child('ownerUid').val() === auth.uid || auth.token.staff === true)",
@@ -62,32 +68,26 @@
         ".validate": "newData.hasChildren(['ownerUid', 'status', 'totalCents'])"
       }
     },
-
     "staffQueue": {
       ".read": "auth != null && auth.token.staff === true",
       ".write": false
     },
-
     "payments": {
       ".read": false,
       ".write": false
     },
-
     "pickupTokens": {
       ".read": false,
       ".write": false
     },
-
     "pickupSlots": {
       ".read": false,
       ".write": false
     },
-
     "plans": {
       ".read": "auth != null",
       ".write": false
     },
-
     "memberships": {
       ".read": false,
       ".write": false,
@@ -95,22 +95,19 @@
         ".write": false
       }
     },
-
     "pickupDeliveries": {
       ".read": false,
       ".write": false
     },
-
     "notificationPreferences": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
         "$topic": {
-          ".validate": "($topic === 'cafeteria_menu' || $topic === 'cafeteria_ofertas' || $topic === 'cafeteria_avisos' || $topic === 'consejos_cafeteria') && newData.isBoolean()"
+          ".validate": "($topic === 'cafeteria_menu' || $topic === 'cafeteria_ofertas' || $topic === 'cafeteria_consejos' || $topic === 'cafeteria_avisos' || $topic === 'consejos_cafeteria') && newData.isBoolean()"
         }
       }
     },
-
     "notificationTokens": {
       "$uid": {
         ".read": false,
@@ -132,7 +129,6 @@
         }
       }
     },
-
     "notificationInbox": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
@@ -163,18 +159,25 @@
         }
       }
     },
-
     "deviceRegistrations": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid"
       }
     },
-
     "orderEvents": {
       "$orderId": {
         ".read": "auth != null && (auth.token.staff === true || auth.token.admin === true)",
         ".write": false
+      }
+    },
+    "notificationTipDismissals": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$tipId": {
+          ".validate": "newData.isBoolean() && $tipId.length <= 32"
+        }
       }
     }
   }

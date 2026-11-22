@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
+import '../domain/cafeteria_tips.dart';
 import '../domain/notification_inbox_item.dart';
 import 'notification_preferences_controller.dart';
+import 'notification_section.dart';
 
 /// Número de avisos sin leer del usuario activo.
 final unreadNotificationCountProvider = Provider<int>((ref) {
@@ -18,6 +20,9 @@ class NotificationsInboxScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final inbox = ref.watch(notificationInboxProvider);
     final unread = ref.watch(unreadNotificationCountProvider);
+    final dismissed =
+        ref.watch(dismissedTipIdsProvider).value ?? const <String>{};
+    final tips = visibleCafeteriaTips(dismissed);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,6 +31,12 @@ class NotificationsInboxScreen extends ConsumerWidget {
           if (unread > 0)
             TextButton(
               onPressed: () => _markAllAsRead(context, ref),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
               child: const Text('Marcar todos'),
             ),
         ],
@@ -35,36 +46,62 @@ class NotificationsInboxScreen extends ConsumerWidget {
         error: (_, _) =>
             const Center(child: Text('No se pudieron cargar los avisos.')),
         data: (items) {
-          if (items.isEmpty) {
+          if (items.isEmpty && tips.isEmpty) {
             return const Center(child: Text('Todavía no tienes avisos.'));
           }
-          return Column(
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    unread == 0 ? 'Todo leído' : '$unread sin leer',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+              if (tips.isNotEmpty) ...[
+                NotificationSection(
+                  title: 'Consejos de la cafetería',
+                  children: [
+                    for (final tip in tips)
+                      _TipTile(
+                        tip: tip,
+                        onDismiss: () => _dismissTip(context, ref, tip),
+                      ),
+                  ],
                 ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) => _AvisoTile(
-                    item: items[index],
-                    onTap: () => _open(context, ref, items[index]),
-                  ),
-                ),
+                const SizedBox(height: 16),
+              ],
+              NotificationSection(
+                title: unread == 0 ? 'Todo leído' : '$unread sin leer',
+                children: [
+                  if (items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text('Todavía no tienes avisos de pedidos.'),
+                    ),
+                  for (final item in items)
+                    NotificationHistoryTile(
+                      item: item,
+                      icon: item.orderId != null
+                          ? Icons.receipt_long_outlined
+                          : Icons.campaign_outlined,
+                      onTap: () => _open(context, ref, item),
+                    ),
+                ],
               ),
             ],
           );
         },
       ),
+    );
+  }
+
+  Future<void> _dismissTip(
+    BuildContext context,
+    WidgetRef ref,
+    CafeteriaTip tip,
+  ) async {
+    final uid = ref.read(notificationUserIdProvider);
+    if (uid == null) return;
+    await _runSafely(
+      context,
+      () => ref
+          .read(notificationTipDismissalsGatewayProvider)
+          .dismiss(uid, tip.id),
     );
   }
 
@@ -82,9 +119,12 @@ class NotificationsInboxScreen extends ConsumerWidget {
       );
     }
     if (!context.mounted) return;
-    if (item.orderId != null) {
-      await Navigator.of(context).pushNamed(AppRouter.orders);
-    }
+    final orderId = item.orderId;
+    if (orderId == null) return;
+    await Navigator.of(context).pushNamed(
+      item.type == 'pedido_listo' ? AppRouter.pickupQr : AppRouter.orders,
+      arguments: {'orderId': orderId},
+    );
   }
 
   Future<void> _markAllAsRead(BuildContext context, WidgetRef ref) async {
@@ -117,40 +157,22 @@ class NotificationsInboxScreen extends ConsumerWidget {
   }
 }
 
-class _AvisoTile extends StatelessWidget {
-  const _AvisoTile({required this.item, required this.onTap});
+class _TipTile extends StatelessWidget {
+  const _TipTile({required this.tip, required this.onDismiss});
 
-  final NotificationInboxItem item;
-  final VoidCallback onTap;
+  final CafeteriaTip tip;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return ListTile(
-      onTap: onTap,
-      leading: Icon(
-        item.orderId != null
-            ? Icons.receipt_long_outlined
-            : Icons.campaign_outlined,
+      leading: const Icon(Icons.lightbulb_outline),
+      title: Text(tip.text),
+      trailing: IconButton(
+        tooltip: 'Eliminar consejo',
+        icon: const Icon(Icons.close),
+        onPressed: onDismiss,
       ),
-      title: Text(
-        item.title,
-        style: item.isRead
-            ? null
-            : const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text('${item.body}\n${_formatearFecha(item.createdAt)}'),
-      isThreeLine: true,
-      trailing: item.isRead
-          ? null
-          : Icon(Icons.circle, size: 10, color: colors.primary),
     );
   }
-}
-
-String _formatearFecha(int milisegundos) {
-  final fecha = DateTime.fromMillisecondsSinceEpoch(milisegundos).toLocal();
-  String dosDigitos(int valor) => valor.toString().padLeft(2, '0');
-  return '${dosDigitos(fecha.day)}/${dosDigitos(fecha.month)}/${fecha.year}  '
-      '${dosDigitos(fecha.hour)}:${dosDigitos(fecha.minute)}';
 }

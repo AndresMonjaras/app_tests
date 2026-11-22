@@ -1,0 +1,38 @@
+{
+  "cafeteria_menu": {
+    "titulo": "Menú actualizado",
+    "cuerpo": "Consulta el menú disponible en la app."
+  },
+  "cafeteria_ofertas": {
+    "titulo": "Ofertas de la cafetería",
+    "cuerpo": "Revisa las ofertas disponibles en la app."
+  },
+  "cafeteria_consejos": {
+    "titulo": "Consejos de la cafetería",
+    "cuerpo": "Revisa los consejos de la cafetería en la app."
+  },
+  "cafeteria_avisos": {
+    "titulo": "Aviso de la cafetería",
+    "cuerpo": "Consulta la app para ver los avisos de la cafetería."
+  },
+  "pedido_listo": {
+    "titulo": "Pedido listo",
+    "cuerpo": "Tu pedido puede estar listo. Abre la app para consultar"
+  },
+  "pedido_registrado": {
+    "titulo": "Pedido registrado",
+    "cuerpo": "Tu pedido fue registrado. Abre la app para consultar su avance."
+  },
+  "pedido_confirmado": {
+    "titulo": "Pedido recibido",
+    "cuerpo": "La cafetería ha confirmado tu pedido."
+  },
+  "pedido_en_cocina": {
+    "titulo": "Tu pedido está en cocina",
+    "cuerpo": "La cafetería ya está preparando tu pedido."
+  },
+  "pedido_entregado": {
+    "titulo": "¡Disfruta tu comida!",
+    "cuerpo": "Tu pedido ha sido entregado correctamente."
+  }
+}

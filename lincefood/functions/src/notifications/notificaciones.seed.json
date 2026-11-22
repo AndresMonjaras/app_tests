@@ -7,6 +7,10 @@
     "titulo": "Ofertas de la cafetería",
     "cuerpo": "Revisa las ofertas disponibles en la app."
   },
+  "cafeteria_consejos": {
+    "titulo": "Consejos de la cafetería",
+    "cuerpo": "Revisa los consejos de la cafetería en la app."
+  },
   "cafeteria_avisos": {
     "titulo": "Aviso de la cafetería",
     "cuerpo": "Consulta la app para ver los avisos de la cafetería."

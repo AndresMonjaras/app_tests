@@ -387,3 +387,22 @@ test('un cambio de estado sin aviso asociado no envía nada', async () => {
 
   assert.deepEqual(sent.map((message) => message.data.type), ['pedido_listo']);
 });
+
+test('el topic de consejos acepta envío del personal con el texto del seed', async () => {
+  const sent = [];
+  const handler = createSendTopicNotificationHandler({
+    database: new FakeDatabase({
+      notificationPreferences: { 'usuario-1': { cafeteria_consejos: true } },
+    }),
+    messaging: { send: async (message) => sent.push(message) },
+    loadCopies: loadNotificationCopies,
+  });
+
+  await handler({
+    auth: { uid: 'staff-1', token: { staff: true } },
+    data: { topic: 'cafeteria_consejos' },
+  });
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].topic, 'cafeteria_consejos');
+});
