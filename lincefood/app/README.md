@@ -10,9 +10,9 @@ subproyecto con la aplicación del directorio padre.
 - Login, registro y recuperación comparten el formulario existente. La recuperación
   no revela si un correo existe. Los errores de conexión, límites y conflictos de
   proveedores tienen mensajes en español; se bloquean envíos duplicados.
-- Google y Facebook siempre aparecen. Los flags `GOOGLE_SIGN_IN_ENABLED` y
-  `FACEBOOK_SIGN_IN_ENABLED` habilitan los botones, pero no configuran los servicios:
-  también hacen falta los ajustes de Firebase y de cada proveedor.
+- Google y GitHub aparecen y están habilitados por defecto. Las opciones
+  `GOOGLE_SIGN_IN_ENABLED` y `GITHUB_SIGN_IN_ENABLED` permiten controlarlos al
+  compilar; también hacen falta los ajustes de Firebase y de cada proveedor.
 - Perfil muestra Administración únicamente con el claim `admin`. La pantalla
   también comprueba acceso; las funciones del servidor exigen el claim.
 - Administración permite crear y editar nombre, categoría, preparación, precio,
@@ -38,12 +38,11 @@ flutter test --reporter expanded
 
 Desde `functions/`: `node --test`.
 
-El análisis no encontró incidencias. La suite Flutter pasa 142 pruebas y la suite
-Node pasa 40. Se cubren precios límite, conservación de variantes, errores de
-formularios, confirmación de permisos, doble envío, login antes de bienvenida,
-verificación, sesión vigente, recuperación, errores de acceso y pantalla pequeña
-con teclado y texto ampliado. Se inspeccionaron capturas móviles de login y
-catálogo generadas con widgets y datos de prueba.
+El análisis no encontró incidencias. La suite Flutter pasa 188 pruebas y la suite
+Node pasa 64. Se cubren precios límite, conservación de variantes, errores de
+formularios, permisos, OAuth, navegación en teléfono y ventana ancha, privacidad,
+doble envío, verificación, sesión, recuperación y pantallas con texto ampliado.
+También se compiló un APK debug.
 
 Codex comparó los cambios con copias previas y revisó independientemente los
 contratos y las pruebas. DeepSeek propuso un conversor completo de precios usando
@@ -53,10 +52,14 @@ modelo compatible devolvió RESOURCE_EXHAUSTED (429).
 
 ## Límites y puesta en servicio pendiente
 
-- No se desplegaron funciones/reglas, no hubo commits ni cambios de credenciales.
-  No se verificaron OAuth, correo, custom claims o RTDB contra servicios reales.
-  Las pruebas del servidor usan dobles; no sustituyen una prueba de integración
-  con el emulador. No se generó un APK nuevo en esta tarea.
+- El alumno confirmó pruebas reales de correo, Google y GitHub en Android; la
+  vinculación de cuentas tiene pruebas automatizadas. Las pruebas Node usan dobles
+  y no sustituyen pruebas de integración del backend.
+- El despliegue de `synchronizeAvatarEligibility` y las reglas de Storage queda a
+  cargo del owner. El intento del alumno se detuvo por falta de
+  `iam.serviceAccounts.ActAs`; después del despliegue se debe probar el avatar
+  con cuentas email y sociales.
+- No se ejecutaron comandos de Git ni se cambiaron credenciales de Firebase.
 - Firebase debe estar configurado localmente. La app mantiene la pantalla de
   configuración cuando no puede inicializar Firebase.
 - Los cambios concurrentes de roles sobre un mismo UID todavía pueden sobrescribirse:
