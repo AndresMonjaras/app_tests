@@ -32,6 +32,16 @@ class PaymentController extends Notifier<PaymentState> {
     } on PaymentCancelledException {
       if (!ref.mounted) return;
       state = const PaymentState.inactive();
+    } on PaymentDeclinedException {
+      if (!ref.mounted) return;
+      state = const PaymentState.error(
+        'Pago rechazado. Tu pedido sigue pendiente. Intenta con otro método.',
+      );
+    } on PaymentNetworkException {
+      if (!ref.mounted) return;
+      state = const PaymentState.error(
+        'Sin conexión para procesar el pago. Inténtalo de nuevo.',
+      );
     } catch (_) {
       if (!ref.mounted) return;
       state = const PaymentState.error(
