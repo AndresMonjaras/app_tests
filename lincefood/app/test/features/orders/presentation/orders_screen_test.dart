@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +15,94 @@ import 'package:lincefood_app/features/orders/presentation/orders_providers.dart
 import 'package:lincefood_app/features/orders/presentation/orders_screen.dart';
 
 void main() {
+  testWidgets('solo los pedidos terminados se ocultan y se pueden restaurar', (
+    tester,
+  ) async {
+    final repository = MemoryOrdersRepository();
+    await tester.binding.setSurfaceSize(const Size(800, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final changes = StreamController<Set<String>>.broadcast();
+    addTearDown(repository.dispose);
+    addTearDown(changes.close);
+    final saved = <String>{};
+    const uid = 'uid-1';
+    OrderRecord order(String id, OrderStatus status, {bool cancelled = false}) {
+      return OrderRecord(
+        id: id,
+        folio: 'LF-$id',
+        status: status,
+        lines: [],
+        isCancelled: cancelled,
+      );
+    }
+
+    repository.setOrders(uid, [
+      order('done', OrderStatus.delivered),
+      order('ready', OrderStatus.ready),
+      order('rejected', OrderStatus.rejected),
+      order('cancelled', OrderStatus.paymentPending, cancelled: true),
+    ]);
+
+    Future<void> openHistory() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ordersRepositoryProvider.overrideWithValue(repository),
+            uidActivoProvider.overrideWithValue(uid),
+            hiddenOrderIdsProvider.overrideWith((ref, user) async* {
+              expect(user, uid);
+              yield Set.of(saved);
+              yield* changes.stream;
+            }),
+            setOrderHiddenProvider.overrideWithValue((user, id, hidden) async {
+              expect(user, uid);
+              hidden ? saved.add(id) : saved.remove(id);
+              changes.add(Set.of(saved));
+            }),
+          ],
+          child: const MaterialApp(home: OrdersScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> swipeAndConfirm() async {
+      await tester.drag(
+        find.byKey(const ValueKey('done')).first,
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('¿Ocultar pedido?'), findsOneWidget);
+      await tester.tap(find.text('Ocultar'));
+      await tester.pumpAndSettle();
+    }
+
+    await openHistory();
+    expect(find.byType(Dismissible), findsNWidgets(3));
+    expect(
+      find.ancestor(
+        of: find.text('LF-ready'),
+        matching: find.byType(Dismissible),
+      ),
+      findsNothing,
+    );
+
+    await swipeAndConfirm();
+    expect(find.text('LF-done'), findsNothing);
+    expect(saved, {'done'});
+    await tester.tap(find.text('Deshacer'));
+    await tester.pumpAndSettle();
+    expect(find.text('LF-done'), findsOneWidget);
+    expect(saved, isEmpty);
+
+    await swipeAndConfirm();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await openHistory();
+    expect(find.text('LF-done'), findsNothing);
+    expect(find.text('LF-ready'), findsOneWidget);
+  });
+
   testWidgets('el ticket muestra folio, total y estado en cocina', (
     tester,
   ) async {

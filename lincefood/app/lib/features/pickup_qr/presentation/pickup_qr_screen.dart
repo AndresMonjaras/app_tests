@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/errors/domain_exception.dart';
+import '../../orders/domain/order_status.dart';
+import '../../orders/presentation/orders_providers.dart';
 import '../domain/pickup_qr_gateway.dart';
 import 'pickup_qr_providers.dart';
 
@@ -13,7 +15,16 @@ class PickupQrScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final qr = ref.watch(pickupQrProvider(orderId));
+    final orders = ref.watch(ordersStreamProvider);
+    final canShow =
+        orders.value?.any(
+          (order) =>
+              order.id == orderId &&
+              !order.isCancelled &&
+              order.status == OrderStatus.ready,
+        ) ??
+        false;
+    final qr = canShow ? ref.watch(pickupQrProvider(orderId)) : null;
 
     void retry() => ref.invalidate(pickupQrProvider(orderId));
 
@@ -23,28 +34,34 @@ class PickupQrScreen extends ConsumerWidget {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: qr.when(
-              loading: () => const CircularProgressIndicator(
-                semanticsLabel: 'Generando QR de recogida',
-              ),
-              error: (error, _) => _QrMessage(
-                message: error is DomainException
-                    ? error.message
-                    : 'No se pudo generar el QR. Inténtalo de nuevo.',
-                onRetry: retry,
-              ),
-              data: (reveal) {
-                final token = reveal.token;
-                if (token == null) {
-                  return _QrMessage(
-                    message:
-                        reveal.blockedReason ?? 'El QR no está disponible.',
+            child:
+                qr?.when(
+                  loading: () => const CircularProgressIndicator(
+                    semanticsLabel: 'Generando QR de recogida',
+                  ),
+                  error: (error, _) => _QrMessage(
+                    message: error is DomainException
+                        ? error.message
+                        : 'No se pudo generar el QR. Inténtalo de nuevo.',
                     onRetry: retry,
-                  );
-                }
-                return _QrCode(pickup: token, onRefresh: retry);
-              },
-            ),
+                  ),
+                  data: (reveal) {
+                    final token = reveal.token;
+                    if (token == null) {
+                      return _QrMessage(
+                        message:
+                            reveal.blockedReason ?? 'El QR no está disponible.',
+                        onRetry: retry,
+                      );
+                    }
+                    return _QrCode(pickup: token, onRefresh: retry);
+                  },
+                ) ??
+                (orders.isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text(
+                        'El QR solo está disponible para pedidos listos.',
+                      )),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
 import 'order_actions_controller.dart';
@@ -30,7 +31,19 @@ class StaffOrdersScreen extends ConsumerWidget {
     final staffPermission = ref.watch(staffPermissionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pedidos de cafetería')),
+      appBar: AppBar(
+        title: const Text('Pedidos de cafetería'),
+        actions: [
+          if (staffPermission.value == true)
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PickupScannerScreen()),
+              ),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Escanear QR'),
+            ),
+        ],
+      ),
       body: staffPermission.when(
         data: (isStaff) => isStaff
             ? const _StaffOrderList()

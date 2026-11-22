@@ -8,13 +8,14 @@ import 'package:lincefood_app/features/pickup_qr/domain/pickup_qr_gateway.dart';
 import 'package:lincefood_app/features/pickup_qr/presentation/pickup_qr_providers.dart';
 
 class FakeAuthenticator implements BiometricAuthenticator {
-  FakeAuthenticator({this.allow = true});
+  FakeAuthenticator({this.allow = true, this.available = true});
 
   bool allow;
+  final bool available;
   int calls = 0;
 
   @override
-  Future<bool> get isBiometricAvailable async => true;
+  Future<bool> get isBiometricAvailable async => available;
 
   @override
   Future<bool> authenticateForPickupQr() async {
@@ -26,7 +27,6 @@ class FakeAuthenticator implements BiometricAuthenticator {
 class FakePickupGateway implements PickupQrGateway {
   final issued = <String>[];
   final consumed = <String>[];
-  final consumedFolios = <String>[];
   Completer<void>? consumeGate;
   String? consumeError;
 
@@ -43,13 +43,6 @@ class FakePickupGateway implements PickupQrGateway {
   Future<String> consumeToken(String token) async {
     consumed.add(token);
     if (consumeGate != null) await consumeGate!.future;
-    if (consumeError != null) throw DomainException(consumeError!);
-    return 'ord1';
-  }
-
-  @override
-  Future<String> consumeFolio(String folio) async {
-    consumedFolios.add(folio);
     if (consumeError != null) throw DomainException(consumeError!);
     return 'ord1';
   }
@@ -187,55 +180,38 @@ void main() {
     },
   );
 
-  test('el folio manual se envía en mayúsculas y entrega una vez', () async {
-    final gateway = FakePickupGateway();
-    final container = _container(
-      authenticator: FakeAuthenticator(),
-      gateway: gateway,
-    );
-    addTearDown(container.dispose);
-    final controller = container.read(pickupScanControllerProvider.notifier);
+  test(
+    'sin biometría disponible se emite el QR con la sesión activa',
+    () async {
+      final authenticator = FakeAuthenticator(available: false);
+      final gateway = FakePickupGateway();
+      final container = _container(
+        authenticator: authenticator,
+        gateway: gateway,
+      );
+      addTearDown(container.dispose);
 
-    await controller.handleFolio('  lf-abcd1234 ');
-    await controller.handleFolio('LF-ABCD1234');
+      expect((await _requestPickup(container, 'ord1')).token, isNotNull);
+      expect(authenticator.calls, 0);
+      expect(gateway.issued, ['ord1']);
+    },
+  );
 
-    final state = container.read(pickupScanControllerProvider);
-    expect(state.delivered, isTrue);
-    expect(state.message, 'Pedido ord1 entregado.');
-    expect(gateway.consumedFolios, ['LF-ABCD1234']);
-    expect(gateway.consumed, isEmpty);
-  });
-
-  test('un folio rechazado por el servidor muestra el error', () async {
-    final gateway = FakePickupGateway()
-      ..consumeError = 'No se encontró un pedido con ese folio.';
-    final container = _container(
-      authenticator: FakeAuthenticator(),
-      gateway: gateway,
-    );
-    addTearDown(container.dispose);
-    final controller = container.read(pickupScanControllerProvider.notifier);
-
-    await controller.handleFolio('LF-NOEXISTE');
-
-    final state = container.read(pickupScanControllerProvider);
-    expect(state.delivered, isFalse);
-    expect(state.busy, isFalse);
-    expect(state.message, 'No se encontró un pedido con ese folio.');
-  });
-
-  test('un folio vacío no llama al servidor', () async {
-    final gateway = FakePickupGateway();
-    final container = _container(
-      authenticator: FakeAuthenticator(),
-      gateway: gateway,
-    );
-    addTearDown(container.dispose);
-
-    await container
-        .read(pickupScanControllerProvider.notifier)
-        .handleFolio('   ');
-
-    expect(gateway.consumedFolios, isEmpty);
-  });
+  for (final message in [
+    'El pedido todavía no está listo para recoger.',
+    'Solo el personal puede entregar pedidos.',
+  ]) {
+    test('el escáner muestra el error: $message', () async {
+      final gateway = FakePickupGateway()..consumeError = message;
+      final container = _container(
+        authenticator: FakeAuthenticator(),
+        gateway: gateway,
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(pickupScanControllerProvider.notifier);
+      await controller.handleCode('token-ord1');
+      expect(container.read(pickupScanControllerProvider).message, message);
+      expect(container.read(pickupScanControllerProvider).delivered, isFalse);
+    });
+  }
 }

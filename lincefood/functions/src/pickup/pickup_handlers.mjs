@@ -71,7 +71,7 @@ function pickupBlockReason(order, payment) {
   if (payment?.status !== 'succeeded') {
     return 'El pedido todavía no está pagado.';
   }
-  if (normalizeStoredStatus(order.status) !== 'ready') {
+  if (order.isCancelled === true || normalizeStoredStatus(order.status) !== 'ready') {
     return 'El pedido todavía no está listo para recoger.';
   }
   return null;
@@ -115,60 +115,6 @@ export function createIssuePickupTokenHandler({
   };
 }
 
-// Reclama el token de forma atómica: solo una transacción puede marcarlo usado.
-async function claimPickupToken(tokenRef, now) {
-  let rejection;
-  const consumedAt = now();
-  const claim = await tokenRef.transaction((current) => {
-    rejection = undefined;
-    if (current === null) return null; // RTDB puede empezar con la caché vacía.
-    if (current.consumedAt) {
-      rejection = usedTokenMessage;
-      return undefined;
-    }
-    if (current.expiresAt <= consumedAt) {
-      rejection = expiredTokenMessage;
-      return undefined;
-    }
-    return { ...current, consumedAt };
-  });
-  if (!claim.committed || !claim.snapshot.val()) {
-    throw new AppError('failed-precondition', rejection ?? usedTokenMessage);
-  }
-  return consumedAt;
-}
-
-// Libera el token solo si sigue reclamado por este intento, para que el
-// cliente pueda volver a presentarlo cuando la entrega no se completó.
-async function releasePickupToken(tokenRef, consumedAt) {
-  await tokenRef.transaction((current) =>
-    current && current.consumedAt === consumedAt
-      ? { ...current, consumedAt: null }
-      : undefined,
-  );
-}
-
-// Reserva la entrega de un pedido. Solo una operación puede entregarlo, y la
-// reserva queda como registro de que ya se entregó.
-async function claimDeliveryGate(database, orderId, at) {
-  const gate = await database
-    .ref('pickupDeliveries/' + orderId)
-    .transaction((current) => (current ? undefined : { claimedAt: at }));
-  if (!gate.committed) {
-    throw new AppError(
-      'failed-precondition',
-      'Este pedido ya se está entregando o ya fue entregado.',
-    );
-  }
-}
-
-// Solo se libera si la escritura de entrega no se completó.
-async function releaseDeliveryGate(database, orderId, at) {
-  await database.ref('pickupDeliveries/' + orderId).transaction((current) =>
-    current && current.claimedAt === at ? null : undefined,
-  );
-}
-
 function deliveryEvent({ actor, at, tokenId }) {
   return {
     type: 'status_changed',
@@ -182,108 +128,75 @@ function deliveryEvent({ actor, at, tokenId }) {
   };
 }
 
-// Entrega el pedido en una sola escritura multiubicación: el estado, la
-// auditoría, la vista del cliente y la cola cambian juntos o no cambia nada.
-// La reserva evita confirmar dos veces la misma entrega.
-async function deliverOrder({
-  database,
-  orderId,
-  actor,
-  at,
-  tokenId,
-}) {
-  await claimDeliveryGate(database, orderId, at);
-
-  try {
-    const { order, payment } = await readPickupState(database, orderId);
-    if (!order) {
-      throw new AppError('not-found', 'No se encontró el pedido.');
-    }
-    const blockReason = pickupBlockReason(order, payment);
-    if (blockReason) {
-      throw new AppError('failed-precondition', blockReason);
-    }
-    if (order.activePickupTokenId !== tokenId) {
-      throw new AppError('failed-precondition', replacedTokenMessage);
-    }
-
-    const delivered = {
-      ...order,
-      status: 'delivered',
-      deliveredAt: at,
-      deliveredBy: actor.uid,
-    };
-    const customerView = customerOrderView(delivered);
-    delete customerView.activePickupTokenId;
-
-    const eventKey = database.ref('orderEvents/' + orderId).push().key;
-    await database.ref().update({
-      ['orders/' + orderId + '/status']: 'delivered',
-      ['orders/' + orderId + '/deliveredAt']: at,
-      ['orders/' + orderId + '/deliveredBy']: actor.uid,
-      ['orderEvents/' + orderId + '/' + eventKey]: deliveryEvent({
-        actor,
-        at,
-        tokenId,
-      }),
-      ['ordersByUser/' + order.ownerUid + '/' + orderId]: customerView,
-      ['staffQueue/' + orderId]: null,
-    });
-
-    return delivered;
-  } catch (error) {
-    await releaseDeliveryGate(database, orderId, at);
-    if (error instanceof AppError) throw error;
-    throw new AppError('internal', deliveryFailedMessage);
-  }
-}
-
-// Valida el QR y marca el pedido como entregado. Dos escaneos simultáneos
-// no pueden ganar: solo la primera transacción reclama el token.
+// La raíz es el ancestro común del pago, el token y las vistas del pedido.
 export function createConsumePickupTokenHandler({ database, now = Date.now }) {
   return async (request) => {
     const actor = requireStaff(request);
-    const token = requireTokenText(request.data?.token);
-    const tokenId = hashPickupToken(token);
-    const tokenRef = database.ref('pickupTokens/' + tokenId);
-
-    const record = (await tokenRef.get()).val();
-    if (!record) {
-      throw new AppError('not-found', 'El código no es válido.');
-    }
-    if (record.consumedAt) {
-      throw new AppError('failed-precondition', usedTokenMessage);
-    }
-    if (record.expiresAt <= now()) {
-      throw new AppError('failed-precondition', expiredTokenMessage);
-    }
-
-    const orderId = record.orderId;
-    const { order, payment } = await readPickupState(database, orderId);
-    if (!order || order.ownerUid !== record.ownerUid) {
-      throw new AppError('not-found', 'El código no es válido.');
-    }
-    const blockReason = pickupBlockReason(order, payment);
-    if (blockReason) {
-      throw new AppError('failed-precondition', blockReason);
-    }
-
-    const consumedAt = await claimPickupToken(tokenRef, now);
+    const tokenId = hashPickupToken(requireTokenText(request.data?.token));
+    const root = database.ref();
+    const eventKey = root.child('orderEvents').push().key;
+    let rejection;
+    let deliveredOrderId;
 
     try {
-      await deliverOrder({
-        database,
-        orderId,
-        actor,
-        at: consumedAt,
-        tokenId,
-      });
-    } catch (error) {
-      await releasePickupToken(tokenRef, consumedAt);
-      throw error;
-    }
+      const result = await root.transaction((current) => {
+        rejection = undefined;
+        deliveredOrderId = undefined;
+        if (current === null) return null;
 
-    return { orderId, status: 'delivered' };
+        const token = current.pickupTokens?.[tokenId];
+        const orderId = token?.orderId;
+        const order = current.orders?.[orderId];
+        if (!token || !order || order.ownerUid !== token.ownerUid) {
+          rejection = new AppError('not-found', 'El código no es válido.');
+          return undefined;
+        }
+
+        const at = now();
+        let reason;
+        if (token.consumedAt != null) {
+          reason = usedTokenMessage;
+        } else if (token.expiresAt <= at) {
+          reason = expiredTokenMessage;
+        } else {
+          reason = pickupBlockReason(order, current.payments?.[orderId]);
+          if (!reason && order.activePickupTokenId !== tokenId) {
+            reason = replacedTokenMessage;
+          }
+        }
+        if (reason) {
+          rejection = new AppError('failed-precondition', reason);
+          return undefined;
+        }
+
+        const delivered = {
+          ...order,
+          status: 'delivered',
+          deliveredAt: at,
+          deliveredBy: actor.uid,
+        };
+        delete delivered.activePickupTokenId;
+
+        current.orders[orderId] = delivered;
+        current.pickupTokens[tokenId] = { ...token, consumedAt: at };
+        const history = (current.ordersByUser ??= {});
+        (history[order.ownerUid] ??= {})[orderId] = customerOrderView(delivered);
+        const events = (current.orderEvents ??= {});
+        (events[orderId] ??= {})[eventKey] = deliveryEvent({ actor, at, tokenId });
+        if (current.staffQueue) delete current.staffQueue[orderId];
+
+        deliveredOrderId = orderId;
+        return current;
+      });
+
+      if (!result.committed || !deliveredOrderId || !result.snapshot.exists()) {
+        throw rejection ?? new AppError('not-found', 'El código no es válido.');
+      }
+      return { orderId: deliveredOrderId, status: 'delivered' };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError('internal', deliveryFailedMessage);
+    }
   };
 }
 

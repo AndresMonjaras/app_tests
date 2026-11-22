@@ -23,30 +23,33 @@ class PickupQrReveal {
 
 final pickupQrProvider = FutureProvider.autoDispose
     .family<PickupQrReveal, String>((ref, orderId) async {
-      final authorized = await ref
-          .read(biometricQrProtectionServiceProvider)
-          .authorizeQrReveal(
-            protectionEnabled: ref.read(protectPickupQrProvider),
-          );
+      final protectionEnabled = ref.read(protectPickupQrProvider);
+      final protection = ref.read(biometricQrProtectionServiceProvider);
+      final gateway = ref.read(pickupQrGatewayProvider);
+      final authorized =
+          !protectionEnabled ||
+          !await protection.authenticator.isBiometricAvailable ||
+          await protection.authorizeQrReveal(protectionEnabled: true);
       if (!authorized) {
         return const PickupQrReveal.blocked(
           'Confirma tu identidad para mostrar el QR de recogida.',
         );
       }
-      final token = await ref.read(pickupQrGatewayProvider).issueToken(orderId);
+      if (!ref.mounted) {
+        return const PickupQrReveal.blocked('El QR no está disponible.');
+      }
+      final token = await gateway.issueToken(orderId);
       return PickupQrReveal.revealed(token);
     });
 
 class PickupScanState {
   const PickupScanState({
     this.busy = false,
-    this.lastCode,
     this.message,
     this.delivered = false,
   });
 
   final bool busy;
-  final String? lastCode;
   final String? message;
   final bool delivered;
 }
@@ -56,37 +59,26 @@ class PickupScanController extends Notifier<PickupScanState> {
   @override
   PickupScanState build() => const PickupScanState();
 
-  Future<void> handleCode(String code) {
-    final trimmed = code.trim();
-    return _deliver(trimmed, (gateway) => gateway.consumeToken(trimmed));
-  }
+  Future<void> handleCode(String code) async {
+    final input = code.trim();
+    if (input.isEmpty || state.busy || state.message != null) return;
 
-  // Entrega manual con folio. Sigue requiriendo personal autorizado en el servidor.
-  Future<void> handleFolio(String folio) {
-    final normalized = folio.trim().toUpperCase();
-    return _deliver(normalized, (gateway) => gateway.consumeFolio(normalized));
-  }
-
-  Future<void> _deliver(
-    String input,
-    Future<String> Function(PickupQrGateway gateway) send,
-  ) async {
-    if (input.isEmpty || state.busy || state.delivered) return;
-    if (input == state.lastCode) return;
-
-    state = PickupScanState(busy: true, lastCode: input);
+    state = PickupScanState(busy: true);
     try {
-      final orderId = await send(ref.read(pickupQrGatewayProvider));
+      final orderId = await ref
+          .read(pickupQrGatewayProvider)
+          .consumeToken(input);
+      if (!ref.mounted) return;
       state = PickupScanState(
-        lastCode: input,
         delivered: true,
         message: 'Pedido $orderId entregado.',
       );
     } on DomainException catch (error) {
-      state = PickupScanState(lastCode: input, message: error.message);
+      if (!ref.mounted) return;
+      state = PickupScanState(message: error.message);
     } catch (_) {
+      if (!ref.mounted) return;
       state = PickupScanState(
-        lastCode: input,
         message: 'No se pudo completar la entrega. Inténtalo de nuevo.',
       );
     }

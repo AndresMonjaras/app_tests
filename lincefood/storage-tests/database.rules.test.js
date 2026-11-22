@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import {
@@ -217,5 +218,37 @@ describe('rutas privadas y catálogo', () => {
     await assertFails(set(ref(adminDatabase, 'cafeteria/location/latitude'), 91));
     await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/longitude'), -100.8));
     await assertFails(set(ref(adminDatabase, 'cafeteria/location/longitude'), -181));
+  });
+});
+
+describe('reglas de historial oculto', () => {
+  it('admite solo booleanos del dueño y oculta únicamente pedidos terminados', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      const database = context.database();
+      await set(ref(database, 'ordersByUser/owner'), {
+        done: { status: 'delivered' },
+        active: { status: 'ready' },
+        rejected: { status: 'rejected' },
+        cancelled: { estado: 'cancelado' },
+      });
+    });
+    const owner = testEnvironment.authenticatedContext('owner').database();
+    const other = testEnvironment.authenticatedContext('other', { admin: true }).database();
+    const hidden = ref(owner, 'hiddenOrders/owner');
+
+    for (const id of ['done', 'rejected', 'cancelled']) {
+      await assertSucceeds(set(ref(owner, `hiddenOrders/owner/${id}`), true));
+    }
+    assert.deepEqual((await assertSucceeds(get(hidden))).val(), {
+      cancelled: true, done: true, rejected: true,
+    });
+    await assertFails(get(ref(other, 'hiddenOrders/owner')));
+    await assertFails(set(ref(other, 'hiddenOrders/owner/done'), false));
+    await assertFails(set(ref(owner, 'hiddenOrders/owner/done'), 'true'));
+    await assertFails(set(ref(owner, 'hiddenOrders/owner/active'), true));
+    await assertFails(set(ref(owner, 'hiddenOrders/owner/missing'), true));
+    await assertSucceeds(set(ref(owner, 'hiddenOrders/owner/done'), null));
+    assert.equal((await get(ref(owner, 'hiddenOrders/owner/done'))).exists(), false);
+    assert.equal((await get(ref(owner, 'ordersByUser/owner/done'))).val().status, 'delivered');
   });
 });

@@ -37,16 +37,6 @@ class CallablePickupQrGateway implements PickupQrGateway {
     return orderId;
   }
 
-  @override
-  Future<String> consumeFolio(String folio) async {
-    final data = await _call('consumePickupFolio', {'folio': folio});
-    final orderId = data is Map ? data['orderId'] : null;
-    if (orderId is! String) {
-      throw const DomainException('No se pudo confirmar la entrega.');
-    }
-    return orderId;
-  }
-
   Future<Object?> _call(String name, Map<String, Object?> data) async {
     try {
       final result = await _functions().httpsCallable(name).call(data);

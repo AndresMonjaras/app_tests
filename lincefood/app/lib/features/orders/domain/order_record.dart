@@ -48,14 +48,20 @@ class OrderRecord {
     final reason = map['rejectionReason'];
     final rejectedBy = map['rejectedBy'];
 
+    final rawStatus = map['status'] ?? map['estado'];
+    final statusCode = rawStatus?.toString().trim().toLowerCase();
+
     return OrderRecord(
       id: id,
-      status: orderStatusFromCode(map['status'] ?? map['estado']),
+      status: orderStatusFromCode(rawStatus),
       lines: lines,
       ownerUid: (map['ownerUid'] ?? map['uid'] ?? '').toString(),
       folio: map['folio']?.toString(),
       pickupMode: PickupMode.fromCode(map['pickupMode']),
-      isCancelled: map['isCancelled'] == true,
+      isCancelled:
+          map['isCancelled'] == true ||
+          statusCode == 'cancelled' ||
+          statusCode == 'cancelado',
       createdAt: _parseDate(map['fecha'] ?? map['createdAt']),
       rejectionReason: reason is String ? reason : null,
       rejectedAt: _parseDate(map['rejectedAt']),

@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,7 +12,6 @@ import '../../catalog/presentation/catalog_providers.dart';
 import '../../catalog/presentation/product_image.dart';
 import '../../media/presentation/menu_image_providers.dart';
 import '../../notifications/presentation/notifications_inbox_screen.dart';
-import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_elapsed_time.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
@@ -22,6 +23,31 @@ import 'orders_providers.dart';
 // Evita que los tickets se estiren en escritorio.
 const _anchoMaximo = 720.0;
 
+final hiddenOrderIdsProvider = StreamProvider.autoDispose
+    .family<Set<String>, String>((ref, uid) {
+      if (Firebase.apps.isEmpty) return Stream.value(const <String>{});
+      return FirebaseDatabase.instance
+          .ref('hiddenOrders/$uid')
+          .onValue
+          .map(
+            (event) => {
+              for (final child in event.snapshot.children)
+                if (child.value == true && child.key != null) child.key!,
+            },
+          );
+    });
+
+final setOrderHiddenProvider =
+    Provider<Future<void> Function(String uid, String orderId, bool hidden)>((
+      ref,
+    ) {
+      return (uid, orderId, hidden) {
+        return FirebaseDatabase.instance
+            .ref('hiddenOrders/$uid/$orderId')
+            .set(hidden ? true : null);
+      };
+    });
+
 class OrdersScreen extends ConsumerWidget {
   const OrdersScreen({super.key, this.orderId});
 
@@ -29,6 +55,8 @@ class OrdersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(uidActivoProvider);
+    final hidden = uid == null ? null : ref.watch(hiddenOrderIdsProvider(uid));
     final orders = ref.watch(ordersStreamProvider);
     final now = ref.watch(orderClockProvider).value ?? DateTime.now();
     final isStaff = ref.watch(staffPermissionProvider).value ?? false;
@@ -43,14 +71,6 @@ class OrdersScreen extends ConsumerWidget {
           ),
           if (isStaff)
             IconButton(
-              tooltip: 'Escanear QR de entrega',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PickupScannerScreen()),
-              ),
-              icon: const Icon(Icons.qr_code_scanner),
-            ),
-          if (isStaff)
-            IconButton(
               tooltip: 'Panel de cafetería',
               onPressed: () =>
                   Navigator.of(context).pushNamed(AppRouter.staffOrders),
@@ -60,9 +80,11 @@ class OrdersScreen extends ConsumerWidget {
       ),
       body: orders.when(
         data: (items) {
-          final visibleOrders = orderId == null
-              ? items
-              : items.where((order) => order.id == orderId).toList();
+          final hiddenIds = hidden?.value ?? const <String>{};
+          final visibleOrders = items.where((order) {
+            return (orderId == null || order.id == orderId) &&
+                (!_canHide(order) || !hiddenIds.contains(order.id));
+          }).toList();
           if (visibleOrders.isEmpty) {
             return const Center(
               child: Padding(
@@ -94,12 +116,31 @@ class OrdersScreen extends ConsumerWidget {
                   return index < 0 ? null : index;
                 },
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
+                itemBuilder: (itemContext, index) {
                   final order = sortedOrders[index];
-                  return _TicketCard(
-                    key: ValueKey(order.id),
-                    order: order,
-                    now: now,
+                  final key = ValueKey(order.id);
+                  final ticket = _TicketCard(key: key, order: order, now: now);
+                  if (uid == null ||
+                      !_canHide(order) ||
+                      hidden?.hasValue != true) {
+                    return ticket;
+                  }
+                  return Dismissible(
+                    key: key,
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      color: Theme.of(itemContext)
+                          .colorScheme
+                          .secondaryContainer,
+                      child: const Icon(Icons.visibility_off_outlined),
+                    ),
+                    confirmDismiss: (_) async {
+                      await _confirmHide(context, ref, uid, order.id);
+                      return false;
+                    },
+                    child: ticket,
                   );
                 },
               ),
@@ -119,6 +160,85 @@ class OrdersScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  bool _canHide(OrderRecord order) =>
+      order.isCancelled ||
+      order.status == OrderStatus.delivered ||
+      order.status == OrderStatus.rejected;
+
+  Future<void> _confirmHide(
+    BuildContext context,
+    WidgetRef ref,
+    String uid,
+    String orderId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Ocultar pedido?'),
+        content: const Text('Se quitará de tu historial.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ocultar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true ||
+        !context.mounted ||
+        ref.read(uidActivoProvider) != uid) {
+      return;
+    }
+
+    final save = ref.read(setOrderHiddenProvider);
+    try {
+      await save(uid, orderId, true);
+      if (!messenger.mounted ||
+          !context.mounted ||
+          ref.read(uidActivoProvider) != uid) {
+        return;
+      }
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Pedido oculto.'),
+          action: SnackBarAction(
+            label: 'Deshacer',
+            onPressed: () async {
+              if (!context.mounted || ref.read(uidActivoProvider) != uid) {
+                return;
+              }
+              try {
+                await save(uid, orderId, false);
+              } catch (_) {
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('No se pudo deshacer. Inténtalo de nuevo.'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
+    } catch (_) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo ocultar el pedido. Inténtalo de nuevo.'),
+          ),
+        );
+      }
+    }
   }
 }
 

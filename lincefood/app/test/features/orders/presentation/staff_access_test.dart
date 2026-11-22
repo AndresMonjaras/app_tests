@@ -36,11 +36,13 @@ void main() {
           find.text('Esta sección es solo para personal de cafetería.'),
           findsOneWidget,
         );
+        expect(find.text('Escanear QR'), findsNothing);
         return;
       }
       await tester.tap(entry);
       await tester.pumpAndSettle();
       expect(find.text('No hay pedidos pagados por atender.'), findsOneWidget);
+      expect(find.text('Escanear QR'), findsOneWidget);
     });
   }
 }

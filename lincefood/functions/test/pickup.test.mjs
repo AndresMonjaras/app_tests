@@ -46,6 +46,9 @@ function createFakeDatabase(initial = {}) {
   function ref(path = '') {
     return {
       key: segments(path).at(-1) ?? null,
+      child(key) {
+        return ref([path, key].filter(Boolean).join('/'));
+      },
       push() {
         pushCount += 1;
         return { key: 'push' + String(pushCount).padStart(4, '0') };
@@ -61,7 +64,7 @@ function createFakeDatabase(initial = {}) {
           return { committed: false, snapshot: { val: () => current } };
         }
         write(path, next);
-        return { committed: true, snapshot: { val: () => clone(next) } };
+        return { committed: true, snapshot: { val: () => clone(next), exists: () => next !== null } };
       },
       async update(changes) {
         for (const [key, value] of Object.entries(changes)) write(key, value);
@@ -214,20 +217,21 @@ test('dos escaneos simultáneos no entregan dos veces', async () => {
   assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
 });
 
-test('si otra transacción gana el token, el intento no entrega el pedido', async () => {
+test('si el estado cambia durante el canje, la transacción revalida antes de entregar', async () => {
   const base = createDatabase();
   const { token } = await issueToken(base);
-  // Doble de transacción: el reclamo del token siempre pierde la carrera.
   const database = {
     ref(path = '') {
       const ref = base.ref(path);
-      if (path.startsWith('pickupTokens/')) {
-        return {
-          ...ref,
-          transaction: async () => ({ committed: false, snapshot: { val: () => null } }),
-        };
-      }
-      return ref;
+      if (path !== '') return ref;
+      return {
+        ...ref,
+        async transaction(update) {
+          update((await ref.get()).val());
+          await ref.update({ 'orders/ord1/status': 'incident' });
+          return ref.transaction(update);
+        },
+      };
     },
   };
   const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
@@ -236,10 +240,11 @@ test('si otra transacción gana el token, el intento no entrega el pedido', asyn
     consume({ auth: staff, data: { token } }),
     (error) =>
       assertAppError('failed-precondition')(error) &&
-      error.message === 'Este código ya fue usado.',
+      error.message === 'El pedido todavía no está listo para recoger.',
   );
-  assert.equal(base.store.get('orders/ord1').status, 'ready');
+  assert.equal(base.store.get('orders/ord1').status, 'incident');
   assert.equal(base.store.has('orderEvents/ord1'), false);
+  assert.equal(base.store.get('pickupTokens/' + hashPickupToken(token)).consumedAt, null);
 });
 
 test('un QR expirado no entrega el pedido', async () => {
@@ -339,16 +344,16 @@ test('si la escritura de la entrega falla, nada cambia y el QR se puede reintent
   const base = createDatabase();
   const { token } = await issueToken(base);
   let failWrites = true;
-  // La escritura multiubicación es la única que puede fallar; las lecturas siguen.
+  // La transacción falla antes de escribir.
   const database = {
     ref(path = '') {
       const ref = base.ref(path);
       if (path !== '') return ref;
       return {
         ...ref,
-        update: async (changes) => {
+        transaction: async (update) => {
           if (failWrites) throw new Error('sin conexión');
-          return ref.update(changes);
+          return ref.transaction(update);
         },
       };
     },
@@ -398,9 +403,9 @@ test('el administrador puede entregar por QR aunque el reclamo empiece con cach�
   const base = createDatabase();
   const { token } = await issueToken(base);
   const database = {
-    ref(path) {
+    ref(path = '') {
       const reference = base.ref(path);
-      if (!path?.startsWith('pickupTokens/')) return reference;
+      if (path !== '') return reference;
       return {
         ...reference,
         async transaction(update) {

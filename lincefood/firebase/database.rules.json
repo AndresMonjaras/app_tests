@@ -61,6 +61,16 @@
         ".write": false
       }
     },
+    "hiddenOrders": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren()",
+        "$orderId": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isBoolean() && (newData.val() === false || root.child('ordersByUser').child($uid).child($orderId).child('isCancelled').val() === true || root.child('ordersByUser').child($uid).child($orderId).child('status').isString() && root.child('ordersByUser').child($uid).child($orderId).child('status').val().matches(/^(cancelled|delivered|rejected|cancelado|entregado|rechazado)$/i) || (!root.child('ordersByUser').child($uid).child($orderId).child('status').exists() && root.child('ordersByUser').child($uid).child($orderId).child('estado').isString() && root.child('ordersByUser').child($uid).child($orderId).child('estado').val().matches(/^(cancelled|delivered|rejected|cancelado|entregado|rechazado)$/i)))"
+        }
+      }
+    },
     "orders": {
       "$orderId": {
         ".read": "auth != null && (data.child('ownerUid').val() === auth.uid || auth.token.staff === true || auth.token.admin === true)",
