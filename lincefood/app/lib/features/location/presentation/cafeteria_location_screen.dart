@@ -10,6 +10,9 @@ import 'location_providers.dart';
 
 const _mapsEnabled = bool.fromEnvironment('GOOGLE_MAPS_ENABLED');
 
+// Evita que el mapa y la tarjeta se estiren en escritorio.
+const _anchoMaximo = 720.0;
+
 class CafeteriaLocationScreen extends ConsumerStatefulWidget {
   const CafeteriaLocationScreen({super.key, this.mapsEnabled = _mapsEnabled});
 
@@ -125,71 +128,77 @@ class _LocationContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (mapsEnabled)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: SizedBox(
-              height: 360,
-              child: GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: LatLng(location.latitude, location.longitude),
-                  zoom: 16,
-                ),
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('cafeteria'),
-                    position: LatLng(location.latitude, location.longitude),
-                    infoWindow: InfoWindow(
-                      title: location.label,
-                      snippet: location.address.isEmpty
-                          ? 'Punto de recogida'
-                          : location.address,
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _anchoMaximo),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (mapsEnabled)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: SizedBox(
+                  height: 360,
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(location.latitude, location.longitude),
+                      zoom: 16,
                     ),
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('cafeteria'),
+                        position: LatLng(location.latitude, location.longitude),
+                        infoWindow: InfoWindow(
+                          title: location.label,
+                          snippet: location.address.isEmpty
+                              ? 'Punto de recogida'
+                              : location.address,
+                        ),
+                      ),
+                    },
+                    myLocationEnabled: false,
+                    myLocationButtonEnabled: false,
+                    onMapCreated: onMapCreated,
                   ),
-                },
-                myLocationEnabled: false,
-                myLocationButtonEnabled: false,
-                onMapCreated: onMapCreated,
+                ),
+              )
+            else
+              _MapSetupCard(),
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.place_outlined),
+                title: Text(location.label),
+                subtitle: Text(
+                  location.address.isEmpty
+                      ? 'Punto de recogida de la cafetería universitaria.'
+                      : location.address,
+                ),
               ),
             ),
-          )
-        else
-          _MapSetupCard(),
-        const SizedBox(height: 16),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.place_outlined),
-            title: Text(location.label),
-            subtitle: Text(
-              location.address.isEmpty
-                  ? 'Punto de recogida de la cafetería universitaria.'
-                  : location.address,
+            if (mapsEnabled) ...[
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: findingMe ? null : onShowMyLocation,
+                icon: findingMe
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location),
+                label: const Text('Centrar en mi ubicación'),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'El permiso de ubicación es opcional y solo se solicita al centrar el mapa.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ),
+            Text('Mapa: Google Maps', style: Theme.of(context).textTheme.bodySmall),
+          ],
         ),
-        if (mapsEnabled) ...[
-          const SizedBox(height: 8),
-          FilledButton.tonalIcon(
-            onPressed: findingMe ? null : onShowMyLocation,
-            icon: findingMe
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location),
-            label: const Text('Centrar en mi ubicación'),
-          ),
-        ],
-        const SizedBox(height: 8),
-        Text(
-          'El permiso de ubicación es opcional y solo se solicita al centrar el mapa.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        Text('Mapa: Google Maps', style: Theme.of(context).textTheme.bodySmall),
-      ],
+      ),
     );
   }
 }

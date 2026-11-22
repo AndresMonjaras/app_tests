@@ -12,6 +12,9 @@ import '../../biometrics/biometric_protection.dart';
 import '../domain/avatar_rules.dart';
 import 'profile_controller.dart';
 
+// Evita que las tarjetas de ajustes se estiren en escritorio.
+const _anchoMaximo = 640.0;
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -47,207 +50,213 @@ class ProfileScreen extends ConsumerWidget {
 
         return Scaffold(
           appBar: AppBar(title: const Text('Mi perfil')),
-          body: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Center(
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundImage: user.photoURL == null
-                          ? null
-                          : NetworkImage(user.photoURL!),
-                      child: user.photoURL == null
-                          ? const Icon(Icons.person_outline, size: 44)
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      displayName,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(user.email ?? ''),
-                    const SizedBox(height: 4),
-                    Text(
-                      user.emailVerified
-                          ? 'Correo verificado'
-                          : 'Correo pendiente de verificación',
-                    ),
-                    if (canChangeAvatar) ...[
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          FilledButton.tonalIcon(
-                            onPressed: avatarState.isBusy || !user.emailVerified
-                                ? null
-                                : () => unawaited(
-                                    ref
-                                        .read(
-                                          profileControllerProvider.notifier,
-                                        )
-                                        .seleccionarAvatar(user.uid),
-                                  ),
-                            icon: avatarState.isBusy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.add_a_photo_outlined),
-                            label: Text(
-                              user.photoURL == null
-                                  ? 'Añadir avatar'
-                                  : 'Cambiar avatar',
-                            ),
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _anchoMaximo),
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Center(
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 44,
+                          backgroundImage: user.photoURL == null
+                              ? null
+                              : NetworkImage(user.photoURL!),
+                          child: user.photoURL == null
+                              ? const Icon(Icons.person_outline, size: 44)
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(user.email ?? ''),
+                        const SizedBox(height: 4),
+                        Text(
+                          user.emailVerified
+                              ? 'Correo verificado'
+                              : 'Correo pendiente de verificación',
+                        ),
+                        if (canChangeAvatar) ...[
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              FilledButton.tonalIcon(
+                                onPressed: avatarState.isBusy || !user.emailVerified
+                                    ? null
+                                    : () => unawaited(
+                                        ref
+                                            .read(
+                                              profileControllerProvider.notifier,
+                                            )
+                                            .seleccionarAvatar(user.uid),
+                                      ),
+                                icon: avatarState.isBusy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.add_a_photo_outlined),
+                                label: Text(
+                                  user.photoURL == null
+                                      ? 'Añadir avatar'
+                                      : 'Cambiar avatar',
+                                ),
+                              ),
+                              if (user.photoURL != null)
+                                OutlinedButton.icon(
+                                  onPressed:
+                                      avatarState.isBusy || !user.emailVerified
+                                      ? null
+                                      : () => unawaited(
+                                          ref
+                                              .read(
+                                                profileControllerProvider.notifier,
+                                              )
+                                              .eliminarAvatar(user.uid),
+                                        ),
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Eliminar avatar'),
+                                ),
+                            ],
                           ),
-                          if (user.photoURL != null)
-                            OutlinedButton.icon(
-                              onPressed:
-                                  avatarState.isBusy || !user.emailVerified
-                                  ? null
-                                  : () => unawaited(
-                                      ref
-                                          .read(
-                                            profileControllerProvider.notifier,
-                                          )
-                                          .eliminarAvatar(user.uid),
-                                    ),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Eliminar avatar'),
+                          if (!user.emailVerified) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Verifica tu correo para cambiar el avatar.',
                             ),
+                          ],
+                          if (avatarState.errorMessage != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              avatarState.errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (ref.watch(adminAccessProvider).value == true)
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.admin_panel_settings_outlined),
+                        title: const Text('Administración'),
+                        subtitle: const Text(
+                          'Productos, precios y permisos del equipo.',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            Navigator.of(context).pushNamed(AppRouter.admin),
+                      ),
+                    ),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.notifications_outlined),
+                      title: const Text('Notificaciones'),
+                      subtitle: const Text('Configura los avisos de la cafetería.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          Navigator.of(context)
+                              .pushNamed(AppRouter.notificationPreferences),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.workspace_premium_outlined),
+                      title: const Text('Planes de servicio'),
+                      subtitle: const Text('Compara reservas de recogida.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).pushNamed(AppRouter.plans),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.palette_outlined),
+                      title: const Text('Apariencia'),
+                      trailing: DropdownButton<ThemeMode>(
+                        value: themeMode,
+                        onChanged: preferences.isLoading
+                            ? null
+                            : (mode) {
+                                if (mode != null) {
+                                  unawaited(_changeTheme(context, ref, mode));
+                                }
+                              },
+                        items: const [
+                          DropdownMenuItem(
+                            value: ThemeMode.system,
+                            child: Text('Sistema'),
+                          ),
+                          DropdownMenuItem(
+                            value: ThemeMode.light,
+                            child: Text('Claro'),
+                          ),
+                          DropdownMenuItem(
+                            value: ThemeMode.dark,
+                            child: Text('Oscuro'),
+                          ),
                         ],
                       ),
-                      if (!user.emailVerified) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Verifica tu correo para cambiar el avatar.',
-                        ),
-                      ],
-                      if (avatarState.errorMessage != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          avatarState.errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (ref.watch(adminAccessProvider).value == true)
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.admin_panel_settings_outlined),
-                    title: const Text('Administración'),
-                    subtitle: const Text(
-                      'Productos, precios y permisos del equipo.',
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRouter.admin),
                   ),
-                ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.notifications_outlined),
-                  title: const Text('Notificaciones'),
-                  subtitle: const Text('Configura los avisos de la cafetería.'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      Navigator.of(context)
-                          .pushNamed(AppRouter.notificationPreferences),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.workspace_premium_outlined),
-                  title: const Text('Planes de servicio'),
-                  subtitle: const Text('Compara reservas de recogida.'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).pushNamed(AppRouter.plans),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.palette_outlined),
-                  title: const Text('Apariencia'),
-                  trailing: DropdownButton<ThemeMode>(
-                    value: themeMode,
-                    onChanged: preferences.isLoading
-                        ? null
-                        : (mode) {
-                            if (mode != null) {
-                              unawaited(_changeTheme(context, ref, mode));
-                            }
-                          },
-                    items: const [
-                      DropdownMenuItem(
-                        value: ThemeMode.system,
-                        child: Text('Sistema'),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: SwitchListTile(
+                      secondary: const Icon(Icons.fingerprint),
+                      title: const Text('Proteger QR con biometría'),
+                      subtitle: const Text(
+                        'Solicita huella o rostro antes de mostrar el código de recogida.',
                       ),
-                      DropdownMenuItem(
-                        value: ThemeMode.light,
-                        child: Text('Claro'),
-                      ),
-                      DropdownMenuItem(
-                        value: ThemeMode.dark,
-                        child: Text('Oscuro'),
-                      ),
-                    ],
+                      value:
+                          preferences.asData?.value.protectPickupQrWithBiometrics ??
+                          false,
+                      onChanged:
+                          preferences.isLoading || biometricAvailability.isLoading
+                          ? null
+                          : (enabled) => unawaited(
+                              _setPickupQrProtection(context, ref, enabled),
+                            ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: SwitchListTile(
-                  secondary: const Icon(Icons.fingerprint),
-                  title: const Text('Proteger QR con biometría'),
-                  subtitle: const Text(
-                    'Solicita huella o rostro antes de mostrar el código de recogida.',
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: const Text('Ubicación de la cafetería'),
+                      subtitle: const Text('Consulta el punto de recogida.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          Navigator.of(context)
+                              .pushNamed(AppRouter.cafeteriaLocation),
+                    ),
                   ),
-                  value:
-                      preferences.asData?.value.protectPickupQrWithBiometrics ??
-                      false,
-                  onChanged:
-                      preferences.isLoading || biometricAvailability.isLoading
-                      ? null
-                      : (enabled) => unawaited(
-                          _setPickupQrProtection(context, ref, enabled),
-                        ),
-                ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => unawaited(_signOut(context, ref)),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Cerrar sesión'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: const Text('Ubicación de la cafetería'),
-                  subtitle: const Text('Consulta el punto de recogida.'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () =>
-                      Navigator.of(context)
-                          .pushNamed(AppRouter.cafeteriaLocation),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => unawaited(_signOut(context, ref)),
-                icon: const Icon(Icons.logout),
-                label: const Text('Cerrar sesión'),
-              ),
-            ],
+            ),
           ),
         );
       },
