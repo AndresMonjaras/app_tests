@@ -60,146 +60,152 @@ class CatalogScreen extends ConsumerWidget {
                     p.name.toLowerCase().contains(query.toLowerCase()),
               )
               .toList();
-          return CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: colors.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TU PAUSA, CON SABOR',
-                              style: TextStyle(
-                                color: colors.onTertiaryContainer,
-                                letterSpacing: 2,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              '¿Qué se te antoja hoy?',
-                              style: TextStyle(
-                                color: colors.onTertiaryContainer,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Elige tus favoritos y disfruta tu cafetería.',
-                              style: TextStyle(
-                                color: colors.onTertiaryContainer,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Buscar en el menú',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                        onChanged: (v) => ref
-                            .read(catalogFilterProvider.notifier)
-                            .setQuery(v),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _anchoMaximoCatalogo),
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Explora el menú',
-                              style: Theme.of(context).textTheme.titleLarge,
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: colors.tertiaryContainer,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'TU PAUSA, CON SABOR',
+                                  style: TextStyle(
+                                    color: colors.onTertiaryContainer,
+                                    letterSpacing: 2,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  '¿Qué se te antoja hoy?',
+                                  style: TextStyle(
+                                    color: colors.onTertiaryContainer,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Elige tus favoritos y disfruta tu cafetería.',
+                                  style: TextStyle(
+                                    color: colors.onTertiaryContainer,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          TextButton(
-                            onPressed: () => ref
+                          const SizedBox(height: 20),
+                          TextField(
+                            decoration: const InputDecoration(
+                              hintText: 'Buscar en el menú',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                            onChanged: (v) => ref
                                 .read(catalogFilterProvider.notifier)
-                                .selectCategory(null),
-                            child: const Text('Ver todo'),
+                                .setQuery(v),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Explora el menú',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => ref
+                                    .read(catalogFilterProvider.notifier)
+                                    .selectCategory(null),
+                                child: const Text('Ver todo'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          LayoutBuilder(
+                            builder: (context, constraints) => _CategoryGrid(
+                              columns: _columnasCategorias(
+                                constraints.maxWidth,
+                              ),
+                              children: [
+                                for (final categoria in categories)
+                                  _CategoryTile(
+                                    label: _categoryLabel(categoria),
+                                    count: items
+                                        .where((p) => p.categoryId == categoria)
+                                        .length,
+                                    icon: _categoryIcon(categoria),
+                                    selected: selected == categoria,
+                                    onTap: () => ref
+                                        .read(catalogFilterProvider.notifier)
+                                        .selectCategory(categoria),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            selected == null
+                                ? 'Para tu próxima pausa'
+                                : _categoryLabel(selected),
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      LayoutBuilder(
-                        builder: (context, constraints) => _CategoryGrid(
-                          columns: _columnasCategorias(constraints.maxWidth),
-                          children: [
-                            for (final categoria in categories)
-                              _CategoryTile(
-                                label: categoria.isEmpty ? 'Otros' : categoria,
-                                count: items
-                                    .where((p) => p.categoryId == categoria)
-                                    .length,
-                                icon: _categoryIcon(categoria),
-                                selected: selected == categoria,
-                                onTap: () => ref
-                                    .read(catalogFilterProvider.notifier)
-                                    .selectCategory(categoria),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        selected == null
-                            ? 'Para tu próxima pausa'
-                            : selected.isEmpty
-                            ? 'Otros'
-                            : selected,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (filtered.isEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'No hay productos que coincidan con tu búsqueda.',
                     ),
                   ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                sliver: SliverList.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) => _ProductTile(
-                    product: filtered[index],
-                    onAdd: (variant) {
-                      ref
-                          .read(cartControllerProvider.notifier)
-                          .addProduct(
-                            product: filtered[index],
-                            variant: variant,
-                          );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${filtered[index].name} se agregó al carrito.',
-                          ),
+                  if (filtered.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'No hay productos que coincidan con tu búsqueda.',
                         ),
-                      );
-                    },
+                      ),
+                    ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                    sliver: SliverList.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) => _ProductTile(
+                        product: filtered[index],
+                        onAdd: (variant) {
+                          ref
+                              .read(cartControllerProvider.notifier)
+                              .addProduct(
+                                product: filtered[index],
+                                variant: variant,
+                              );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${filtered[index].name} se agregó al carrito.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),
@@ -207,9 +213,31 @@ class CatalogScreen extends ConsumerWidget {
   }
 }
 
+// Evita que el contenido se estire en escritorio.
+const _anchoMaximoCatalogo = 960.0;
+
+// Los ids de Firebase se conservan; solo se traduce lo que ve el usuario.
+String _categoryLabel(String category) {
+  switch (category.trim().toLowerCase()) {
+    case '':
+      return 'Otros';
+    case 'breakfast':
+      return 'Desayunos';
+    case 'lunch':
+      return 'Comidas';
+    case 'drinks':
+      return 'Bebidas';
+    default:
+      return category;
+  }
+}
+
 IconData _categoryIcon(String category) {
   final name = category.toLowerCase();
-  if (name.contains('beb') || name.contains('café') || name.contains('cafe')) {
+  if (name.contains('drink') ||
+      name.contains('beb') ||
+      name.contains('café') ||
+      name.contains('cafe')) {
     return Icons.local_cafe_outlined;
   }
   if (name.contains('post') || name.contains('dul')) return Icons.cake_outlined;
@@ -285,48 +313,57 @@ class _CategoryTile extends StatelessWidget {
     final franja = selected ? colors.tertiary : colors.primary;
     final textoFranja = selected ? colors.onTertiary : colors.onPrimary;
 
-    return Material(
-      color: colors.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Icon(icon, size: 36, color: colors.primary),
-            ),
-            Container(
-              width: double.infinity,
-              color: franja,
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: textoFranja,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '$count productos',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: textoFranja.withValues(alpha: 0.9),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+    return Semantics(
+      selected: selected,
+      child: Material(
+        color: colors.surfaceContainerHigh,
+        // El borde marca la selección además del color de la franja.
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: selected
+              ? BorderSide(color: colors.onSurface, width: 2)
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Icon(icon, size: 36, color: colors.primary),
               ),
-            ),
-          ],
+              Container(
+                width: double.infinity,
+                color: franja,
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textoFranja,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      count == 1 ? '1 producto' : '$count productos',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textoFranja.withValues(alpha: 0.9),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

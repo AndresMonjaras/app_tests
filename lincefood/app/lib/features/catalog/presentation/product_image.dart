@@ -1,8 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../media/presentation/menu_image_cache.dart';
 import '../../media/presentation/menu_image_providers.dart';
 
 /// Foto del producto con caché en disco. Sin foto, sin URL o con error,
@@ -35,22 +33,25 @@ class ProductImage extends ConsumerWidget {
       return fallback;
     }
 
-    final url = ref.watch(menuImageUrlProvider(imagePath));
-    return url.when(
+    final file = ref.watch(menuImageFileProvider(imagePath));
+    return file.when(
       loading: () => _Placeholder(
         width: width,
         height: height,
         borderRadius: borderRadius,
       ),
       error: (_, _) => fallback,
-      data: (imageUrl) {
-        if (imageUrl == null) return fallback;
-        return _VisibleMenuImage(
-          imageUrl: imageUrl,
-          width: width,
-          height: height,
-          borderRadius: borderRadius,
-          fallback: fallback,
+      data: (imageFile) {
+        if (imageFile == null) return fallback;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Image.file(
+            imageFile,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => fallback,
+          ),
         );
       },
     );
@@ -105,68 +106,11 @@ class _Placeholder extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(borderRadius),
     ),
-    child: const SizedBox.square(
-      dimension: 20,
-      child: CircularProgressIndicator(strokeWidth: 2),
-    ),
-  );
-}
-
-class _VisibleMenuImage extends StatefulWidget {
-  const _VisibleMenuImage({
-    required this.imageUrl,
-    required this.width,
-    required this.height,
-    required this.borderRadius,
-    required this.fallback,
-  });
-
-  final String imageUrl;
-  final double width;
-  final double height;
-  final double borderRadius;
-  final Widget fallback;
-
-  @override
-  State<_VisibleMenuImage> createState() => _VisibleMenuImageState();
-}
-
-class _VisibleMenuImageState extends State<_VisibleMenuImage> {
-  String? _preloadedUrl;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_preloadedUrl == widget.imageUrl) return;
-    _preloadedUrl = widget.imageUrl;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      precacheImage(
-        CachedNetworkImageProvider(
-          widget.imageUrl,
-          cacheManager: menuImageCacheManager,
-        ),
-        context,
-        onError: (_, _) {},
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(widget.borderRadius),
-    child: CachedNetworkImage(
-      imageUrl: widget.imageUrl,
-      cacheManager: menuImageCacheManager,
-      width: widget.width,
-      height: widget.height,
-      fit: BoxFit.cover,
-      placeholder: (_, _) => _Placeholder(
-        width: widget.width,
-        height: widget.height,
-        borderRadius: widget.borderRadius,
+    child: const ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
       ),
-      errorWidget: (_, _, _) => widget.fallback,
     ),
   );
 }

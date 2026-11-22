@@ -14,6 +14,9 @@ import 'order_cancellation_providers.dart';
 import 'order_timeline.dart';
 import 'orders_providers.dart';
 
+// Evita que los tickets se estiren en escritorio.
+const _anchoMaximo = 720.0;
+
 class OrdersScreen extends ConsumerWidget {
   const OrdersScreen({super.key, this.orderId});
 
@@ -71,12 +74,18 @@ class OrdersScreen extends ConsumerWidget {
                     first.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
                   );
             });
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: sortedOrders.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) =>
-                _TicketCard(order: sortedOrders[index], now: now),
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _anchoMaximo),
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: sortedOrders.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (context, index) =>
+                    _TicketCard(order: sortedOrders[index], now: now),
+              ),
+            ),
           );
         },
         error: (error, stackTrace) => const Center(
