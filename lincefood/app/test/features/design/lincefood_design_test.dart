@@ -191,7 +191,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(FixedBottomBar),
-        matching: find.text('Confirmar pedido'),
+        matching: find.text(r'Pagar $11.00 MXN'),
       ),
       findsOneWidget,
     );

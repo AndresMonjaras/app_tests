@@ -15,3 +15,11 @@ class PaymentConfigurationException implements Exception {
 class PaymentCancelledException implements Exception {
   const PaymentCancelledException();
 }
+
+class PaymentDeclinedException implements Exception {
+  const PaymentDeclinedException();
+}
+
+class PaymentNetworkException implements Exception {
+  const PaymentNetworkException();
+}
