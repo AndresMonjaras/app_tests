@@ -9,11 +9,23 @@ void main() {
   testWidgets('muestra los tres títulos del onboarding en español', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: OnboardingScreen()));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: OnboardingScreen())),
+    );
 
     expect(find.text('Pide antes de tu descanso'), findsOneWidget);
+    expect(find.text('Paga de forma segura'), findsNothing);
+    expect(find.text('Recoge cuando esté listo'), findsNothing);
+
+    await tester.tap(find.text('Siguiente'));
+    await tester.pumpAndSettle();
     expect(find.text('Paga de forma segura'), findsOneWidget);
+    expect(find.text('Pide antes de tu descanso'), findsNothing);
+
+    await tester.tap(find.text('Siguiente'));
+    await tester.pumpAndSettle();
     expect(find.text('Recoge cuando esté listo'), findsOneWidget);
+    expect(find.text('Paga de forma segura'), findsNothing);
   });
 
   testWidgets('explica cuando Firebase no está configurado', (tester) async {
