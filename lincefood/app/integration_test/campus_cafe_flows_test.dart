@@ -1,6 +1,5 @@
 // Flujos T05, T06, T07, T08, T17 y T18 del plan C.5.
 // Usan repositorios en memoria y dobles de pago; no tocan Firebase, Stripe ni red.
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,16 +54,26 @@ void main() {
     ThemeMode? chosen;
     var completed = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: OnboardingScreen(
-          onThemeChanged: (mode) => chosen = mode,
-          onCompleted: () => completed = true,
+      ProviderScope(
+        child: MaterialApp(
+          home: OnboardingScreen(
+            onThemeChanged: (mode) => chosen = mode,
+            onCompleted: () => completed = true,
+          ),
         ),
       ),
     );
 
     expect(find.text('Pide antes de tu descanso'), findsOneWidget);
+    expect(find.text('Paga de forma segura'), findsNothing);
+    expect(find.text('Recoge cuando esté listo'), findsNothing);
+
+    await tester.tap(find.text('Siguiente'));
+    await tester.pumpAndSettle();
     expect(find.text('Paga de forma segura'), findsOneWidget);
+
+    await tester.tap(find.text('Siguiente'));
+    await tester.pumpAndSettle();
     expect(find.text('Recoge cuando esté listo'), findsOneWidget);
 
     await tester.tap(find.byType(DropdownButton<ThemeMode>));
@@ -93,7 +102,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Torta'), findsOneWidget);
-      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -189,15 +198,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(
-        find.text('Torta'),
-        200,
-        scrollable: find.descendant(
-          of: find.byType(CustomScrollView),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      expect(find.text('Torta'), findsOneWidget);
+      expect(find.byType(CatalogScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

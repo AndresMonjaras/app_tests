@@ -8,6 +8,8 @@ class FirebaseAuthService {
   final FirebaseAuth auth;
   Future<void>? _googleInitialization;
 
+  User? get currentUser => auth.currentUser;
+
   Stream<User?> get userChanges => auth.userChanges();
 
   Future<void> register({
