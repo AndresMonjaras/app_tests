@@ -11,6 +11,9 @@ class FirebaseAuthGateway implements AuthGateway {
   String? get currentEmail => _firebaseAuth.currentUser?.email;
 
   @override
+  String? get currentUid => _firebaseAuth.currentUser?.uid;
+
+  @override
   Future<void> sendVerificationEmail() async {
     final user = _firebaseAuth.currentUser;
     if (user == null) {

@@ -14,7 +14,7 @@ class OnboardingStep {
       description: 'Confirma tu pedido con un pago protegido.',
     ),
     OnboardingStep(
-      title: 'Recoge cuando este listo',
+      title: 'Recoge cuando esté listo',
       description: 'Te avisaremos cuando puedas pasar por tu pedido.',
     ),
   ];

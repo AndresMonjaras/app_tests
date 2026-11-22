@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/firebase_bootstrap_provider.dart';
+import '../features/navigation/auth_gate_screen.dart';
 import '../features/onboarding/presentation/onboarding_screen.dart';
 
 class FirebaseBootstrapScreen extends ConsumerWidget {
@@ -9,11 +11,16 @@ class FirebaseBootstrapScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    const previewMode = bool.fromEnvironment('LINFOOD_PREVIEW');
+    if (!kReleaseMode && previewMode) {
+      return const OnboardingScreen(previewMode: true);
+    }
+
     final firebaseStatus = ref.watch(firebaseBootstrapProvider);
 
     return firebaseStatus.when(
       data: (status) => switch (status) {
-        FirebaseBootstrapStatus.ready => const OnboardingScreen(),
+        FirebaseBootstrapStatus.ready => const AuthGateScreen(),
         FirebaseBootstrapStatus.missing => const FirebaseConfigurationScreen(),
       },
       loading: () => const Scaffold(

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Lincefood</string>
+    <!-- Sustituir desde Meta for Developers. No colocar aquí el App Secret. -->
+    <string name="facebook_app_id">0</string>
+    <string name="facebook_client_token">TODO_FILL</string>
+    <string name="fb_login_protocol_scheme">fb0</string>
+</resources>

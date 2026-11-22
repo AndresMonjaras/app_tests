@@ -1,25 +1,64 @@
 # Lincefood App
 
-Base Flutter para la aplicación de cafetería. La interfaz usa Riverpod y separa
-las reglas del dominio de las pantallas. El catálogo incluye repositorios de
-memoria y una interfaz para Realtime Database.
+Aplicación Flutter para pedidos y recogida en cafetería universitaria. Esta
+carpeta contiene el proyecto Android/Flutter; Firebase, Functions, reglas y
+Hosting se configuran desde la raíz del repositorio.
 
-## Configuración local
+## Desarrollo local
 
-Firebase no incluye claves en este repositorio. La plantilla
-`lib/firebase_options.example.dart` contiene marcadores `TODO_FILL`; la app
-muestra un mensaje en español mientras Firebase no tenga configuración local.
-El archivo `lib/firebase_options.dart` está excluido por `.gitignore`.
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run --dart-define-from-file=config/firebase.dev.json
+```
 
-## Integraciones pendientes
+Para revisar onboarding y la interfaz de acceso en un dispositivo sin Firebase,
+usa el modo de vista previa en una compilación de desarrollo:
 
-- Completar Firebase Authentication y Realtime Database con la configuración
-  del proyecto.
-- Implementar lectura real del catálogo desde Realtime Database.
-- Integrar Stripe, FCM, Maps, sensores, almacenamiento y cámara después de
-  definir sus servicios y configuración.
-- Completar la lógica de las pantallas placeholder de autenticación, catálogo,
-  carrito, pedidos y perfil.
+```bash
+flutter run --dart-define=LINFOOD_PREVIEW=true
+```
 
-Las pruebas unitarias cubren reglas de carrito, variantes y estados de pedido;
-la prueba de widget verifica los títulos del onboarding.
+Este modo no autentica usuarios ni consulta el catálogo. Sin la bandera, la app
+mantiene la pantalla de configuración faltante; las compilaciones release
+ignoran la vista previa.
+
+La app conserva Riverpod como gestor de estado. No copies un `pubspec.lock` de
+otro proyecto; resuelve las dependencias desde esta carpeta.
+
+## Firebase
+
+1. El proyecto de desarrollo documentado es `lincefood-app` y la app Android
+   usa `com.lincefood.app`.
+2. Copia `config/firebase.example.json` a `config/firebase.dev.json` y completa
+   los valores del proyecto autorizado. El archivo local está ignorado.
+3. En Firebase Authentication habilita email/contraseña, Google y Facebook;
+   para Google registra las huellas SHA correspondientes y para Facebook
+   configura App ID y Client Token en Android. Nunca incluyas App Secret.
+4. Realtime Database, Storage, FCM y Cloud Functions necesitan configuración
+   en la consola. Storage y Functions no están desplegados desde este repo.
+
+Para el emulador Android usa el ejemplo local:
+
+```bash
+firebase emulators:start --project demo-lincefood --only auth,database,storage,functions
+flutter run --dart-define-from-file=config/firebase.emulator.json --dart-define=FIREBASE_EMULATORS=true
+```
+
+El ejemplo de emulador es ficticio y no sirve para acceder a producción. FCM y
+los proveedores OAuth se deben validar con un proyecto y dispositivo reales.
+
+## Alcance integrado desde el Plan A
+
+- Gate de onboarding, sesión y verificación de correo.
+- Registro, inicio y recuperación por correo; Google y Facebook con Firebase.
+- Tema persistente, onboarding interactivo, idioma español y navegación
+  adaptable que conserva las pantallas existentes de catálogo, carrito y
+  pedidos.
+- Perfil RTDB, foto del proveedor social y avatar privado para cuenta de correo
+  cuando Storage y la callable segura estén configurados.
+- Listener global FCM y preferencias de canales públicos.
+
+Consulta [la auditoría del Plan A](../docs/auditoria_plan_a.md) para límites,
+decisiones de migración y verificaciones todavía pendientes.

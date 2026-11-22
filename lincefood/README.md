@@ -1,44 +1,55 @@
-# Lincefood · configuración Firebase
+# Lincefood
 
-Proyecto Firebase: `lincefood-app` (plan Spark, sin facturación).
+Proyecto Flutter para pedidos anticipados y recogida en cafetería universitaria.
+El cliente Android está en `app/`; Firebase Functions, reglas, semillas y
+Hosting se administran desde esta raíz.
 
-## Estado
+## Firebase de desarrollo
 
-| Componente | Estado |
-|---|---|
-| Proyecto Firebase | Creado |
-| App Android `com.lincefood.app` | Registrada (`apps:create`) |
-| Realtime Database | Pendiente: activar en la consola (la CLI pide el asistente la primera vez) |
-| Auth: correo/contraseña y Google | Pendiente: activar en la consola |
-| Storage | Fuera de alcance mientras no haya plan Blaze autorizado |
-| Reglas RTDB | Borrador con validación de variantes en `firebase/database.rules.json`, sin desplegar |
-| Semilla del menú | Datos ficticios, con variantes de prueba en `firebase/seeds/menu.seed.json`, sin importar |
-| Semilla de notificaciones | Textos de ejemplo en español en `firebase/seeds/notificaciones.seed.json`, sin enviar |
+La configuración documentada usa el proyecto Firebase `lincefood-app` y el
+identificador Android `com.lincefood.app`. `.firebaserc` selecciona ese ID por
+defecto para Firebase CLI. No se han desplegado reglas, funciones ni semillas.
 
-## Pasos pendientes del responsable
+| Servicio | Estado local | Pendiente remoto |
+|---|---|---|
+| Authentication | Flujos email, Google y Facebook implementados | Activar/verificar proveedores y OAuth |
+| Realtime Database | Reglas y semilla presentes | Crear instancia y probar reglas |
+| Storage | Reglas privadas de avatar | Requiere habilitar Storage y plan Blaze |
+| Cloud Functions | Callable de elegibilidad de avatar | Instalar, probar y desplegar con autorización |
+| FCM | Listener y preferencias de temas implementados | Configurar y probar en Android real |
+| Hosting | Privacidad y eliminación de datos | Despliegue pendiente |
 
-1. En la consola de Firebase, abrir `lincefood-app` > Realtime Database > Crear base de datos (ubicación `us-central1`).
-2. En Authentication > Métodos de acceso, habilitar Correo/contraseña y Google.
-3. Revisar el borrador de reglas antes de desplegar.
+Cloud Storage para Firebase requiere Blaze desde el 3 de febrero de 2026. No
+actives facturación sin autorización del responsable del proyecto. No copies
+secretos ni configuraciones del repo `finanzas-familiares`.
 
-## Reglas de seguridad (resumen)
+## Probar servicios locales
 
-- Denegar por defecto en la raíz.
-- Los clientes leen catálogo y solo escriben sus preferencias y perfil.
-- Los pedidos no se escriben desde el cliente; el servidor los crea y cambia su estado.
-- `payments`, `pickupTokens` y `staffQueue` nunca son legibles por el cliente.
-- Roles de personal y administrador mediante custom claims (`staff`, `admin`), nunca por campos editables por el usuario.
-
-## Validación local
-
-- Los cuatro archivos JSON (`firebase.json` y los tres archivos de reglas y semillas) se validan con `node -e`.
-- Emulador Firebase: no configurado; la validación de las reglas en el emulador queda pendiente.
-
-## Comandos
+Desde la raíz del repo, con Firebase CLI y Java instalados, instala primero las
+dependencias de Functions:
 
 ```bash
-firebase use lincefood-app
-firebase deploy --only database --project lincefood-app   # solo tras revisar las reglas
+npm install --prefix functions
+firebase emulators:start --project demo-lincefood --only auth,database,storage,functions
 ```
 
-No desplegar las reglas ni importar las semillas como parte de esta tarea; siguen pendientes.
+En otra terminal, desde `app/`:
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run --dart-define-from-file=config/firebase.emulator.json --dart-define=FIREBASE_EMULATORS=true
+```
+
+Para Android Emulator se usa `10.0.2.2` como host del emulador. En teléfono
+físico define `FIREBASE_EMULATOR_HOST` con la IP LAN del equipo. OAuth y FCM
+no se cubren con estos emuladores.
+
+## Estructura
+
+- `app/`: aplicación Flutter con Riverpod.
+- `firebase/`: reglas RTDB/Storage y datos seed.
+- `functions/`: callable de servidor para proteger cambios de avatar.
+- `hosting/`: privacidad y solicitud de eliminación de datos.
+- `docs/auditoria_plan_a.md`: integración, decisiones y trabajo remoto pendiente.

@@ -32,8 +32,9 @@ class EmailVerificationScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed:
-                      state.canResend ? controller.resendVerificationEmail : null,
+                  onPressed: state.canResend
+                      ? controller.resendVerificationEmail
+                      : null,
                   child: Text(_resendButtonLabel(state)),
                 ),
                 const SizedBox(height: 12),

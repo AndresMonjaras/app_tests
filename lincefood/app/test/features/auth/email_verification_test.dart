@@ -12,6 +12,9 @@ class _FakeAuthGateway implements AuthGateway {
   @override
   String? currentEmail;
 
+  @override
+  String? get currentUid => null;
+
   int sendCount = 0;
   bool isVerified = false;
   bool failSend = false;
@@ -45,20 +48,14 @@ void main() {
     test('permite enviar si nunca se envió y al terminar el cooldown', () {
       expect(canResendVerification(null, sentAt), isTrue);
       expect(
-        canResendVerification(
-          sentAt,
-          sentAt.add(const Duration(seconds: 60)),
-        ),
+        canResendVerification(sentAt, sentAt.add(const Duration(seconds: 60))),
         isTrue,
       );
     });
 
     test('calcula los segundos restantes dentro del cooldown', () {
       expect(
-        canResendVerification(
-          sentAt,
-          sentAt.add(const Duration(seconds: 59)),
-        ),
+        canResendVerification(sentAt, sentAt.add(const Duration(seconds: 59))),
         isFalse,
       );
       expect(
@@ -79,10 +76,7 @@ void main() {
         60,
       );
       expect(
-        remainingCooldownSeconds(
-          sentAt,
-          sentAt.add(const Duration(hours: 2)),
-        ),
+        remainingCooldownSeconds(sentAt, sentAt.add(const Duration(hours: 2))),
         0,
       );
     });
@@ -95,9 +89,7 @@ void main() {
     setUp(() {
       gateway = _FakeAuthGateway();
       container = ProviderContainer(
-        overrides: [
-          authGatewayProvider.overrideWith((ref) => gateway),
-        ],
+        overrides: [authGatewayProvider.overrideWith((ref) => gateway)],
       );
     });
 
@@ -173,15 +165,14 @@ void main() {
     });
   });
 
-  testWidgets('oculta las acciones si no hay una sesión activa',
-      (tester) async {
+  testWidgets('oculta las acciones si no hay una sesión activa', (
+    tester,
+  ) async {
     final gateway = _FakeAuthGateway(currentEmail: null);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          authGatewayProvider.overrideWith((ref) => gateway),
-        ],
+        overrides: [authGatewayProvider.overrideWith((ref) => gateway)],
         child: const MaterialApp(home: EmailVerificationScreen()),
       ),
     );
@@ -198,9 +189,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          authGatewayProvider.overrideWith((ref) => gateway),
-        ],
+        overrides: [authGatewayProvider.overrideWith((ref) => gateway)],
         child: const MaterialApp(home: EmailVerificationScreen()),
       ),
     );
@@ -209,8 +198,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Reenviar correo (60s)'), findsOneWidget);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-        isNull);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

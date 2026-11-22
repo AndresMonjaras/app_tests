@@ -40,7 +40,9 @@ void main() {
     expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
   });
 
-  testWidgets('no marca pasos para pago pendiente ni incidente', (tester) async {
+  testWidgets('no marca pasos para pago pendiente ni incidente', (
+    tester,
+  ) async {
     for (final status in [OrderStatus.paymentPending, OrderStatus.incident]) {
       await tester.pumpWidget(_app(status));
 
@@ -49,9 +51,12 @@ void main() {
     }
   });
 
-  testWidgets('usa colores del tema oscuro para los pasos pendientes',
-      (tester) async {
-    await tester.pumpWidget(_app(OrderStatus.confirmed, theme: ThemeData.dark()));
+  testWidgets('usa colores del tema oscuro para los pasos pendientes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(OrderStatus.confirmed, theme: ThemeData.dark()),
+    );
 
     final pendingText = tester.widget<Text>(find.text('Entregado'));
     expect(pendingText.style?.color, isNotNull);

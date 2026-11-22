@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/firebase_auth_gateway.dart';
 import '../domain/auth_gateway.dart';
@@ -20,6 +21,7 @@ class EmailVerificationState {
     required this.email,
     this.lastSentAt,
     this.secondsRemaining = 0,
+    this.isRestoringCooldown = false,
     this.isSending = false,
     this.isVerifying = false,
     this.message,
@@ -29,17 +31,22 @@ class EmailVerificationState {
   final String email;
   final DateTime? lastSentAt;
   final int secondsRemaining;
+  final bool isRestoringCooldown;
   final bool isSending;
   final bool isVerifying;
   final String? message;
   final String? error;
 
   bool get canResend =>
-      email.isNotEmpty && !isSending && secondsRemaining == 0;
+      email.isNotEmpty &&
+      !isSending &&
+      !isRestoringCooldown &&
+      secondsRemaining == 0;
 
   EmailVerificationState copyWith({
     DateTime? lastSentAt,
     int? secondsRemaining,
+    bool? isRestoringCooldown,
     bool? isSending,
     bool? isVerifying,
     Object? message = _unchanged,
@@ -49,22 +56,58 @@ class EmailVerificationState {
       email: email,
       lastSentAt: lastSentAt ?? this.lastSentAt,
       secondsRemaining: secondsRemaining ?? this.secondsRemaining,
+      isRestoringCooldown: isRestoringCooldown ?? this.isRestoringCooldown,
       isSending: isSending ?? this.isSending,
       isVerifying: isVerifying ?? this.isVerifying,
-      message: identical(message, _unchanged) ? this.message : message as String?,
+      message: identical(message, _unchanged)
+          ? this.message
+          : message as String?,
       error: identical(error, _unchanged) ? this.error : error as String?,
     );
   }
 }
 
 class EmailVerificationController extends Notifier<EmailVerificationState> {
+  static const _cooldownSeconds = 60;
   Timer? _timer;
+  bool _disposed = false;
 
   @override
   EmailVerificationState build() {
-    ref.onDispose(() => _timer?.cancel());
+    ref.onDispose(() {
+      _disposed = true;
+      _timer?.cancel();
+    });
     final gateway = ref.read(authGatewayProvider);
-    return EmailVerificationState(email: gateway.currentEmail ?? '');
+    final email = gateway.currentEmail ?? '';
+    final uid = gateway.currentUid;
+    if (email.isNotEmpty && uid != null) {
+      Future<void>.microtask(() => _restoreCooldown(uid));
+      return EmailVerificationState(email: email, isRestoringCooldown: true);
+    }
+    return EmailVerificationState(email: email);
+  }
+
+  Future<void> _restoreCooldown(String uid) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final sentAtMillis = preferences.getInt('verification_sent_at_$uid');
+      if (_disposed) return;
+      final sentAt = sentAtMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(sentAtMillis);
+      final remaining = remainingCooldownSeconds(sentAt, DateTime.now());
+      state = state.copyWith(
+        lastSentAt: sentAt,
+        secondsRemaining: remaining,
+        isRestoringCooldown: false,
+      );
+      if (remaining > 0) _startCountdown();
+    } catch (_) {
+      if (!_disposed) {
+        state = state.copyWith(isRestoringCooldown: false);
+      }
+    }
   }
 
   Future<void> resendVerificationEmail() async {
@@ -74,10 +117,18 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
     try {
       await ref.read(authGatewayProvider).sendVerificationEmail();
       final sentAt = DateTime.now();
+      final uid = ref.read(authGatewayProvider).currentUid;
+      if (uid != null) {
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.setInt(
+          'verification_sent_at_$uid',
+          sentAt.millisecondsSinceEpoch,
+        );
+      }
       state = state.copyWith(
         isSending: false,
         lastSentAt: sentAt,
-        secondsRemaining: resendCooldownSeconds,
+        secondsRemaining: _cooldownSeconds,
         message: 'Te enviamos un correo de verificación.',
       );
       _startCountdown();
@@ -110,6 +161,10 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
     state = state.copyWith(isVerifying: true, message: null, error: null);
     try {
       final verified = await ref.read(authGatewayProvider).reloadUser();
+      if (verified) {
+        _timer?.cancel();
+        _timer = null;
+      }
       state = state.copyWith(
         isVerifying: false,
         message: verified
@@ -139,5 +194,5 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
 
 final emailVerificationControllerProvider =
     NotifierProvider<EmailVerificationController, EmailVerificationState>(
-  EmailVerificationController.new,
-);
+      EmailVerificationController.new,
+    );

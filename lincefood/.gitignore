@@ -1,0 +1,19 @@
+# Flutter workspace generated files (Flutter app lives in app/).
+app/.dart_tool/
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/build/
+app/coverage/
+
+# Firebase local state and generated logs.
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+functions/node_modules/
+
+# Local Firebase configuration, never commit populated values.
+app/config/firebase.*.json
+!app/config/firebase.example.json

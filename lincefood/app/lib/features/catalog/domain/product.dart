@@ -97,9 +97,8 @@ class Product {
     final rawPrice = map['priceCents'];
     final price = rawPrice is int && rawPrice >= 0 ? rawPrice : 0;
     final rawPrepMinutes = map['prepMinutes'];
-    final prepMinutes = rawPrepMinutes is int &&
-            rawPrepMinutes >= 0 &&
-            rawPrepMinutes <= 240
+    final prepMinutes =
+        rawPrepMinutes is int && rawPrepMinutes >= 0 && rawPrepMinutes <= 240
         ? rawPrepMinutes
         : 0;
 

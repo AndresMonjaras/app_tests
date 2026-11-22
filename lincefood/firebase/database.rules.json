@@ -35,7 +35,22 @@
     "profiles": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.staff === true)",
-        ".write": "auth != null && auth.uid === $uid"
+        "displayName": {
+          ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true",
+          ".validate": "newData.isString() && newData.val().length <= 80"
+        },
+        "avatarPath": {
+          ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true && auth.token.avatar_editable === true",
+          ".validate": "newData.isString() && newData.val().length <= 240 && newData.val().beginsWith('profiles/' + $uid + '/avatar/')"
+        },
+        "updatedAt": {
+          ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true",
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".write": false,
+          ".validate": false
+        }
       }
     },
 
@@ -89,14 +104,23 @@
     "notificationPreferences": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        "$topic": {
+          ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true && ($topic === 'cafeteria_menu' || $topic === 'cafeteria_ofertas' || $topic === 'cafeteria_avisos')",
+          ".validate": "newData.isBoolean()"
+        }
       }
     },
 
     "deviceRegistrations": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid"
+        "$deviceId": {
+          ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true",
+          ".validate": "newData.hasChildren(['installationId', 'registeredAt'])",
+          "installationId": { ".validate": "newData.isString() && newData.val().length <= 256" },
+          "registeredAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
       }
     },
 

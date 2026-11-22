@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lincefood_app/features/cart/domain/cart.dart';
 import 'package:lincefood_app/features/cart/presentation/cart_controller.dart';
 import 'package:lincefood_app/features/catalog/domain/product.dart';
 
@@ -23,7 +24,8 @@ void main() {
 
   tearDown(() => container.dispose());
 
-  CartController controller() => container.read(cartControllerProvider.notifier);
+  CartController controller() =>
+      container.read(cartControllerProvider.notifier);
   Cart readCart() => container.read(cartControllerProvider);
 
   test('suma cantidades y calcula el total en centavos', () {

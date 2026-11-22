@@ -1,0 +1,10 @@
+{
+  "FIREBASE_API_KEY": "fake-api-key",
+  "FIREBASE_APP_ID": "1:1234567890:android:abcdef",
+  "FIREBASE_MESSAGING_SENDER_ID": "1234567890",
+  "FIREBASE_PROJECT_ID": "demo-lincefood",
+  "FIREBASE_DATABASE_URL": "https://demo-lincefood-default-rtdb.firebaseio.com",
+  "FIREBASE_STORAGE_BUCKET": "demo-lincefood.appspot.com",
+  "FIREBASE_AUTH_DOMAIN": "",
+  "GOOGLE_SERVER_CLIENT_ID": ""
+}

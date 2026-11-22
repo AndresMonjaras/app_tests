@@ -6,6 +6,7 @@ class AppTheme {
   static final light = ThemeData(
     colorScheme: ColorScheme.fromSeed(seedColor: _seedColor),
     useMaterial3: true,
+    fontFamily: 'Jakarta',
   );
 
   static final dark = ThemeData(
@@ -14,5 +15,6 @@ class AppTheme {
       brightness: Brightness.dark,
     ),
     useMaterial3: true,
+    fontFamily: 'Jakarta',
   );
 }
