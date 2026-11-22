@@ -1,3 +1,4 @@
+import './src/global_options.mjs';
 import { initializeApp } from 'firebase-admin/app';
 import { getDatabase, ServerValue } from 'firebase-admin/database';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
