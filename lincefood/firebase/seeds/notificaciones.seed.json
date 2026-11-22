@@ -14,5 +14,13 @@
   "pedido_listo": {
     "titulo": "Pedido listo",
     "cuerpo": "Tu pedido puede estar listo. Abre la app para consultar"
+  },
+  "pedido_registrado": {
+    "titulo": "Pedido registrado",
+    "cuerpo": "Tu pedido fue registrado. Abre la app para consultar su avance."
+  },
+  "pedido_en_cocina": {
+    "titulo": "Tu pedido está en cocina",
+    "cuerpo": "La cafetería ya está preparando tu pedido."
   }
 }

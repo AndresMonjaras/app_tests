@@ -1,47 +1,103 @@
-import { getApp, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { initializeApp } from 'firebase-admin/app';
+import { getDatabase, ServerValue } from 'firebase-admin/database';
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
+import Stripe from 'stripe';
 
-try {
-  getApp();
-} catch (_) {
-  initializeApp();
+import { AppError } from './src/app_error.mjs';
+import {
+  createCreateOrderHandler,
+  createCreatePaymentIntentHandler,
+  createStripeWebhookHandler,
+} from './src/handlers.mjs';
+import {
+  createConsumePickupTokenHandler,
+  createIssuePickupTokenHandler,
+} from './src/pickup/pickup_handlers.mjs';
+
+const region = 'us-central1';
+const stripeSecretKey = defineSecret('STRIPE_SECRET_KEY');
+const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
+
+initializeApp({
+  projectId: 'lincefood-app',
+  databaseURL: 'https://lincefood-app-default-rtdb.firebaseio.com',
+});
+const database = getDatabase();
+
+function withCallableErrors(handler) {
+  return async (request) => {
+    try {
+      return await handler(request);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw new HttpsError(error.code, error.message);
+      }
+      throw new HttpsError(
+        'internal',
+        'No se pudo completar la operación. Inténtalo de nuevo.',
+      );
+    }
+  };
 }
 
-const auth = getAuth();
+export const createOrder = onCall(
+  { region },
+  withCallableErrors(
+    createCreateOrderHandler({
+      database,
+      serverTimestamp: () => ServerValue.TIMESTAMP,
+    }),
+  ),
+);
 
-export const synchronizeAvatarEligibility = onCall(
-  {
-    region: 'us-central1',
-    enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== 'true',
-    maxInstances: 2,
-  },
-  async (request) => {
-    const uid = request.auth?.uid;
-    if (!uid) {
-      throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
-    }
-    if (request.auth.token.email_verified !== true) {
-      throw new HttpsError('failed-precondition', 'Verifica tu correo.');
-    }
+export const createPaymentIntent = onCall(
+  { region, secrets: [stripeSecretKey] },
+  withCallableErrors(async (request) => {
+    const handler = createCreatePaymentIntentHandler({
+      database,
+      stripe: new Stripe(stripeSecretKey.value()),
+    });
+    return handler(request);
+  }),
+);
 
-    const user = await auth.getUser(uid);
-    const providers = user.providerData.map((provider) => provider.providerId);
-    const avatarEditable =
-      user.emailVerified === true &&
-      Boolean(user.email) &&
-      providers.length === 1 &&
-      providers[0] === 'password';
-
-    const claims = { ...(user.customClaims ?? {}) };
-    if (avatarEditable) {
-      claims.avatar_editable = true;
-    } else {
-      delete claims.avatar_editable;
-    }
-    if ((user.customClaims?.avatar_editable === true) !== avatarEditable) {
-      await auth.setCustomUserClaims(uid, claims);
-    }
-    return { avatarEditable };
+export const stripeWebhook = onRequest(
+  { region, secrets: [stripeSecretKey, stripeWebhookSecret] },
+  async (request, response) => {
+    const handler = createStripeWebhookHandler({
+      database,
+      stripe: new Stripe(stripeSecretKey.value()),
+      webhookSecret: stripeWebhookSecret.value(),
+    });
+    return handler(request, response);
   },
 );
+
+export const issuePickupToken = onCall(
+  { region },
+  withCallableErrors(
+    createIssuePickupTokenHandler({ database }),
+  ),
+);
+
+export const consumePickupToken = onCall(
+  { region },
+  withCallableErrors(
+    createConsumePickupTokenHandler({ database }),
+  ),
+);
+
+export { updateOrderStatus } from './src/orders/update_order_status.mjs';
+export {
+  upsertProduct,
+  updateProductPrice,
+  setProductAvailability,
+  deleteProduct,
+} from './src/catalog/index.mjs';
+export { setStaffRole, setAdminRole } from './src/roles/index.mjs';
+export {
+  notifyOrderStatus,
+  sendRecommendation,
+  sendTopicNotification,
+} from './src/notifications/index.mjs';

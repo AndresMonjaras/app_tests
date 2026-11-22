@@ -10,7 +10,9 @@ import 'package:lincefood_app/features/orders/domain/order_status.dart';
 void main() {
   group('carrito y variantes', () {
     test('formatea dinero sin conversiones de punto flotante', () {
-      expect(formatMoney(1299), r'$12.99');
+      expect(formatMoney(1299), r'$12.99 MXN');
+      expect(formatMoney(123456789), r'$1,234,567.89 MXN');
+      expect(formatMoney(-500), r'-$5.00 MXN');
     });
 
     test('suma las líneas usando centavos enteros', () {

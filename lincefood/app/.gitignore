@@ -49,6 +49,3 @@ app.*.map.json
 
 # Configuración local de Firebase
 /lib/firebase_options.dart
-/config/firebase.*.json
-!/config/firebase.example.json
-!/config/firebase.emulator.example.json

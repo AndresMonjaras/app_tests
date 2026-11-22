@@ -1,9 +1,10 @@
 gradle-wrapper.jar
 /.gradle
+/.kotlin
+/app/build
 /captures/
 /gradlew
 /gradlew.bat
-# SDK paths and locally restricted Google Maps key.
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

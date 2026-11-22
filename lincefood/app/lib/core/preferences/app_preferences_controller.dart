@@ -18,12 +18,14 @@ class AppPreferences {
     ThemeMode? themeMode,
     bool? onboardingComplete,
     bool? protectPickupQrWithBiometrics,
-  }) => AppPreferences(
-    themeMode: themeMode ?? this.themeMode,
-    onboardingComplete: onboardingComplete ?? this.onboardingComplete,
-    protectPickupQrWithBiometrics:
-        protectPickupQrWithBiometrics ?? this.protectPickupQrWithBiometrics,
-  );
+  }) {
+    return AppPreferences(
+      themeMode: themeMode ?? this.themeMode,
+      onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      protectPickupQrWithBiometrics:
+          protectPickupQrWithBiometrics ?? this.protectPickupQrWithBiometrics,
+    );
+  }
 }
 
 class AppPreferencesController extends AsyncNotifier<AppPreferences> {
@@ -34,13 +36,14 @@ class AppPreferencesController extends AsyncNotifier<AppPreferences> {
   @override
   Future<AppPreferences> build() async {
     final preferences = await SharedPreferences.getInstance();
-    final mode = switch (preferences.getString(_themeKey)) {
+    final themeMode = switch (preferences.getString(_themeKey)) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     };
+
     return AppPreferences(
-      themeMode: mode,
+      themeMode: themeMode,
       onboardingComplete: preferences.getBool(_onboardingKey) ?? false,
       protectPickupQrWithBiometrics:
           preferences.getBool(_biometricQrKey) ?? false,
@@ -49,27 +52,43 @@ class AppPreferencesController extends AsyncNotifier<AppPreferences> {
 
   Future<void> setThemeMode(ThemeMode mode) async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_themeKey, switch (mode) {
+    final saved = await preferences.setString(_themeKey, switch (mode) {
       ThemeMode.light => 'light',
       ThemeMode.dark => 'dark',
       ThemeMode.system => 'system',
     });
-    final current = state.asData?.value ?? const AppPreferences();
-    state = AsyncData(current.copyWith(themeMode: mode));
+    if (!saved) throw StateError('No se pudo guardar el tema.');
+    if (!ref.mounted) return;
+
+    state = AsyncData(_currentPreferences().copyWith(themeMode: mode));
   }
 
   Future<void> finishOnboarding() async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(_onboardingKey, true);
-    final current = state.asData?.value ?? const AppPreferences();
-    state = AsyncData(current.copyWith(onboardingComplete: true));
+    final saved = await preferences.setBool(_onboardingKey, true);
+    if (!saved) throw StateError('No se pudo guardar el onboarding.');
+    if (!ref.mounted) return;
+
+    state = AsyncData(_currentPreferences().copyWith(onboardingComplete: true));
   }
 
   Future<void> setPickupQrBiometrics(bool enabled) async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(_biometricQrKey, enabled);
-    final current = state.asData?.value ?? const AppPreferences();
-    state = AsyncData(current.copyWith(protectPickupQrWithBiometrics: enabled));
+    final saved = await preferences.setBool(_biometricQrKey, enabled);
+    if (!saved) {
+      throw StateError('No se pudo guardar la protección biométrica.');
+    }
+    if (!ref.mounted) {
+      return;
+    }
+
+    state = AsyncData(
+      _currentPreferences().copyWith(protectPickupQrWithBiometrics: enabled),
+    );
+  }
+
+  AppPreferences _currentPreferences() {
+    return state.asData?.value ?? const AppPreferences();
   }
 }
 
@@ -77,14 +96,3 @@ final appPreferencesProvider =
     AsyncNotifierProvider<AppPreferencesController, AppPreferences>(
       AppPreferencesController.new,
     );
-
-final onboardingPageProvider = NotifierProvider<OnboardingPageController, int>(
-  OnboardingPageController.new,
-);
-
-class OnboardingPageController extends Notifier<int> {
-  @override
-  int build() => 0;
-
-  void select(int page) => state = page.clamp(0, 2).toInt();
-}
