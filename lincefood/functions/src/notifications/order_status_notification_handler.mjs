@@ -2,7 +2,7 @@ import { buildOrderMessage } from './notification_payloads.mjs';
 import { sendNotificationToUser } from './notification_sender.mjs';
 import {
   orderNotificationId,
-  removeNotificationFromInbox,
+  recordOrderPushFailure,
   saveNotificationToInbox,
 } from './notification_inbox.mjs';
 
@@ -11,6 +11,8 @@ const statusAliases = new Map([
   ['paid', 'paid'],
   ['confirmado', 'confirmed'],
   ['confirmed', 'confirmed'],
+  ['rechazado', 'rejected'],
+  ['rejected', 'rejected'],
   ['preparando', 'preparing'],
   ['en cocina', 'preparing'],
   ['preparing', 'preparing'],
@@ -24,6 +26,7 @@ const statusAliases = new Map([
 const noticeForStatus = new Map([
   ['paid', 'pedido_registrado'],
   ['confirmed', 'pedido_confirmado'],
+  ['rejected', 'pedido_rechazado'],
   ['preparing', 'pedido_en_cocina'],
   ['ready', 'pedido_listo'],
   ['delivered', 'pedido_entregado'],
@@ -62,8 +65,9 @@ export function createOrderStatusNotificationHandler({
       noticeType,
       orderId,
       notificationId,
+      nextStatus === 'rejected' ? after.rejectionReason : undefined,
     );
-    const isNewNotification = await saveNotificationToInbox({
+    const shouldSend = await saveNotificationToInbox({
       database,
       uid,
       notificationId,
@@ -72,7 +76,7 @@ export function createOrderStatusNotificationHandler({
       body: message.notification.body,
       orderId,
     });
-    if (!isNewNotification) return { successCount: 0, deduplicated: true };
+    if (!shouldSend) return { successCount: 0, deduplicated: true };
 
     try {
       return await sendNotificationToUser({
@@ -82,7 +86,7 @@ export function createOrderStatusNotificationHandler({
         message,
       });
     } catch (error) {
-      await removeNotificationFromInbox(database, uid, notificationId);
+      await recordOrderPushFailure(database, uid, notificationId, noticeType);
       throw error;
     }
   };

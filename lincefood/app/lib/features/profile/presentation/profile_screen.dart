@@ -27,12 +27,11 @@ class ProfileScreen extends ConsumerWidget {
     final avatarState = ref.watch(profileControllerProvider);
 
     return auth.when(
-      loading: () =>
-          const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(semanticsLabel: 'Cargando perfil'),
-            ),
-          ),
+      loading: () => const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(semanticsLabel: 'Cargando perfil'),
+        ),
+      ),
       error: (_, _) => const Scaffold(
         body: Center(child: Text('No pudimos cargar tu perfil.')),
       ),
@@ -95,12 +94,14 @@ class ProfileScreen extends ConsumerWidget {
                             alignment: WrapAlignment.center,
                             children: [
                               FilledButton.tonalIcon(
-                                onPressed: avatarState.isBusy || !user.emailVerified
+                                onPressed:
+                                    avatarState.isBusy || !user.emailVerified
                                     ? null
                                     : () => unawaited(
                                         ref
                                             .read(
-                                              profileControllerProvider.notifier,
+                                              profileControllerProvider
+                                                  .notifier,
                                             )
                                             .seleccionarAvatar(user.uid),
                                       ),
@@ -127,7 +128,8 @@ class ProfileScreen extends ConsumerWidget {
                                       : () => unawaited(
                                           ref
                                               .read(
-                                                profileControllerProvider.notifier,
+                                                profileControllerProvider
+                                                    .notifier,
                                               )
                                               .eliminarAvatar(user.uid),
                                         ),
@@ -160,7 +162,9 @@ class ProfileScreen extends ConsumerWidget {
                   if (ref.watch(adminAccessProvider).value == true)
                     Card(
                       child: ListTile(
-                        leading: const Icon(Icons.admin_panel_settings_outlined),
+                        leading: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                        ),
                         title: const Text('Administración'),
                         subtitle: const Text(
                           'Productos, precios y permisos del equipo.',
@@ -174,7 +178,9 @@ class ProfileScreen extends ConsumerWidget {
                     child: ListTile(
                       leading: const Icon(Icons.notifications_outlined),
                       title: const Text('Notificaciones'),
-                      subtitle: const Text('Configura los avisos de la cafetería.'),
+                      subtitle: const Text(
+                        'Configura los avisos de la cafetería.',
+                      ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () =>
                           Navigator.of(context)
@@ -188,7 +194,19 @@ class ProfileScreen extends ConsumerWidget {
                       title: const Text('Planes de servicio'),
                       subtitle: const Text('Compara reservas de recogida.'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).pushNamed(AppRouter.plans),
+                      onTap: () =>
+                          Navigator.of(context).pushNamed(AppRouter.plans),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.privacy_tip_outlined),
+                      title: const Text('Aviso de privacidad'),
+                      subtitle: const Text('Qué datos usamos y para qué.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          Navigator.of(context).pushNamed(AppRouter.privacy),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -234,10 +252,14 @@ class ProfileScreen extends ConsumerWidget {
                         'Solicita huella o rostro antes de mostrar el código de recogida.',
                       ),
                       value:
-                          preferences.asData?.value.protectPickupQrWithBiometrics ??
+                          preferences
+                              .asData
+                              ?.value
+                              .protectPickupQrWithBiometrics ??
                           false,
                       onChanged:
-                          preferences.isLoading || biometricAvailability.isLoading
+                          preferences.isLoading ||
+                              biometricAvailability.isLoading
                           ? null
                           : (enabled) => unawaited(
                               _setPickupQrProtection(context, ref, enabled),

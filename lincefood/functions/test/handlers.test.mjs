@@ -8,10 +8,12 @@ import {
 } from '../src/handlers.mjs';
 import { createUpdateOrderStatusHandler } from '../src/orders/update_order_status_handler.mjs';
 import { createCancelOrderHandler } from '../src/orders/cancel_order_handler.mjs';
+import { createRejectOrderHandler } from '../src/orders/reject_order_handler.mjs';
 import { createResolveOrderIncidentHandler } from '../src/orders/resolve_order_incident_handler.mjs';
 
-function createMemoryDatabase(initial = {}) {
+function createMemoryDatabase(initial = {}, { coldPaths = [], beforeUpdate } = {}) {
   const data = structuredClone(initial);
+  const coldTransactions = new Set(coldPaths);
   let pushCount = 0;
 
   function getAt(path) {
@@ -47,11 +49,15 @@ function createMemoryDatabase(initial = {}) {
           setAt(path, value);
         },
         async update(updates) {
+          if (beforeUpdate) await beforeUpdate(updates);
           for (const [updatePath, value] of Object.entries(updates)) {
             setAt(updatePath, value);
           }
         },
         async transaction(update) {
+          if (coldTransactions.delete(path) && update(null) === undefined) {
+            return { committed: false, snapshot: { val: () => null } };
+          }
           const current = getAt(path);
           const next = update(current);
           if (next === undefined) {
@@ -522,7 +528,7 @@ test('createPaymentIntent toma el monto guardado y usa idempotencia por pedido',
   );
 });
 
-test('stripeWebhook valida el cuerpo original e idempotentemente marca el pedido pagado', async () => {
+test('stripeWebhook confirma el pedido desde una caché fría y admite duplicados', async () => {
   const database = createMemoryDatabase({
     orders: {
       ORDER00000000000001: {
@@ -537,7 +543,7 @@ test('stripeWebhook valida el cuerpo original e idempotentemente marca el pedido
         status: 'requires_payment',
       },
     },
-  });
+  }, { coldPaths: ['orders/ORDER00000000000001'] });
   const rawBody = Buffer.from('cuerpo original');
   const event = {
     type: 'payment_intent.succeeded',
@@ -598,6 +604,36 @@ test('stripeWebhook valida el cuerpo original e idempotentemente marca el pedido
     'succeeded',
   );
   assert.equal(response.statusCode, 200);
+});
+
+test('createPaymentIntent no pisa un pago que el webhook confirmó durante un reintento', async () => {
+  const orderId = 'ORDER00000000000001';
+  const paymentPath = 'payments/' + orderId;
+  const database = createMemoryDatabase({
+    orders: {
+      [orderId]: { ownerUid: 'user-1', status: 'pendiente_pago', totalCents: 7600 },
+    },
+  }, { coldPaths: [paymentPath] });
+  const payment = { paymentIntentId: 'pi-simulado', status: 'succeeded' };
+  const createPaymentIntent = createCreatePaymentIntentHandler({
+    database,
+    stripe: {
+      paymentIntents: {
+        async create() {
+          await database.ref(paymentPath).set(payment);
+          return {
+            id: payment.paymentIntentId,
+            client_secret: 'secreto-simulado-para-pruebas',
+            livemode: false,
+          };
+        },
+      },
+    },
+  });
+
+  await createPaymentIntent({ auth: { uid: 'user-1' }, data: { orderId } });
+
+  assert.deepEqual(database.data.payments[orderId], payment);
 });
 
 test('stripeWebhook conserva pendiente de pago y registra el rechazo', async () => {
@@ -911,4 +947,422 @@ test('cancelOrder no llama a Stripe si el pago no se completó', async () => {
 
   assert.equal(result.refundStatus, null);
   assert.equal(stripe.calls.length, 0);
+});
+
+test('cancelOrder cancela aunque la primera pasada de la transacción llegue vacía', async () => {
+  const database = createMemoryDatabase(
+    {
+      orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'paid' } },
+      payments: { ORDER00000000000001: { status: 'succeeded', paymentIntentId: 'pi_1' } },
+    },
+    { coldPaths: ['orders/ORDER00000000000001'] },
+  );
+  const cancelOrder = createCancelOrderHandler({ database, stripe: fakeStripe() });
+
+  const result = await cancelOrder({
+    auth: { uid: 'user-1', token: {} },
+    data: { orderId: 'ORDER00000000000001' },
+  });
+
+  assert.equal(result.status, 'cancelled');
+  assert.equal(database.data.orders.ORDER00000000000001.status, 'cancelled');
+});
+
+test('cancelOrder responde no encontrado solo si el pedido no existe', async () => {
+  const database = createMemoryDatabase({ orders: {} });
+  const cancelOrder = createCancelOrderHandler({ database, stripe: fakeStripe() });
+
+  await assert.rejects(
+    cancelOrder({
+      auth: { uid: 'user-1', token: {} },
+      data: { orderId: 'ORDER00000000000009' },
+    }),
+    { code: 'not-found' },
+  );
+});
+
+test('cancelOrder cancela un pedido con pago pendiente y anula el intento en Stripe', async () => {
+  const database = createMemoryDatabase({
+    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'pendiente_pago' } },
+    payments: {
+      ORDER00000000000001: { status: 'requires_payment', paymentIntentId: 'pi_9' },
+    },
+  });
+  const cancelledIntents = [];
+  const stripe = {
+    ...fakeStripe(),
+    paymentIntents: {
+      async retrieve(id) {
+        return { id, status: 'requires_payment_method' };
+      },
+      async cancel(id) {
+        cancelledIntents.push(id);
+        return { id, status: 'canceled' };
+      },
+    },
+  };
+  const cancelOrder = createCancelOrderHandler({ database, stripe });
+
+  const result = await cancelOrder({
+    auth: { uid: 'user-1', token: {} },
+    data: { orderId: 'ORDER00000000000001' },
+  });
+
+  assert.equal(result.refundStatus, null);
+  assert.deepEqual(cancelledIntents, ['pi_9']);
+  assert.equal(database.data.orders.ORDER00000000000001.status, 'cancelled');
+  assert.equal(database.data.payments.ORDER00000000000001.status, 'canceled');
+  assert.equal(stripe.calls.length, 0);
+});
+
+test('updateOrderStatus avanza aunque la primera pasada de la transacción llegue vacía', async () => {
+  const database = createMemoryDatabase(
+    { orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'paid' } } },
+    { coldPaths: ['orders/ORDER00000000000001'] },
+  );
+  const updateOrderStatus = createUpdateOrderStatusHandler({ database, now: () => 100 });
+
+  await updateOrderStatus({
+    auth: { uid: 'staff-1', token: { staff: true } },
+    data: { orderId: 'ORDER00000000000001', status: 'confirmed' },
+  });
+
+  assert.equal(database.data.orders.ORDER00000000000001.status, 'confirmed');
+});
+
+test('cancelOrder reembolsa si Stripe ya cobró aunque el webhook no lo registrara', async () => {
+  const database = createMemoryDatabase({
+    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'pendiente_pago' } },
+    payments: {
+      ORDER00000000000001: { status: 'requires_payment', paymentIntentId: 'pi_7' },
+    },
+  });
+  const stripe = {
+    ...fakeStripe(),
+    paymentIntents: {
+      async retrieve(id) {
+        return { id, status: 'succeeded' };
+      },
+      async cancel() {
+        throw new Error('no debe anular un cobro hecho');
+      },
+    },
+  };
+  const cancelOrder = createCancelOrderHandler({ database, stripe });
+
+  const result = await cancelOrder({
+    auth: { uid: 'user-1', token: {} },
+    data: { orderId: 'ORDER00000000000001' },
+  });
+
+  assert.equal(result.refundStatus, 'requested');
+  assert.equal(stripe.calls[0].params.payment_intent, 'pi_7');
+});
+
+const rejectionOrderId = 'pedido-1';
+const rejectionOwner = 'estudiante-1';
+const rejectionNote = 'Se agotó el platillo solicitado.';
+
+function setupRejection({
+  status = 'paid',
+  paymentStatus = 'succeeded',
+  stripe = fakeStripe(),
+  databaseOptions,
+} = {}) {
+  const order = { ownerUid: rejectionOwner, status, totalCents: 5000 };
+  const database = createMemoryDatabase({
+    orders: { [rejectionOrderId]: order },
+    payments: { [rejectionOrderId]: { status: paymentStatus, paymentIntentId: 'pi_1' } },
+    ordersByUser: { [rejectionOwner]: { [rejectionOrderId]: { ...order } } },
+    staffQueue: { [rejectionOrderId]: { orderId: rejectionOrderId } },
+  }, databaseOptions);
+  let clock = 1000;
+  const reject = createRejectOrderHandler({ database, stripe, now: () => clock++ });
+  const request = {
+    auth: { uid: 'staff-1', token: { staff: true } },
+    data: { orderId: rejectionOrderId, reason: rejectionNote },
+  };
+  return { database, stripe, reject, request };
+}
+
+test('rejectOrder exige autenticación y claim staff o admin', async () => {
+  const { database, stripe, reject, request } = setupRejection();
+  const original = structuredClone(database.data);
+  await assert.rejects(reject({ data: request.data }), { code: 'unauthenticated' });
+  await assert.rejects(
+    reject({ ...request, auth: { uid: rejectionOwner, token: { staff: 'true' } } }),
+    { code: 'permission-denied' },
+  );
+  assert.deepEqual(database.data, original);
+  assert.deepEqual(stripe.calls, []);
+});
+
+test('rejectOrder valida la nota recortada por caracteres visibles', async () => {
+  const letter = 'a\u0301';
+  const { database, stripe, reject, request } = setupRejection();
+  const original = structuredClone(database.data);
+  for (const reason of [undefined, 42, '   ', ' 1234 ', letter.repeat(4), letter.repeat(201)]) {
+    await assert.rejects(reject({ ...request, data: { ...request.data, reason } }), {
+      code: 'invalid-argument',
+    });
+  }
+  assert.deepEqual(database.data, original);
+  assert.deepEqual(stripe.calls, []);
+
+  for (const size of [5, 200]) {
+    const scenario = setupRejection();
+    const reason = letter.repeat(size);
+    await scenario.reject({
+      ...scenario.request,
+      data: { orderId: rejectionOrderId, reason: '  ' + reason + '  ' },
+    });
+    assert.equal(scenario.database.data.orders[rejectionOrderId].rejectionReason, reason);
+  }
+});
+
+test('rejectOrder solo admite pagado o confirmado y conserva los demás estados', async () => {
+  for (const status of [
+    'payment_pending', 'preparing', 'en preparación', 'ready', 'delivered',
+    'incident', 'cancelled', 'rejected', 'rechazado', 'desconocido',
+  ]) {
+    const { database, stripe, reject, request } = setupRejection({ status });
+    const original = structuredClone(database.data);
+    await assert.rejects(reject(request), { code: 'failed-precondition' }, status);
+    assert.deepEqual(database.data, original, status);
+    assert.deepEqual(stripe.calls, [], status);
+  }
+});
+
+test('rejectOrder guarda la auditoría, el ticket y el aviso de diez minutos desde caché fría', async () => {
+  for (const [status, previous, role] of [
+    ['pagado', 'paid', 'staff'],
+    ['confirmado', 'confirmed', 'admin'],
+  ]) {
+    const { database, stripe, reject, request } = setupRejection({
+      status, databaseOptions: { coldPaths: ['orders/' + rejectionOrderId] },
+    });
+    const actorUid = role + '-1';
+    const auth = { uid: actorUid, token: { [role]: true } };
+    const result = await reject({ ...request, auth });
+    const { orders, ordersByUser, orderEvents, staffQueue, rejectionNotices } = database.data;
+    const order = orders[rejectionOrderId];
+    assert.equal(order.status, 'rejected');
+    assert.equal(order.rejectionReason, rejectionNote);
+    assert.equal(order.rejectedBy, actorUid);
+    assert.equal(order.rejectedAt, 1000);
+    assert.equal(result.status, 'rejected');
+    assert.deepEqual(ordersByUser[rejectionOwner][rejectionOrderId], {
+      ownerUid: rejectionOwner, status: 'rejected', totalCents: 5000,
+      rejectionReason: rejectionNote, rejectedAt: 1000,
+    });
+    assert.deepEqual(Object.values(orderEvents[rejectionOrderId]), [{
+      type: 'order_rejected', from: previous, to: 'rejected', actorUid,
+      actorRole: role, reason: rejectionNote, at: 1000,
+    }]);
+    assert.equal(staffQueue[rejectionOrderId], null);
+    assert.deepEqual(rejectionNotices, {
+      [rejectionOwner]: {
+        [rejectionOrderId]: { rejectedAt: 1000, expiresAt: 601000, rejectionReason: rejectionNote },
+      },
+    });
+    await assert.rejects(reject({ ...request, auth }), { code: 'failed-precondition' });
+    assert.equal(Object.keys(orderEvents[rejectionOrderId]).length, 1);
+    assert.equal(stripe.calls.length, 1);
+  }
+});
+
+test('rejectOrder responde no encontrado si el valor real sigue siendo null', async () => {
+  const path = 'orders/' + rejectionOrderId;
+  const { database, stripe, reject, request } = setupRejection({ databaseOptions: { coldPaths: [path] } });
+  await database.ref(path).set(null);
+  await assert.rejects(reject(request), { code: 'not-found' });
+  assert.equal(database.data.orders[rejectionOrderId], null);
+  assert.equal(database.data.rejectionNotices, undefined);
+  assert.deepEqual(stripe.calls, []);
+});
+
+test('rejectOrder consulta el PaymentIntent y reembolsa un pago aún pendiente en RTDB', async () => {
+  const stripe = fakeStripe();
+  const retrieved = [];
+  stripe.paymentIntents = {
+    async retrieve(id) {
+      retrieved.push(id);
+      return { status: 'succeeded' };
+    },
+  };
+  const { database, reject, request } = setupRejection({ stripe, paymentStatus: 'requires_payment' });
+  const result = await reject(request);
+  assert.deepEqual(retrieved, ['pi_1']);
+  assert.equal(result.refundStatus, 'requested');
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'requested');
+  assert.deepEqual(stripe.calls, [{
+    params: { payment_intent: 'pi_1' },
+    options: { idempotencyKey: 'refund-' + rejectionOrderId },
+  }]);
+});
+
+test('rejectOrder conserva el rechazo y deja el reembolso pendiente ante fallo de Stripe', async () => {
+  const { database, reject, request } = setupRejection({ stripe: fakeStripe({ fail: true }) });
+  await assert.rejects(reject(request), { code: 'internal', message: /reembolso quedó pendiente/i });
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'pending');
+  assert.equal(database.data.orders[rejectionOrderId].status, 'rejected');
+  assert.equal(database.data.ordersByUser[rejectionOwner][rejectionOrderId].status, 'rejected');
+  assert.equal(database.data.staffQueue[rejectionOrderId], null);
+  assert.equal(database.data.rejectionNotices[rejectionOwner][rejectionOrderId].rejectionReason, rejectionNote);
+});
+
+test('rejectOrder reanuda la misma solicitud tras fallar una escritura antes o después de Stripe', async () => {
+  for (const failurePath of [
+    'ordersByUser/' + rejectionOwner + '/' + rejectionOrderId,
+    'payments/' + rejectionOrderId + '/refundStatus',
+  ]) {
+    let fail = true;
+    const { database, stripe, reject, request } = setupRejection({
+      databaseOptions: {
+        beforeUpdate(updates) {
+          if (fail && failurePath in updates) {
+            fail = false;
+            throw new Error('RTDB no disponible');
+          }
+        },
+      },
+    });
+    await assert.rejects(reject(request), /RTDB no disponible/);
+    await assert.rejects(reject({
+      ...request, data: { ...request.data, reason: 'Un motivo diferente.' },
+    }), { code: 'failed-precondition' });
+    const originalTime = database.data.orders[rejectionOrderId].rejectedAt;
+    const result = await reject(request);
+    assert.equal(result.refundStatus, 'requested');
+    assert.equal(database.data.orders[rejectionOrderId].rejectedAt, originalTime);
+    assert.equal(database.data.ordersByUser[rejectionOwner][rejectionOrderId].status, 'rejected');
+    assert.equal(database.data.rejectionNotices[rejectionOwner][rejectionOrderId].expiresAt, originalTime + 600000);
+    assert.equal(Object.keys(database.data.orderEvents[rejectionOrderId]).length, 1);
+    assert.ok(stripe.calls.length > 0);
+    assert.deepEqual(new Set(stripe.calls.map((call) => call.options.idempotencyKey)),
+      new Set(['refund-' + rejectionOrderId]));
+  }
+});
+
+test('una confirmación que publica sus índices tarde no recupera el pedido rechazado', async () => {
+  const ticketPath = 'ordersByUser/' + rejectionOwner + '/' + rejectionOrderId;
+  const { database, reject, request } = setupRejection({
+    databaseOptions: {
+      async beforeUpdate(updates) {
+        if (updates[ticketPath]?.status === 'confirmed') await reject(request);
+      },
+    },
+  });
+  const confirm = createUpdateOrderStatusHandler({ database });
+  await confirm({
+    auth: request.auth,
+    data: { orderId: rejectionOrderId, status: 'confirmed' },
+  });
+
+  assert.equal(database.data.orders[rejectionOrderId].status, 'rejected');
+  const ticket = database.data.ordersByUser[rejectionOwner][rejectionOrderId];
+  assert.equal(ticket.status, 'rejected');
+  assert.equal(ticket.rejectionReason, rejectionNote);
+  assert.equal(database.data.staffQueue[rejectionOrderId], null);
+  assert.deepEqual(
+    Object.values(database.data.orderEvents[rejectionOrderId]).map((event) => event.to).sort(),
+    ['confirmed', 'rejected'],
+  );
+});
+
+test('rechazo durante el webhook reembolsa aunque todavía no exista payments', async () => {
+  const stripe = fakeStripe();
+  const intentId = 'pi_cobro_validado';
+  stripe.paymentIntents = {
+    async retrieve(id) {
+      assert.equal(id, intentId);
+      return { id, status: 'succeeded' };
+    },
+  };
+  const ticketPath = 'ordersByUser/' + rejectionOwner + '/' + rejectionOrderId;
+  let rejected;
+  const { database, reject, request } = setupRejection({
+    status: 'pendiente_pago',
+    stripe,
+    databaseOptions: {
+      async beforeUpdate(updates) {
+        if (updates[ticketPath]?.status === 'paid') rejected = await reject(request);
+      },
+    },
+  });
+  await database.ref('payments/' + rejectionOrderId).set(null);
+  const webhook = createWebhookHarness(database, {
+    livemode: false,
+    type: 'payment_intent.succeeded',
+    data: { object: {
+      id: intentId, currency: 'mxn', amount_received: 5000,
+      metadata: { orderId: rejectionOrderId, uid: rejectionOwner },
+    } },
+  });
+
+  await webhook.webhook(webhook.request, webhook.response);
+
+  assert.equal(webhook.response.statusCode, 200);
+  assert.equal(rejected.refundStatus, 'requested');
+  assert.deepEqual(stripe.calls, [{
+    params: { payment_intent: intentId },
+    options: { idempotencyKey: 'refund-' + rejectionOrderId },
+  }]);
+  assert.equal(database.data.payments[rejectionOrderId].status, 'succeeded');
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'requested');
+  const ticket = database.data.ordersByUser[rejectionOwner][rejectionOrderId];
+  assert.equal(ticket.status, 'rejected');
+  assert.equal(ticket.paidPaymentIntentId, undefined);
+  assert.equal(database.data.staffQueue[rejectionOrderId], null);
+});
+
+test('rechazos concurrentes conservan el reembolso solicitado ante un error tardío', async () => {
+  const keys = [];
+  let secondResult;
+  const stripe = {
+    refunds: {
+      async create(params, options) {
+        assert.equal(params.payment_intent, 'pi_1');
+        keys.push(options.idempotencyKey);
+        if (keys.length === 1) {
+          // La segunda llamada termina mientras la primera aún espera a Stripe.
+          secondResult = await reject(request);
+          throw new Error('La primera llamada perdió la conexión.');
+        }
+        return { id: 're_unico' };
+      },
+    },
+  };
+  const { database, reject, request } = setupRejection({ stripe });
+  const firstResult = await reject(request);
+
+  assert.equal(secondResult.refundStatus, 'requested');
+  assert.equal(firstResult.refundStatus, 'requested');
+  assert.deepEqual(keys, ['refund-' + rejectionOrderId, 'refund-' + rejectionOrderId]);
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'requested');
+  assert.equal(Object.keys(database.data.orderEvents[rejectionOrderId]).length, 1);
+});
+
+test('rechazo antiguo sin referencia de pago queda pendiente y permite reanudarlo', async () => {
+  const { database, stripe, reject, request } = setupRejection({ status: 'confirmed' });
+  const payment = database.ref('payments/' + rejectionOrderId);
+  await payment.set(null);
+
+  await assert.rejects(reject(request), { code: 'internal', message: /reembolso.*pendiente/i });
+  assert.equal(stripe.calls.length, 0);
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'pending');
+  const order = database.data.orders[rejectionOrderId];
+  assert.equal(order.status, 'rejected');
+  assert.equal(order.rejectionPendingFrom, 'confirmed');
+  const rejectedAt = order.rejectedAt;
+
+  await payment.set({
+    ...database.data.payments[rejectionOrderId], paymentIntentId: 'pi_antiguo', status: 'succeeded',
+  });
+  const recovered = await reject(request);
+  assert.equal(recovered.refundStatus, 'requested');
+  assert.equal(database.data.payments[rejectionOrderId].refundStatus, 'requested');
+  assert.equal(database.data.orders[rejectionOrderId].rejectedAt, rejectedAt);
+  assert.equal(stripe.calls.length, 1);
+  assert.equal(Object.keys(database.data.orderEvents[rejectionOrderId]).length, 1);
 });

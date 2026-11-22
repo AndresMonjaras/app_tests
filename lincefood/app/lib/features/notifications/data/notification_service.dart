@@ -11,9 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/config/firebase_bootstrap_provider.dart';
-import 'local_advice_scheduler.dart';
+import '../domain/cafeteria_tips.dart';
+import '../domain/local_advice_frequency.dart';
 import '../domain/notification_message_mapper.dart';
 import '../domain/notification_topic_preferences.dart';
+import 'local_advice_frequency_store.dart';
+import 'local_advice_scheduler.dart';
 import 'notification_message_listeners.dart';
 import 'notification_preferences_gateway.dart';
 import 'notification_token_registration.dart';
@@ -34,6 +37,7 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
     FlutterLocalNotificationsPlugin(),
     notificationNavigatorKey,
     ref.watch(notificationTokenRegistrationProvider),
+    localAdviceFrequencyStore: ref.watch(localAdviceFrequencyStoreProvider),
   );
   ref.onDispose(service.dispose);
   return service;
@@ -41,6 +45,11 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 
 abstract interface class LocalAdvicePreferenceHandler {
   Future<void> setLocalAdviceEnabled(bool enabled);
+
+  Future<void> setLocalAdviceFrequency(
+    LocalAdviceFrequency frequency, {
+    required bool enabled,
+  });
 }
 
 final localAdvicePreferenceHandlerProvider =
@@ -65,6 +74,7 @@ class NotificationService implements LocalAdvicePreferenceHandler {
     GlobalKey<NavigatorState> navigatorKey,
     NotificationTokenRegistration tokenRegistration, {
     LocalAdviceScheduler? localAdviceScheduler,
+    LocalAdviceFrequencyStore? localAdviceFrequencyStore,
   }) : _messaging = messaging,
        _authentication = authentication,
        _localNotifications = localNotifications,
@@ -74,7 +84,10 @@ class NotificationService implements LocalAdvicePreferenceHandler {
            localAdviceScheduler ??
            LocalAdviceScheduler(
              FlutterLocalAdviceNotificationClient(localNotifications),
-           );
+           ),
+       _localAdviceFrequencyStore =
+           localAdviceFrequencyStore ??
+           SharedPreferencesLocalAdviceFrequencyStore();
 
   static const _channelId = 'avisos_cafeteria';
   static const _channelName = 'Avisos de la cafetería';
@@ -86,10 +99,12 @@ class NotificationService implements LocalAdvicePreferenceHandler {
   final GlobalKey<NavigatorState> _navigatorKey;
   final NotificationTokenRegistration _tokenRegistration;
   final LocalAdviceScheduler _localAdviceScheduler;
+  final LocalAdviceFrequencyStore _localAdviceFrequencyStore;
 
   NotificationMessageListeners<RemoteMessage>? _messageListeners;
   StreamSubscription<User?>? _authSubscription;
   Future<void> _authQueue = Future<void>.value();
+  Future<void> _localAdviceQueue = Future<void>.value();
   NotificationMessageMapper? _mapper;
   Future<void>? _startFuture;
 
@@ -103,7 +118,12 @@ class NotificationService implements LocalAdvicePreferenceHandler {
   @override
   Future<void> setLocalAdviceEnabled(bool enabled) async {
     await start();
-    if (enabled) {
+    await _queueLocalAdviceUpdate(() async {
+      if (!enabled) {
+        await _localAdviceScheduler.cancel();
+        return;
+      }
+
       final androidNotifications = _localNotifications
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
@@ -120,9 +140,63 @@ class NotificationService implements LocalAdvicePreferenceHandler {
           'Permite las notificaciones para activar los consejos.',
         );
       }
-      await _localAdviceScheduler.scheduleDailyAdvice();
-    } else {
-      await _localAdviceScheduler.cancel();
+      await _scheduleNextLocalAdvice();
+    });
+  }
+
+  @override
+  Future<void> setLocalAdviceFrequency(
+    LocalAdviceFrequency frequency, {
+    required bool enabled,
+  }) async {
+    if (enabled) await start();
+    await _queueLocalAdviceUpdate(() async {
+      final previousFrequency = await _localAdviceFrequencyStore
+          .readFrequency();
+      if (frequency == previousFrequency) return;
+
+      try {
+        await _localAdviceFrequencyStore.writeFrequency(frequency);
+        if (enabled) await _scheduleNextLocalAdvice();
+      } catch (_) {
+        try {
+          await _localAdviceFrequencyStore.writeFrequency(previousFrequency);
+        } catch (error, stack) {
+          debugPrint('No se pudo restaurar la frecuencia: $error\n$stack');
+        }
+        rethrow;
+      }
+    });
+  }
+
+  Future<void> _queueLocalAdviceUpdate(Future<void> Function() update) {
+    final result = _localAdviceQueue.then((_) => update());
+    _localAdviceQueue = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  Future<void> _scheduleNextLocalAdvice() async {
+    final frequency = await _localAdviceFrequencyStore.readFrequency();
+    final nextIndex = await _localAdviceFrequencyStore.readNextTipIndex();
+    final index = nextIndex % cafeteriaTips.length;
+
+    try {
+      await _localAdviceFrequencyStore.writeNextTipIndex(
+        (index + 1) % cafeteriaTips.length,
+      );
+      await _localAdviceScheduler.schedule(frequency, cafeteriaTips[index]);
+    } catch (_) {
+      try {
+        await _localAdviceFrequencyStore.writeNextTipIndex(nextIndex);
+      } catch (error, stack) {
+        debugPrint(
+          'No se pudo restaurar el índice del consejo: $error\n$stack',
+        );
+      }
+      rethrow;
     }
   }
 
@@ -248,7 +322,7 @@ class NotificationService implements LocalAdvicePreferenceHandler {
           // El cierre de sesión no depende del registro del token.
         }
         try {
-          await _localAdviceScheduler.cancel();
+          await _queueLocalAdviceUpdate(_localAdviceScheduler.cancel);
         } catch (_) {
           // La cancelación se reintenta al cambiar las preferencias.
         }
@@ -289,17 +363,20 @@ class NotificationService implements LocalAdvicePreferenceHandler {
 
   Future<void> _syncLocalAdvice(String uid) async {
     try {
-      final snapshot = await FirebaseDatabase.instance
-          .ref(
-            'notificationPreferences/$uid/${NotificationTopicPreferences.localAdviceKey}',
-          )
-          .get();
-      if (_authentication.currentUser?.uid != uid) return;
-      if (snapshot.value == true) {
-        await _localAdviceScheduler.scheduleDailyAdvice();
-      } else {
-        await _localAdviceScheduler.cancel();
-      }
+      await _queueLocalAdviceUpdate(() async {
+        if (_authentication.currentUser?.uid != uid) return;
+        final snapshot = await FirebaseDatabase.instance
+            .ref(
+              'notificationPreferences/$uid/${NotificationTopicPreferences.localAdviceKey}',
+            )
+            .get();
+        if (_authentication.currentUser?.uid != uid) return;
+        if (snapshot.value == true) {
+          await _scheduleNextLocalAdvice();
+        } else {
+          await _localAdviceScheduler.cancel();
+        }
+      });
     } catch (error, stack) {
       // La app sigue abierta, pero el fallo debe verse en el log del dispositivo.
       debugPrint(

@@ -63,13 +63,19 @@
     },
     "orders": {
       "$orderId": {
-        ".read": "auth != null && (data.child('ownerUid').val() === auth.uid || auth.token.staff === true)",
+        ".read": "auth != null && (data.child('ownerUid').val() === auth.uid || auth.token.staff === true || auth.token.admin === true)",
         ".write": false,
         ".validate": "newData.hasChildren(['ownerUid', 'status', 'totalCents'])"
       }
     },
+    "rejectionNotices": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
     "staffQueue": {
-      ".read": "auth != null && auth.token.staff === true",
+      ".read": "auth != null && (auth.token.staff === true || auth.token.admin === true)",
       ".write": false
     },
     "payments": {

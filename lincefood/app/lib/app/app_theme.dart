@@ -13,6 +13,12 @@ class AppTheme {
   static const _radioControl = 16.0;
   static const _alturaBoton = 52.0;
 
+  static Color successColor(Brightness brightness) {
+    return brightness == Brightness.dark
+        ? const Color(0xFF9CC9A6)
+        : const Color(0xFF306947);
+  }
+
   static final light = _build(
     ColorScheme.fromSeed(
       seedColor: _cafe,
@@ -33,7 +39,7 @@ class AppTheme {
       brightness: Brightness.dark,
       primary: const Color(0xFFFFB08A),
       onPrimary: const Color(0xFF4A1C06),
-      secondary: const Color(0xFF9CC9A6),
+      secondary: successColor(Brightness.dark),
       tertiary: const Color(0xFFF2C56B),
       onTertiary: const Color(0xFF3E2A1C),
       tertiaryContainer: const Color(0xFF5A4316),

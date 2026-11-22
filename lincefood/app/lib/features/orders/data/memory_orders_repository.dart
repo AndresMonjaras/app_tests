@@ -102,6 +102,15 @@ class MemoryOrdersRepository implements OrdersRepository {
   }
 
   @override
+  Future<OrderRecord> rejectOrder(String orderId, String reason) async {
+    _comprobarDisponible();
+    return _cambiarPedido(
+      orderId,
+      (order) => order.reject(reason, DateTime.now()),
+    );
+  }
+
+  @override
   Future<OrderRecord> reportIncident(String orderId, String reason) async {
     _comprobarDisponible();
     if (reason.trim().isEmpty) {

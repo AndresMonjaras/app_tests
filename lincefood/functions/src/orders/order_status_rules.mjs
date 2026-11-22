@@ -9,6 +9,7 @@ const knownStatuses = new Set([
   'delivered',
   'incident',
   'cancelled',
+  'rejected',
 ]);
 
 const storedStatusAliases = {
@@ -23,6 +24,7 @@ const storedStatusAliases = {
   'listo para recoger': 'ready',
   entregado: 'delivered',
   incidente: 'incident',
+  rechazado: 'rejected',
   cancelado: 'cancelled',
   cancelled: 'cancelled',
 };
@@ -36,7 +38,8 @@ export const nextStaffStatus = {
 };
 
 // El cliente puede cancelar mientras el pedido no haya entrado a cocina.
-export const cancellableStatuses = new Set(['paid', 'confirmed']);
+// El cliente puede cancelar mientras el pedido no haya entrado a cocina.
+export const cancellableStatuses = new Set(['payment_pending', 'paid', 'confirmed']);
 
 // Estados en los que un pedido ya pagado puede pasar a incidencia.
 export const activeStatuses = new Set([
@@ -134,18 +137,21 @@ export function requireOrderObject(order) {
   return order;
 }
 
-const operatorFields = [
+const internalFields = [
+  'paidPaymentIntentId',
   'confirmedBy',
   'preparingBy',
   'readyBy',
   'deliveredBy',
   'incidentBy',
   'incidentResolvedBy',
+  'rejectedBy',
+  'rejectionPendingFrom',
 ];
 
-// El cliente ve el pedido sin los UID internos del personal.
+// El ticket omite las referencias internas del pago y del personal.
 export function customerOrderView(order) {
   const view = { ...order };
-  for (const field of operatorFields) delete view[field];
+  for (const field of internalFields) delete view[field];
   return view;
 }

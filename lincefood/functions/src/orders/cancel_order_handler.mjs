@@ -1,3 +1,4 @@
+import { getOrderRefundUpdates } from './order_refund.mjs';
 import { AppError } from '../app_error.mjs';
 import {
   cancellableStatuses,
@@ -19,6 +20,9 @@ export function createCancelOrderHandler({ database, stripe, now = Date.now }) {
     let previousStatus;
     let rejection;
     const result = await database.ref('orders/' + orderId).transaction((order) => {
+      // null también puede ser la caché vacía del Admin SDK: se devuelve tal cual
+      // para que la transacción reintente con el valor real del servidor.
+      if (order === null) return null;
       try {
         requireOrderObject(order);
         if (order.ownerUid !== uid) {
@@ -48,12 +52,12 @@ export function createCancelOrderHandler({ database, stripe, now = Date.now }) {
     if (!result.committed) {
       throw rejection ?? new AppError('failed-precondition', 'No se pudo cancelar el pedido.');
     }
+    if (result.snapshot.val() == null) {
+      throw new AppError('not-found', 'No se encontró el pedido.');
+    }
 
     const cancelled = result.snapshot.val();
     const at = cancelled.cancelledAt;
-    const paymentSnapshot = await database.ref('payments/' + orderId).get();
-    const payment = paymentSnapshot.val();
-
     const eventRef = database.ref('orderEvents/' + orderId).push();
     const updates = {
       ['orderEvents/' + orderId + '/' + eventRef.key]: {
@@ -68,21 +72,11 @@ export function createCancelOrderHandler({ database, stripe, now = Date.now }) {
       ['staffQueue/' + orderId]: null,
     };
 
-    let refundStatus = null;
-    if (payment?.status === 'succeeded' && typeof payment.paymentIntentId === 'string') {
-      refundStatus = 'requested';
-      try {
-        await stripe.refunds.create(
-          { payment_intent: payment.paymentIntentId },
-          { idempotencyKey: 'refund-' + orderId },
-        );
-      } catch {
-        refundStatus = 'pending';
-      }
-      updates['payments/' + orderId + '/refundStatus'] = refundStatus;
-    }
-
-    await database.ref().update(updates);
+    const refund = await getOrderRefundUpdates({
+      database, stripe, orderId, paidIntentId: cancelled.paidPaymentIntentId,
+    });
+    const { refundStatus } = refund;
+    await database.ref().update({ ...updates, ...refund.updates });
 
     if (refundStatus === 'pending') {
       throw new AppError(

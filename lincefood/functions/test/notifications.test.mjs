@@ -16,8 +16,13 @@ const sourceSeedUrl = new URL(
 );
 
 test('el seed incluido en Functions coincide con el seed de la app', async () => {
-  const sourceSeed = JSON.parse(await readFile(sourceSeedUrl, 'utf8'));
-  assert.deepEqual(await loadNotificationCopies(), sourceSeed);
+  const sourceSeed = await readFile(sourceSeedUrl, 'utf8');
+  for (const path of [
+    '../src/notifications/notificaciones.seed.json',
+    '../../app/assets/notifications/notificaciones.seed.json',
+  ]) {
+    assert.equal(await readFile(new URL(path, import.meta.url), 'utf8'), sourceSeed);
+  }
 });
 
 test('el payload de pedido listo usa texto genérico y no contiene datos del pedido', async () => {
@@ -152,6 +157,73 @@ test('cambio a preparing dispara pedido en cocina', async () => {
 
   assert.equal(sent.length, 1);
   assert.equal(sent[0].data.type, 'pedido_en_cocina');
+});
+
+test('el rechazo deja la nota en Avisos y la envía una sola vez al estudiante', async () => {
+  const { handler, sent, database } = createOrderHandler();
+  const ownerUid = 'usuario-1';
+  const rejectionReason = 'Se agotó el platillo solicitado.';
+  const after = { ownerUid, status: 'rejected', rejectionReason };
+  const event = orderEvent({ ownerUid, status: 'paid' }, after);
+  await handler(event);
+  await handler(event);
+  await handler(orderEvent(after, { ...after, status: 'rechazado' }));
+
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0].tokens, ['token-valido']);
+  assert.deepEqual(sent[0].notification, {
+    title: 'Pedido rechazado',
+    body: rejectionReason,
+  });
+  assert.deepEqual(sent[0].data, {
+    type: 'pedido_rechazado', orderId: 'pedido-1', customText: rejectionReason,
+  });
+  const inboxPath = 'notificationInbox/usuario-1/' + sent[0].android.notification.tag;
+  const item = database.values[inboxPath];
+  assert.equal(item.orderId, 'pedido-1');
+  assert.equal(item.type, 'pedido_rechazado');
+  assert.equal(item.title, 'Pedido rechazado');
+  assert.equal(item.body, rejectionReason);
+  assert.equal(item.isRead, false);
+});
+
+test('el rechazo también se guarda cuando el estudiante no tiene dispositivos', async () => {
+  const { handler, sent, database } = createOrderHandler();
+  const ownerUid = 'usuario-sin-token';
+  const rejectionReason = 'La cocina cerró antes de lo previsto.';
+  await handler(orderEvent(
+    { ownerUid, status: 'confirmed' },
+    { ownerUid, status: 'rechazado', rejectionReason },
+  ));
+
+  assert.deepEqual(sent, []);
+  const inbox = Object.entries(database.values).filter(([path]) =>
+    path.startsWith('notificationInbox/usuario-sin-token/'),
+  );
+  assert.equal(inbox.length, 1);
+  assert.equal(inbox[0][1].body, rejectionReason);
+});
+
+test('un fallo de FCM conserva el rechazo y permite reintentar el push una vez', async () => {
+  const { handler, sent, database } = createOrderHandler({ failFirstPush: true });
+  const ownerUid = 'usuario-1';
+  const rejectionReason = 'La cafetería cerró temprano.';
+  const event = orderEvent(
+    { ownerUid, status: 'paid' },
+    { ownerUid, status: 'rejected', rejectionReason },
+  );
+  await assert.rejects(handler(event), /FCM no disponible/);
+  const inboxPath = 'notificationInbox/usuario-1/' + sent[0].android.notification.tag;
+  const item = database.values[inboxPath];
+  assert.equal(item.body, rejectionReason);
+  assert.equal(item.pushFailed, true);
+  item.isRead = true;
+
+  assert.equal((await handler(event)).successCount, 1);
+  assert.equal((await handler(event)).deduplicated, true);
+  assert.equal(sent.length, 2);
+  assert.equal(database.values[inboxPath].createdAt, item.createdAt);
+  assert.equal(database.values[inboxPath].isRead, true);
 });
 
 test('el callable rechaza usuarios que no tienen claim admin o staff', async () => {
@@ -301,7 +373,7 @@ test('la recomendación rechaza texto largo, emojis, datos personales y usuarios
   assert.deepEqual(sent, []);
 });
 
-function createOrderHandler() {
+function createOrderHandler({ failFirstPush = false } = {}) {
   const sent = [];
   const database = new FakeDatabase({
     'notificationTokens/usuario-1': {
@@ -313,6 +385,7 @@ function createOrderHandler() {
     messaging: {
       async sendEachForMulticast(message) {
         sent.push(message);
+        if (failFirstPush && sent.length === 1) throw new Error('FCM no disponible');
         return { successCount: 1, responses: [{ success: true }] };
       },
     },
@@ -340,6 +413,7 @@ class FakeDatabase {
   ref(path) {
     return {
       get: async () => ({ val: () => this.values[path] ?? null }),
+      update: async (changes) => Object.assign(this.values[path], changes),
       transaction: async (update) => {
         const current = this.values[path] ?? null;
         const next = update(current);

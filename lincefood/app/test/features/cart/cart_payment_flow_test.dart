@@ -95,7 +95,7 @@ void main() {
     expect(gateway.createdOrderId, 'pedido-1');
     expect(gateway.presented, isTrue);
     expect(find.text('Mi ticket'), findsOneWidget);
-    expect(find.text('Folio LF-000001'), findsOneWidget);
+    expect(find.text('LF-000001'), findsOneWidget);
   });
 
   testWidgets('la modalidad elegida llega al pedido y al resumen', (

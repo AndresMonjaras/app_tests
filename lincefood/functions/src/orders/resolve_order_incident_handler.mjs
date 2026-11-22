@@ -22,6 +22,9 @@ export function createResolveOrderIncidentHandler({ database, now = Date.now }) 
     const at = now();
     let validationError;
     const result = await database.ref('orders/' + orderId).transaction((order) => {
+      // null también puede ser la caché vacía del Admin SDK: se devuelve tal cual
+      // para que la transacción reintente con el valor real del servidor.
+      if (order === null) return null;
       try {
         requireOrderObject(order);
         if (normalizeStoredStatus(order.status) !== 'incident') {
@@ -43,6 +46,9 @@ export function createResolveOrderIncidentHandler({ database, now = Date.now }) 
         validationError ??
         new AppError('failed-precondition', 'No se pudo resolver la incidencia.')
       );
+    }
+    if (result.snapshot.val() == null) {
+      throw new AppError('not-found', 'No se encontró el pedido.');
     }
 
     const updatedOrder = result.snapshot.val();

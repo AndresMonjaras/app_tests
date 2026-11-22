@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/features/notifications/data/notification_preferences_gateway.dart';
 import 'package:lincefood_app/features/notifications/data/notification_service.dart';
+import 'package:lincefood_app/features/notifications/domain/local_advice_frequency.dart';
 import 'package:lincefood_app/features/notifications/domain/notification_topic_preferences.dart';
 import 'package:lincefood_app/features/notifications/presentation/notification_preferences_controller.dart';
 
@@ -65,6 +66,35 @@ void main() {
       isFalse,
     );
   });
+
+  test('muestra el error si no se puede cambiar la frecuencia', () async {
+    final gateway = _FakeGateway();
+    final advice = _FakeAdviceHandler(fail: true);
+    final container = ProviderContainer(
+      overrides: [
+        notificationUserIdProvider.overrideWith((ref) => 'usuario-1'),
+        notificationPreferencesGatewayProvider.overrideWithValue(gateway),
+        localAdvicePreferenceHandlerProvider.overrideWithValue(advice),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(notificationPreferencesControllerProvider.future);
+
+    await container
+        .read(notificationPreferencesControllerProvider.notifier)
+        .setLocalAdviceFrequency(LocalAdviceFrequency.hourly);
+
+    expect(gateway.saved, isEmpty);
+    expect(advice.frequencyChanges, [(LocalAdviceFrequency.hourly, false)]);
+    final state = container
+        .read(notificationPreferencesControllerProvider)
+        .requireValue;
+    expect(state.savingTopic, isNull);
+    expect(
+      state.errorMessage,
+      'No se pudo cambiar la frecuencia. Inténtalo de nuevo.',
+    );
+  });
 }
 
 class _FakeGateway implements NotificationPreferencesGateway {
@@ -94,10 +124,20 @@ class _FakeAdviceHandler implements LocalAdvicePreferenceHandler {
 
   final bool fail;
   final changes = <bool>[];
+  final frequencyChanges = <(LocalAdviceFrequency, bool)>[];
 
   @override
   Future<void> setLocalAdviceEnabled(bool enabled) async {
     changes.add(enabled);
+    if (fail) throw StateError('No se pudo programar.');
+  }
+
+  @override
+  Future<void> setLocalAdviceFrequency(
+    LocalAdviceFrequency frequency, {
+    required bool enabled,
+  }) async {
+    frequencyChanges.add((frequency, enabled));
     if (fail) throw StateError('No se pudo programar.');
   }
 }

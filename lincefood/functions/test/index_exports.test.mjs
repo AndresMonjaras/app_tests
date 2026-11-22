@@ -6,6 +6,8 @@ test('el punto de entrada inicializa Firebase y exporta los módulos existentes'
 
   for (const name of [
     'createOrder',
+    'cancelOrder',
+    'rejectOrder',
     'createPaymentIntent',
     'notifyOrderStatus',
     'sendRecommendation',

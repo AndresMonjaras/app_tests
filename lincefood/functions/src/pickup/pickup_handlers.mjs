@@ -9,7 +9,6 @@ import {
 const pickupTokenTtlMs = 10 * 60 * 1000;
 const orderIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
-const folioPattern = /^LF-[A-Za-z0-9_-]{1,32}$/;
 const usedTokenMessage = 'Este código ya fue usado.';
 const expiredTokenMessage =
   'El código expiró. Pide al cliente que genere uno nuevo.';
@@ -23,14 +22,6 @@ export function generatePickupToken() {
 
 export function hashPickupToken(token) {
   return createHash('sha256').update(token).digest('hex');
-}
-
-// Folio mostrado al alumno. Se usa el mismo cálculo que al crear el pedido.
-function folioForOrder(order, orderId) {
-  if (typeof order.folio === 'string' && order.folio.length > 0) {
-    return order.folio.toUpperCase();
-  }
-  return 'LF-' + orderId.slice(-8).toUpperCase();
 }
 
 function requireUid(request) {
@@ -65,13 +56,6 @@ function requireTokenText(value) {
     throw new AppError('invalid-argument', 'El código no es válido.');
   }
   return value;
-}
-
-function requireFolio(value) {
-  if (typeof value !== 'string' || !folioPattern.test(value.trim().toUpperCase())) {
-    throw new AppError('invalid-argument', 'El folio no es válido.');
-  }
-  return value.trim().toUpperCase();
 }
 
 async function readPickupState(database, orderId) {
@@ -137,7 +121,8 @@ async function claimPickupToken(tokenRef, now) {
   const consumedAt = now();
   const claim = await tokenRef.transaction((current) => {
     rejection = undefined;
-    if (!current || current.consumedAt) {
+    if (current === null) return null; // RTDB puede empezar con la caché vacía.
+    if (current.consumedAt) {
       rejection = usedTokenMessage;
       return undefined;
     }
@@ -147,7 +132,7 @@ async function claimPickupToken(tokenRef, now) {
     }
     return { ...current, consumedAt };
   });
-  if (!claim.committed) {
+  if (!claim.committed || !claim.snapshot.val()) {
     throw new AppError('failed-precondition', rejection ?? usedTokenMessage);
   }
   return consumedAt;
@@ -184,30 +169,27 @@ async function releaseDeliveryGate(database, orderId, at) {
   );
 }
 
-function deliveryEvent({ actor, at, method, tokenId }) {
-  const event = {
+function deliveryEvent({ actor, at, tokenId }) {
+  return {
     type: 'status_changed',
     from: 'ready',
     to: 'delivered',
     actorUid: actor.uid,
     actorRole: actor.role,
     at,
-    method,
+    method: 'qr',
+    tokenId,
   };
-  if (tokenId) event.tokenId = tokenId;
-  return event;
 }
 
 // Entrega el pedido en una sola escritura multiubicación: el estado, la
 // auditoría, la vista del cliente y la cola cambian juntos o no cambia nada.
-// La reserva evita dos entregas del mismo pedido (QR y folio a la vez).
+// La reserva evita confirmar dos veces la misma entrega.
 async function deliverOrder({
   database,
   orderId,
-  expectedTokenId,
   actor,
   at,
-  method,
   tokenId,
 }) {
   await claimDeliveryGate(database, orderId, at);
@@ -221,7 +203,7 @@ async function deliverOrder({
     if (blockReason) {
       throw new AppError('failed-precondition', blockReason);
     }
-    if (expectedTokenId && order.activePickupTokenId !== expectedTokenId) {
+    if (order.activePickupTokenId !== tokenId) {
       throw new AppError('failed-precondition', replacedTokenMessage);
     }
 
@@ -242,7 +224,6 @@ async function deliverOrder({
       ['orderEvents/' + orderId + '/' + eventKey]: deliveryEvent({
         actor,
         at,
-        method,
         tokenId,
       }),
       ['ordersByUser/' + order.ownerUid + '/' + orderId]: customerView,
@@ -293,10 +274,8 @@ export function createConsumePickupTokenHandler({ database, now = Date.now }) {
       await deliverOrder({
         database,
         orderId,
-        expectedTokenId: tokenId,
         actor,
         at: consumedAt,
-        method: 'qr',
         tokenId,
       });
     } catch (error) {
@@ -308,42 +287,8 @@ export function createConsumePickupTokenHandler({ database, now = Date.now }) {
   };
 }
 
-// Entrega manual por folio, cuando la cámara no funciona. Requiere la misma
-// autorización de personal: el folio por sí solo no entrega nada.
-export function createConsumePickupFolioHandler({ database, now = Date.now }) {
-  return async (request) => {
-    const actor = requireStaff(request);
-    const folio = requireFolio(request.data?.folio);
-
-    const queue = (await database.ref('staffQueue').get()).val() ?? {};
-    const candidates = await Promise.all(
-      Object.keys(queue).map(async (orderId) => ({
-        orderId,
-        order: (await database.ref('orders/' + orderId).get()).val(),
-      })),
-    );
-    const matches = candidates.filter(
-      ({ orderId, order }) => order && folioForOrder(order, orderId) === folio,
-    );
-    if (matches.length === 0) {
-      throw new AppError('not-found', 'No se encontró un pedido con ese folio.');
-    }
-    if (matches.length > 1) {
-      throw new AppError(
-        'failed-precondition',
-        'El folio coincide con más de un pedido. Consulta con administración.',
-      );
-    }
-
-    const { orderId } = matches[0];
-    await deliverOrder({
-      database,
-      orderId,
-      actor,
-      at: now(),
-      method: 'folio',
-    });
-
-    return { orderId, status: 'delivered' };
-  };
+// Las versiones anteriores de la app aún pueden llamar al endpoint del folio.
+export function requirePickupQr(request) {
+  requireStaff(request);
+  throw new AppError('failed-precondition', 'Escanea el QR del estudiante para entregar el pedido.');
 }

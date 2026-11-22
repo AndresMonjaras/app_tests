@@ -12,6 +12,7 @@ import '../features/orders/presentation/orders_screen.dart';
 import '../features/pickup_qr/presentation/pickup_qr_screen.dart';
 import '../features/orders/presentation/staff_orders_screen.dart';
 import '../features/plans/presentation/plans_screen.dart';
+import '../features/privacy/privacy_notice_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 
 class AppRouter {
@@ -31,6 +32,7 @@ class AppRouter {
   static const notifications = '/notifications';
   static const pickupQr = '/pickup-qr';
   static const plans = '/plans';
+  static const privacy = '/privacy';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final arguments = settings.arguments;
@@ -42,7 +44,7 @@ class AppRouter {
       admin => const ProtectedRoute(child: AdminCatalogScreen()),
       catalog => const ProtectedRoute(child: CatalogScreen()),
       cart => const ProtectedRoute(child: CartScreen()),
-      orders => const ProtectedRoute(child: OrdersScreen()),
+      orders => ProtectedRoute(child: OrdersScreen(orderId: orderId)),
       staffOrders => const ProtectedRoute(child: StaffOrdersScreen()),
       map || cafeteriaLocation => const ProtectedRoute(
         child: CafeteriaLocationScreen(),
@@ -58,6 +60,8 @@ class AppRouter {
             : PickupQrScreen(orderId: orderId),
       ),
       plans => const ProtectedRoute(child: PlansScreen()),
+      // Público: debe poder leerse antes de crear la cuenta.
+      privacy => const PrivacyNoticeScreen(),
       _ => const _NotFoundScreen(),
     };
 

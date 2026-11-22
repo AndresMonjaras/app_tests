@@ -56,13 +56,13 @@ class NotificationMessageMapper {
     final copy = _copies[key];
     if (copy == null) return null;
     final customText = payload['customText'];
-    final customBody =
-        key == 'cafeteria_avisos' &&
-            customText is String &&
-            customText.trim().isNotEmpty &&
-            customText.trim().runes.length <= 120
-        ? customText.trim()
-        : copy['cuerpo']!;
+    final text = customText is String ? customText.trim() : '';
+    final customBody = switch (key) {
+      'pedido_rechazado' when text.isNotEmpty => text,
+      'cafeteria_avisos' when text.isNotEmpty && text.runes.length <= 120 =>
+        text,
+      _ => copy['cuerpo']!,
+    };
 
     return NotificationPresentation(
       key: key,

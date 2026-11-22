@@ -27,6 +27,10 @@
     "titulo": "Pedido recibido",
     "cuerpo": "La cafetería ha confirmado tu pedido."
   },
+  "pedido_rechazado": {
+    "titulo": "Pedido rechazado",
+    "cuerpo": "La cafetería ha rechazado tu pedido."
+  },
   "pedido_en_cocina": {
     "titulo": "Tu pedido está en cocina",
     "cuerpo": "La cafetería ya está preparando tu pedido."

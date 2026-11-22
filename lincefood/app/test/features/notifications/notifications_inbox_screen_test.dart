@@ -25,6 +25,7 @@ Future<void> _montar(
   List<NotificationInboxItem> items, {
   Set<String> dismissed = const {},
   _FakeDismissalsGateway? dismissals,
+  Map<String, WidgetBuilder> routes = const {},
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -37,7 +38,7 @@ Future<void> _montar(
         ),
         dismissedTipIdsProvider.overrideWith((ref) => Stream.value(dismissed)),
       ],
-      child: const MaterialApp(home: NotificationsInboxScreen()),
+      child: MaterialApp(home: const NotificationsInboxScreen(), routes: routes),
     ),
   );
   await tester.pumpAndSettle();
@@ -69,6 +70,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.markedOne, ['a']);
+  });
+
+  testWidgets('el aviso de rechazo muestra la nota y abre su pedido', (
+    tester,
+  ) async {
+    const notice = NotificationInboxItem(
+      id: 'aviso-1',
+      type: 'pedido_rechazado',
+      title: 'Pedido rechazado',
+      body: 'Se agotó el platillo solicitado.',
+      createdAt: 1000,
+      isRead: false,
+      orderId: 'pedido-17',
+    );
+    final gateway = _FakeInboxGateway();
+    await _montar(tester, gateway, [notice], routes: {
+      '/orders': (_) => const Scaffold(body: Text('Ticket del pedido')),
+    });
+
+    final title = find.text('Pedido rechazado');
+    await tester.scrollUntilVisible(title, 180);
+    expect(title, findsOneWidget);
+    expect(find.text('Se agotó el platillo solicitado.'), findsOneWidget);
+    await tester.tap(title);
+    await tester.pumpAndSettle();
+
+    final route = ModalRoute.of(tester.element(find.text('Ticket del pedido')));
+    expect(route?.settings.name, '/orders');
+    expect(route?.settings.arguments, {'orderId': 'pedido-17'});
+    expect(gateway.markedOne, ['aviso-1']);
   });
 
   testWidgets('muestra los consejos y no muestra los que el usuario eliminó', (

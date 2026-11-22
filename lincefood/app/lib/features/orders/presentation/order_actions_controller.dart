@@ -98,37 +98,34 @@ class OrderActionsController extends Notifier<OrderActionsState> {
   Future<void> updateOrderStatus({
     required String orderId,
     required OrderStatus status,
-  }) async {
-    state = const OrderActionsState(isWorking: true);
-    try {
-      final isStaff = await ref.read(staffPermissionProvider.future);
-      if (!isStaff) {
-        state = const OrderActionsState(
-          errorMessage: 'Solo el personal puede cambiar el estado.',
-        );
-        return;
-      }
+  }) {
+    return _writeWithPermission(
+      permission: staffPermissionProvider,
+      deniedMessage: 'Solo el personal puede cambiar el estado.',
+      operation: 'Cambiar estado del pedido',
+      write: (repository) => repository.updateOrderStatus(orderId, status),
+    );
+  }
 
-      final order = await _trackWrite(
-        'Cambiar estado del pedido',
-        () => ref
-            .read(ordersRepositoryProvider)
-            .updateOrderStatus(orderId, status),
-      );
-      state = state.copyWith(isWorking: false, order: order, clearError: true);
-    } catch (error) {
-      state = state.copyWith(
-        isWorking: false,
-        errorMessage: _friendlyError(error),
-      );
-    }
+  Future<void> rejectOrder({required String orderId, required String reason}) {
+    return _writeWithPermission(
+      permission: staffPermissionProvider,
+      deniedMessage: 'Solo el personal puede rechazar pedidos.',
+      operation: 'Rechazar pedido',
+      write: (repository) => repository.rejectOrder(orderId, reason),
+    );
+  }
+
+  void clearError() {
+    state = state.copyWith(clearError: true);
   }
 
   Future<void> reportIncident({
     required String orderId,
     required String reason,
   }) {
-    return _adminWrite(
+    return _writeWithPermission(
+      permission: adminPermissionProvider,
       deniedMessage: 'Solo administración puede marcar incidencias.',
       operation: 'Marcar incidencia',
       write: (repository) => repository.reportIncident(orderId, reason),
@@ -139,22 +136,23 @@ class OrderActionsController extends Notifier<OrderActionsState> {
     required String orderId,
     required String resolution,
   }) {
-    return _adminWrite(
+    return _writeWithPermission(
+      permission: adminPermissionProvider,
       deniedMessage: 'Solo administración puede resolver incidencias.',
       operation: 'Resolver incidencia',
       write: (repository) => repository.resolveIncident(orderId, resolution),
     );
   }
 
-  Future<void> _adminWrite({
+  Future<void> _writeWithPermission({
+    required FutureProvider<bool> permission,
     required String deniedMessage,
     required String operation,
     required Future<OrderRecord> Function(OrdersRepository repository) write,
   }) async {
     state = const OrderActionsState(isWorking: true);
     try {
-      final isAdmin = await ref.read(adminPermissionProvider.future);
-      if (!isAdmin) {
+      if (!await ref.read(permission.future)) {
         state = OrderActionsState(errorMessage: deniedMessage);
         return;
       }

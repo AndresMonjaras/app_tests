@@ -29,4 +29,22 @@ void main() {
     expect(order.createdAt, isNull);
     expect(order.totalCents, 0);
   });
+
+  test('lee el rechazo con estado canónico o alias y conserva sus campos', () {
+    for (final status in ['rejected', 'rechazado']) {
+      final order = OrderRecord.fromMap('p3', {
+        'estado': 'confirmado',
+        'status': status,
+        'rejectedAt': 1795363200000,
+        'rejectedBy': 'personal',
+        'rejectionReason': 'Se agotó el pan.',
+      });
+
+      expect(order.status, OrderStatus.rejected);
+      expect(order.status.label, 'Rechazado');
+      expect(order.rejectionReason, 'Se agotó el pan.');
+      expect(order.toMap()['rejectedAt'], 1795363200000);
+      expect(order.rejectedBy, 'personal');
+    }
+  });
 }

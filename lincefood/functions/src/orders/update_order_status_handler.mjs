@@ -1,3 +1,4 @@
+import { restoreRejectedTicket } from './order_projection.mjs';
 import { AppError } from '../app_error.mjs';
 import {
   activeStatuses,
@@ -61,6 +62,9 @@ export function createUpdateOrderStatusHandler({
     let previousStatus;
     let validationError;
     const result = await database.ref('orders/' + orderId).transaction((order) => {
+      // null también puede ser la caché vacía del Admin SDK: se devuelve tal cual
+      // para que la transacción reintente con el valor real del servidor.
+      if (order === null) return null;
       try {
         requireOrderObject(order);
         const currentStatus = normalizeStoredStatus(order.status);
@@ -108,6 +112,9 @@ export function createUpdateOrderStatusHandler({
         new AppError('failed-precondition', 'No se pudo actualizar el estado del pedido.')
       );
     }
+    if (result.snapshot.val() == null) {
+      throw new AppError('not-found', 'No se encontró el pedido.');
+    }
 
     const updatedOrder = result.snapshot.val();
     const eventRef = database.ref('orderEvents/' + orderId).push();
@@ -129,6 +136,7 @@ export function createUpdateOrderStatusHandler({
         : null,
     };
     await database.ref().update(updates);
+    if (target === 'confirmed') await restoreRejectedTicket(database, orderId);
 
     return { orderId, order: updatedOrder };
   };

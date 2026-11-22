@@ -1,5 +1,7 @@
 import { error as logError } from 'firebase-functions/logger';
 
+import { customerOrderView } from './orders/order_status_rules.mjs';
+import { restoreRejectedTicket } from './orders/order_projection.mjs';
 import { AppError } from './app_error.mjs';
 import { validateAndPriceOrderLines } from './order_pricing.mjs';
 import {
@@ -126,9 +128,9 @@ export function createCreatePaymentIntentHandler({ database, stripe }) {
       throw new AppError('internal', 'Stripe no devolvió un pago de prueba.');
     }
 
-    await database.ref('payments/' + orderId).set({
-      paymentIntentId: intent.id,
-      status: 'requires_payment',
+    await database.ref('payments/' + orderId).transaction((current) => {
+      if (current?.status === 'succeeded') return undefined;
+      return { paymentIntentId: intent.id, status: 'requires_payment' };
     });
     return { clientSecret: intent.client_secret };
   };
@@ -199,13 +201,17 @@ export function createStripeWebhookHandler({
       .ref('orders/' + orderId)
       .transaction((current) => {
         intentMismatch = false;
+        // En frío, RTDB empieza con null y necesita consultar al servidor.
+        if (current == null) return null;
         if (outcome === 'succeeded' && !matchesOrderIntent(current, intent)) {
           intentMismatch = true;
           return undefined;
         }
-        return (
-          transitionOrderForPayment(current, outcome, failureReason) ?? undefined
-        );
+        const updated = transitionOrderForPayment(current, outcome, failureReason);
+        if (!updated) return undefined;
+        // El pedido puede rechazarse antes de que terminemos de actualizar payments.
+        if (outcome === 'succeeded') updated.paidPaymentIntentId = intent.id;
+        return updated;
       });
 
     if (intentMismatch) {
@@ -214,19 +220,20 @@ export function createStripeWebhookHandler({
       return;
     }
 
-    if (orderResult.committed) {
-      const updatedOrder = orderResult.snapshot.val();
+    const updatedOrder = orderResult.snapshot.val();
+    if (orderResult.committed && updatedOrder) {
       const updates = {};
       if (typeof updatedOrder?.ownerUid === 'string') {
         updates[
           'ordersByUser/' + updatedOrder.ownerUid + '/' + orderId
-        ] = updatedOrder;
+        ] = customerOrderView(updatedOrder);
       }
       if (updatedOrder?.status === 'paid') {
         updates['staffQueue/' + orderId] = { orderId };
       }
       if (Object.keys(updates).length > 0) {
         await database.ref().update(updates);
+        if (updatedOrder.status === 'paid') await restoreRejectedTicket(database, orderId);
       }
 
       await database

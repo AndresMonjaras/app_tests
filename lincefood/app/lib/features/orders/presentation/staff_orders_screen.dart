@@ -6,6 +6,7 @@ import '../domain/order_record.dart';
 import '../domain/order_status.dart';
 import 'order_actions_controller.dart';
 import 'orders_providers.dart';
+import 'reject_order_dialog.dart';
 
 // Motivos fijos: el personal no escribe texto libre en una incidencia.
 const _incidentReasons = [
@@ -91,6 +92,14 @@ class _StaffOrderList extends ConsumerWidget {
                   orderId: order.id,
                   status: status,
                 ),
+                onReject: () {
+                  controller.clearError();
+                  showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => RejectOrderDialog(orderId: order.id),
+                  );
+                },
                 onReportIncident: (reason) => controller.reportIncident(
                   orderId: order.id,
                   reason: reason,
@@ -124,6 +133,7 @@ class _StaffOrderCard extends StatelessWidget {
     required this.isWorking,
     required this.isAdmin,
     required this.onUpdate,
+    required this.onReject,
     required this.onReportIncident,
     required this.onResolveIncident,
   });
@@ -132,6 +142,7 @@ class _StaffOrderCard extends StatelessWidget {
   final bool isWorking;
   final bool isAdmin;
   final ValueChanged<OrderStatus> onUpdate;
+  final VoidCallback onReject;
   final ValueChanged<String> onReportIncident;
   final ValueChanged<String> onResolveIncident;
 
@@ -142,7 +153,6 @@ class _StaffOrderCard extends StatelessWidget {
       OrderStatus.confirmed => 'Confirmar',
       OrderStatus.preparing => 'En cocina',
       OrderStatus.ready => 'Listo',
-      OrderStatus.delivered => 'Entregado',
       _ => null,
     };
     final canReportIncident = isAdmin && order.status.allowsIncident;
@@ -166,6 +176,19 @@ class _StaffOrderCard extends StatelessWidget {
               FilledButton(
                 onPressed: isWorking ? null : () => onUpdate(nextStatus),
                 child: Text(actionLabel),
+              ),
+            ],
+            if (order.status.allowsRejection && !order.isCancelled) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                  side: isWorking
+                      ? null
+                      : BorderSide(color: Theme.of(context).colorScheme.error),
+                ),
+                onPressed: isWorking ? null : onReject,
+                child: const Text('Rechazar'),
               ),
             ],
             if (canReportIncident) ...[

@@ -6,6 +6,7 @@ enum OrderStatus {
   ready,
   delivered,
   incident,
+  rejected,
 }
 
 extension OrderStatusCode on OrderStatus {
@@ -17,6 +18,7 @@ extension OrderStatusCode on OrderStatus {
     OrderStatus.ready => 'ready',
     OrderStatus.delivered => 'delivered',
     OrderStatus.incident => 'incident',
+    OrderStatus.rejected => 'rejected',
   };
 
   String get label => switch (this) {
@@ -27,6 +29,7 @@ extension OrderStatusCode on OrderStatus {
     OrderStatus.ready => 'Listo para recoger',
     OrderStatus.delivered => 'Entregado',
     OrderStatus.incident => 'Revisar pedido',
+    OrderStatus.rejected => 'Rechazado',
   };
 }
 
@@ -53,11 +56,15 @@ OrderStatus orderStatusFromCode(Object? value) {
     'listo' || 'listo para recoger' => OrderStatus.ready,
     'entregado' => OrderStatus.delivered,
     'incidente' => OrderStatus.incident,
+    'rechazado' => OrderStatus.rejected,
     _ => OrderStatus.paymentPending,
   };
 }
 
 extension OrderStatusFlow on OrderStatus {
+  bool get allowsRejection =>
+      this == OrderStatus.paid || this == OrderStatus.confirmed;
+
   /// Siguiente paso que puede aplicar el personal. Null si no hay ninguno.
   /// La entrega no está aquí: solo ocurre al escanear el QR de recogida.
   OrderStatus? get nextStaffStep => switch (this) {

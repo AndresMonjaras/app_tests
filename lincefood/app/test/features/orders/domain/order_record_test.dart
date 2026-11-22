@@ -83,4 +83,26 @@ void main() {
       throwsA(isA<DomainException>()),
     );
   });
+
+  test('solo permite rechazar pagados o confirmados con una nota válida', () {
+    final now = DateTime.now();
+    for (final status in OrderStatus.values) {
+      final order = OrderRecord(id: 'pedido', status: status, lines: const []);
+      if (status == OrderStatus.paid || status == OrderStatus.confirmed) {
+        final rejected = order.reject('  Se agotó el pan.  ', now);
+        expect(rejected.status, OrderStatus.rejected);
+        expect(rejected.rejectionReason, 'Se agotó el pan.');
+        expect(rejected.rejectedAt, now);
+        expect(
+          () => order.reject('  Café  ', now),
+          throwsA(isA<DomainException>()),
+        );
+      } else {
+        expect(
+          () => order.reject('Se agotó el pan.', now),
+          throwsA(isA<DomainException>()),
+        );
+      }
+    }
+  });
 }

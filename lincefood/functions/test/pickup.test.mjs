@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { AppError } from '../src/app_error.mjs';
 import {
-  createConsumePickupFolioHandler,
+  requirePickupQr,
   createConsumePickupTokenHandler,
   createIssuePickupTokenHandler,
   hashPickupToken,
@@ -394,101 +394,35 @@ test('solo el personal puede entregar y el formato del código se valida', async
   );
 });
 
-// Entrega manual por folio cuando la cámara falla.
-
-function folioDatabase(overrides = {}) {
-  return createDatabase({
-    'staffQueue/ord1': { orderId: 'ord1' },
-    ...overrides,
-  });
-}
-
-test('el personal entrega con folio y queda auditado como folio', async () => {
-  const database = folioDatabase();
-  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  const result = await consume({ auth: staff, data: { folio: 'LF-ABCD1234' } });
-
-  assert.deepEqual(result, { orderId: 'ord1', status: 'delivered' });
-  assert.equal(database.store.get('orders/ord1').deliveredBy, staff.uid);
-  const [event] = Object.values(database.store.get('orderEvents/ord1'));
-  assert.equal(event.method, 'folio');
-  assert.equal(event.tokenId, undefined);
-  assert.equal(database.store.has('staffQueue/ord1'), false);
+test('el administrador puede entregar por QR aunque el reclamo empiece con caché fría', async () => {
+  const base = createDatabase();
+  const { token } = await issueToken(base);
+  const database = {
+    ref(path) {
+      const reference = base.ref(path);
+      if (!path?.startsWith('pickupTokens/')) return reference;
+      return {
+        ...reference,
+        async transaction(update) {
+          assert.equal(update(null), null);
+          return reference.transaction(update);
+        },
+      };
+    },
+  };
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2000 });
+  const result = await consume({ auth: { uid: 'admin', token: { admin: true } }, data: { token } });
+  assert.equal(result.status, 'delivered');
+  assert.equal(base.store.get('orders/ord1').deliveredBy, 'admin');
 });
 
-test('el folio solo no basta: sin autorización de personal no entrega', async () => {
-  const database = folioDatabase();
-  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  await assert.rejects(
-    consume({ auth: owner, data: { folio: 'LF-ABCD1234' } }),
-    assertAppError('permission-denied'),
-  );
-  await assert.rejects(
-    consume({ auth: undefined, data: { folio: 'LF-ABCD1234' } }),
-    assertAppError('unauthenticated'),
-  );
-  assert.equal(database.store.get('orders/ord1').status, 'ready');
-});
-
-test('un folio inexistente, mal formado o de pedido no listo no entrega', async () => {
-  const database = folioDatabase({
-    'orders/ord2': readyOrder({ folio: 'LF-ZZZZ9999', status: 'preparing' }),
-    'staffQueue/ord2': { orderId: 'ord2' },
-  });
-  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  await assert.rejects(
-    consume({ auth: staff, data: { folio: 'LF-NOEXISTE' } }),
-    assertAppError('not-found'),
-  );
-  await assert.rejects(
-    consume({ auth: staff, data: { folio: 'ab;drop' } }),
-    assertAppError('invalid-argument'),
-  );
-  await assert.rejects(
-    consume({ auth: staff, data: { folio: 'LF-ZZZZ9999' } }),
-    assertAppError('failed-precondition'),
-  );
-  assert.equal(database.store.get('orders/ord1').status, 'ready');
-  assert.equal(database.store.get('orders/ord2').status, 'preparing');
-});
-
-test('un folio de pedido no pagado no entrega', async () => {
-  const database = folioDatabase({ 'payments/ord1': { status: 'pending' } });
-  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  await assert.rejects(
-    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
-    assertAppError('failed-precondition'),
-  );
-  assert.equal(database.store.get('orders/ord1').status, 'ready');
-});
-
-test('dos entregas simultáneas por folio no duplican la entrega', async () => {
-  const database = folioDatabase();
-  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  const results = await Promise.allSettled([
-    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
-    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
-  ]);
-
-  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
-  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
-});
-
-test('un pedido ya entregado por QR no se entrega otra vez con folio', async () => {
-  const database = folioDatabase();
-  const { token } = await issueToken(database);
-  const consumeToken = createConsumePickupTokenHandler({ database, now: () => 2_000 });
-  await consumeToken({ auth: staff, data: { token } });
-  const consumeFolio = createConsumePickupFolioHandler({ database, now: () => 3_000 });
-
-  await assert.rejects(
-    consumeFolio({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
-    assertAppError('not-found'),
-  );
-  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
+test('el endpoint de folio exige QR incluso a personal y administración', () => {
+  for (const auth of [staff, { uid: 'admin', token: { admin: true } }]) {
+    assert.throws(
+      () => requirePickupQr({ auth, data: { folio: 'LF-ABCD1234' } }),
+      { code: 'failed-precondition', message: /Escanea el QR/ },
+    );
+  }
+  assert.throws(() => requirePickupQr({ auth: owner }), { code: 'permission-denied' });
+  assert.throws(() => requirePickupQr({}), { code: 'unauthenticated' });
 });

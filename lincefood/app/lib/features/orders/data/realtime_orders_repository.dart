@@ -149,6 +149,14 @@ class RealtimeOrdersRepository implements OrdersRepository {
   }
 
   @override
+  Future<OrderRecord> rejectOrder(String orderId, String reason) {
+    return _orderFromCallable('rejectOrder', orderId, {
+      'orderId': orderId,
+      'reason': reason.trim(),
+    });
+  }
+
+  @override
   Future<OrderRecord> reportIncident(String orderId, String reason) {
     return _orderFromCallable('updateOrderStatus', orderId, {
       'orderId': orderId,
@@ -195,8 +203,15 @@ class RealtimeOrdersRepository implements OrdersRepository {
   }
 
   String _messageForCallableError(FirebaseFunctionsException error) {
+    if (error.code == 'unavailable' || error.code == 'deadline-exceeded') {
+      return 'No se pudo conectar con la cafetería. Inténtalo de nuevo.';
+    }
     final message = error.message?.trim();
-    if (message != null && message.isNotEmpty) return message;
+    if (message != null &&
+        message.isNotEmpty &&
+        message.toLowerCase() != error.code) {
+      return message;
+    }
 
     return switch (error.code) {
       'unauthenticated' => 'Inicia sesión para continuar.',

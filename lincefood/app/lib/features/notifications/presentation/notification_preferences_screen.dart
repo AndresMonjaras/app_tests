@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
+import '../domain/local_advice_frequency.dart';
 import '../domain/notification_inbox_item.dart';
 import '../domain/notification_topic_preferences.dart';
 import 'notification_preferences_controller.dart';
@@ -15,6 +16,8 @@ class NotificationPreferencesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(notificationPreferencesControllerProvider);
+    final frequency = ref.watch(localAdviceFrequencyProvider);
+    final selectedFrequency = frequency.value;
     final inbox = ref.watch(notificationInboxProvider);
 
     return Scaffold(
@@ -50,7 +53,7 @@ class NotificationPreferencesScreen extends ConsumerWidget {
                 SwitchListTile(
                   title: const Text('Recordatorio local de consejos'),
                   subtitle: const Text(
-                    'Recibe un consejo local una vez al día, incluso con la pantalla bloqueada.',
+                    'Recibe consejos de la cafetería, incluso con la pantalla bloqueada.',
                   ),
                   value: state.preferences.localAdvice,
                   onChanged: state.savingTopic == null
@@ -61,6 +64,34 @@ class NotificationPreferencesScreen extends ConsumerWidget {
                             )
                             .setLocalAdvice(enabled)
                       : null,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Semantics(
+                    label: 'Frecuencia del recordatorio',
+                    child: SegmentedButton<LocalAdviceFrequency>(
+                      segments: [
+                        for (final option in LocalAdviceFrequency.values)
+                          ButtonSegment(
+                            value: option,
+                            label: Text(option.label),
+                          ),
+                      ],
+                      selected: {?selectedFrequency},
+                      emptySelectionAllowed: selectedFrequency == null,
+                      onSelectionChanged:
+                          state.preferences.localAdvice &&
+                              state.savingTopic == null &&
+                              !frequency.isLoading
+                          ? (selection) => ref
+                                .read(
+                                  notificationPreferencesControllerProvider
+                                      .notifier,
+                                )
+                                .setLocalAdviceFrequency(selection.single)
+                          : null,
+                    ),
+                  ),
                 ),
               ],
             ),

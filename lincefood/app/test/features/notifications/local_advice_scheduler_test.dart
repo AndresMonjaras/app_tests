@@ -1,30 +1,62 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/features/notifications/data/local_advice_scheduler.dart';
+import 'package:lincefood_app/features/notifications/domain/cafeteria_tips.dart';
+import 'package:lincefood_app/features/notifications/domain/local_advice_frequency.dart';
 
 void main() {
-  test('programa un consejo por hora y puede cancelarlo', () async {
-    final notifications = _FakeLocalAdviceNotifications();
-    final scheduler = LocalAdviceScheduler(notifications);
+  const intervals = {
+    LocalAdviceFrequency.daily: RepeatInterval.daily,
+    LocalAdviceFrequency.hourly: RepeatInterval.hourly,
+  };
 
-    await scheduler.scheduleDailyAdvice();
-    await scheduler.cancel();
+  for (final entry in intervals.entries) {
+    test('programa ${entry.key.label} y puede cancelar el consejo', () async {
+      final notifications = _FakeNotificationsPlugin();
+      final scheduler = LocalAdviceScheduler(
+        FlutterLocalAdviceNotificationClient(notifications),
+      );
+      final tip = cafeteriaTips.first;
 
-    expect(notifications.scheduled, isTrue);
-    expect(notifications.cancelled, isTrue);
-  });
+      await scheduler.schedule(entry.key, tip);
+      await scheduler.cancel();
+
+      expect(notifications.repeatInterval, entry.value);
+      expect(notifications.scheduledId, 48120);
+      expect(notifications.body, tip.text);
+      expect(notifications.androidDetails?.channelId, 'avisos_cafeteria');
+      expect(notifications.androidDetails?.icon, 'ic_notification');
+      expect(notifications.cancelledId, notifications.scheduledId);
+    });
+  }
 }
 
-class _FakeLocalAdviceNotifications implements LocalAdviceNotificationClient {
-  bool scheduled = false;
-  bool cancelled = false;
+class _FakeNotificationsPlugin extends Fake
+    implements FlutterLocalNotificationsPlugin {
+  int? scheduledId;
+  int? cancelledId;
+  RepeatInterval? repeatInterval;
+  String? body;
+  AndroidNotificationDetails? androidDetails;
 
   @override
-  Future<void> scheduleDailyAdvice() async {
-    scheduled = true;
+  Future<void> periodicallyShow({
+    required int id,
+    required RepeatInterval repeatInterval,
+    required NotificationDetails notificationDetails,
+    required AndroidScheduleMode androidScheduleMode,
+    String? title,
+    String? body,
+    String? payload,
+  }) async {
+    scheduledId = id;
+    this.repeatInterval = repeatInterval;
+    this.body = body;
+    androidDetails = notificationDetails.android;
   }
 
   @override
-  Future<void> cancelAdvice() async {
-    cancelled = true;
+  Future<void> cancel({required int id, String? tag}) async {
+    cancelledId = id;
   }
 }

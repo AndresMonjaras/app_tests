@@ -93,6 +93,7 @@ void main() {
         'ready',
         'delivered',
         'incident',
+        'rejected',
       ]);
     });
 
@@ -103,11 +104,36 @@ void main() {
         lines: const [],
       );
 
-      for (final status in OrderStatus.values.skip(1)) {
+      for (final status in [
+        OrderStatus.paid,
+        OrderStatus.confirmed,
+        OrderStatus.preparing,
+        OrderStatus.ready,
+        OrderStatus.delivered,
+        OrderStatus.incident,
+      ]) {
         order = order.transitionTo(status);
       }
 
       expect(order.status, OrderStatus.incident);
+    });
+
+    test('el rechazo del pedido requiere su nota y es terminal', () {
+      final paid = OrderRecord(
+        id: 'pedido-1',
+        status: OrderStatus.paid,
+        lines: const [],
+      );
+      expect(
+        () => paid.transitionTo(OrderStatus.rejected),
+        throwsA(isA<DomainException>()),
+      );
+      final rejected = paid.reject('Ya no queda café.', DateTime.now());
+      expect(rejected.status, OrderStatus.rejected);
+      expect(
+        () => rejected.transitionTo(OrderStatus.preparing),
+        throwsA(isA<DomainException>()),
+      );
     });
 
     test('rechaza volver a un estado anterior o repetir el actual', () {

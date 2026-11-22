@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_router.dart';
+import '../../../app/app_theme.dart';
 import '../../../core/errors/domain_exception.dart';
 import '../../../core/money/money.dart';
-import '../../../app/app_router.dart';
+import '../../cart/domain/cart.dart';
+import '../../catalog/presentation/catalog_providers.dart';
+import '../../catalog/presentation/product_image.dart';
+import '../../media/presentation/menu_image_providers.dart';
 import '../../notifications/presentation/notifications_inbox_screen.dart';
-import '../../pickup_qr/presentation/pickup_qr_screen.dart';
 import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_elapsed_time.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
 import 'order_cancellation_providers.dart';
+import 'order_rejection_notice.dart';
 import 'order_timeline.dart';
 import 'orders_providers.dart';
 
@@ -47,7 +52,8 @@ class OrdersScreen extends ConsumerWidget {
           if (isStaff)
             IconButton(
               tooltip: 'Panel de cafetería',
-              onPressed: () => Navigator.of(context).pushNamed('/orders/staff'),
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRouter.staffOrders),
               icon: const Icon(Icons.storefront_outlined),
             ),
         ],
@@ -81,9 +87,21 @@ class OrdersScreen extends ConsumerWidget {
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: sortedOrders.length,
+                findItemIndexCallback: (key) {
+                  final index = sortedOrders.indexWhere(
+                    (order) => ValueKey(order.id) == key,
+                  );
+                  return index < 0 ? null : index;
+                },
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) =>
-                    _TicketCard(order: sortedOrders[index], now: now),
+                itemBuilder: (context, index) {
+                  final order = sortedOrders[index];
+                  return _TicketCard(
+                    key: ValueKey(order.id),
+                    order: order,
+                    now: now,
+                  );
+                },
               ),
             ),
           );
@@ -125,82 +143,188 @@ class _AvisosButton extends ConsumerWidget {
 }
 
 class _TicketCard extends ConsumerWidget {
-  const _TicketCard({required this.order, required this.now});
+  const _TicketCard({super.key, required this.order, required this.now});
 
   final OrderRecord order;
   final DateTime now;
 
+  String get _title {
+    if (order.isCancelled) return 'Pedido cancelado';
+    return switch (order.status) {
+      OrderStatus.paymentPending => 'Pago pendiente',
+      OrderStatus.paid => 'Pedido pagado',
+      OrderStatus.confirmed => 'Pedido recibido',
+      OrderStatus.preparing => 'Pedido en preparación',
+      OrderStatus.ready => 'Pedido listo para recoger',
+      OrderStatus.delivered => 'Pedido entregado',
+      OrderStatus.incident => 'Pedido en revisión',
+      OrderStatus.rejected => order.status.label,
+    };
+  }
+
+  bool get _paymentConfirmed =>
+      !order.isCancelled &&
+      order.status != OrderStatus.paymentPending &&
+      order.status != OrderStatus.rejected;
+
+  String? get _productStatus {
+    if (order.isCancelled) return null;
+    return switch (order.status) {
+      OrderStatus.paid => 'Esperando confirmación de la cafetería',
+      OrderStatus.preparing => 'Preparando tus alimentos',
+      OrderStatus.ready => 'Puedes pasar a recogerlo',
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final text = theme.textTheme;
+    final success = AppTheme.successColor(theme.brightness);
     final isCancelling = ref.watch(cancellingOrdersProvider).contains(order.id);
+    final needsCatalogImages =
+        order.lines.any((line) => line.product.imagePath.isEmpty) &&
+        ref.watch(menuImagesEnabledProvider);
+    final catalogImages = {
+      if (needsCatalogImages)
+        for (final product
+            in ref.watch(catalogProductsProvider).value ?? const [])
+          product.id: product.imagePath,
+    };
 
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Folio ${order.displayFolio}',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                if (order.status == OrderStatus.rejected) ...[
+                  Icon(Icons.error_outline, color: colors.error),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    _title,
+                    style: text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            for (final line in order.lines)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${line.quantity} × ${line.product.name}'
-                        '${line.variant == null ? '' : ' (${line.variant!.label})'}',
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  order.displayFolio,
+                  semanticsLabel: 'Folio ${order.displayFolio}',
+                  style: text.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (_paymentConfirmed)
+                  Chip(
+                    avatar: Icon(Icons.check_circle_outline, color: success),
+                    label: const Text('Pago confirmado'),
+                    backgroundColor: success.withValues(alpha: 0.12),
+                    side: BorderSide.none,
+                    labelStyle: text.labelLarge?.copyWith(
+                      color: success,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (order.status == OrderStatus.rejected)
+              OrderRejectionNotice(order: order),
+            if (!order.isCancelled) ...[
+              OrderTimeline(currentStatus: order.status),
+              const SizedBox(height: 16),
+            ],
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 8,
+                children: [
+                  for (final line in order.lines)
+                    _TicketProduct(
+                      line: line,
+                      imagePath: line.product.imagePath.isNotEmpty
+                          ? line.product.imagePath
+                          : catalogImages[line.product.id] ?? '',
+                    ),
+                  if (order.lines.isEmpty)
+                    const Text('No hay detalle de productos disponible.'),
+                  if (_productStatus case final status?)
+                    Text(
+                      status,
+                      style: text.bodyMedium?.copyWith(
+                        color: success,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text(formatMoney(line.totalCents)),
-                  ],
-                ),
+                ],
               ),
-            if (order.lines.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text('No hay detalle de productos disponible.'),
-              ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 const Text('Total'),
                 Text(
                   formatMoney(order.totalCents),
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('Modalidad: ${order.pickupMode.label}'),
-            if (order.createdAt case final createdAt?) ...[
-              const SizedBox(height: 4),
-              Text(formatElapsedTime(createdAt, now: now)),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              'Estado: ${order.isCancelled ? 'Cancelado' : order.status.label}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.bold,
+            DefaultTextStyle.merge(
+              style: TextStyle(color: colors.onSurfaceVariant),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  Text(order.pickupMode.label),
+                  if (order.createdAt case final createdAt?) ...[
+                    Text(_orderTime(context, createdAt)),
+                    Text(formatElapsedTime(createdAt, now: now)),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            if (!order.isCancelled) OrderTimeline(currentStatus: order.status),
-            if (order.status == OrderStatus.ready) ...[
+            if (!order.isCancelled &&
+                (order.status == OrderStatus.confirmed ||
+                    order.status == OrderStatus.preparing)) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Te avisaremos cuando tu comida esté lista.',
+                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+            ],
+            if (!order.isCancelled && order.status == OrderStatus.ready) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PickupQrScreen(orderId: order.id),
-                  ),
+                onPressed: () => Navigator.of(context).pushNamed(
+                  AppRouter.pickupQr,
+                  arguments: {'orderId': order.id},
                 ),
                 icon: const Icon(Icons.qr_code_2),
                 label: const Text('Mostrar QR de recogida'),
@@ -220,6 +344,14 @@ class _TicketCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _orderTime(BuildContext context, DateTime createdAt) {
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(createdAt.toLocal()),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return 'Pedido a las $time';
   }
 
   Future<void> _confirmarCancelacion(
@@ -269,5 +401,47 @@ class _TicketCard extends ConsumerWidget {
     } finally {
       cancelling.finish(order.id);
     }
+  }
+}
+
+class _TicketProduct extends StatelessWidget {
+  const _TicketProduct({required this.line, required this.imagePath});
+
+  final CartLine line;
+  final String imagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final quantity = line.quantity;
+    final unitLabel = quantity == 1 ? 'unidad' : 'unidades';
+    return Row(
+      children: [
+        ProductImage(
+          imagePath: imagePath,
+          fallbackIcon: Icons.restaurant,
+          width: 54,
+          height: 54,
+          borderRadius: 12,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${line.product.name}'
+                '${line.variant == null ? '' : ' (${line.variant!.label})'}',
+                style: text.titleSmall,
+              ),
+              Text(
+                '$quantity $unitLabel · ${formatMoney(line.totalCents)}',
+                style: text.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

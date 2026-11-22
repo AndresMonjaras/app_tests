@@ -32,7 +32,14 @@ export async function saveNotificationToInbox({
   };
   const result = await database
     .ref(`notificationInbox/${uid}/${notificationId}`)
-    .transaction((current) => (current == null ? notification : undefined));
+    .transaction((current) => {
+      if (current == null) return notification;
+      // El reintento conserva el texto, la fecha original y la marca de lectura.
+      if (type === 'pedido_rechazado' && current.pushFailed === true) {
+        return { ...current, pushFailed: null };
+      }
+      return undefined;
+    });
   return result.committed;
 }
 
@@ -66,8 +73,9 @@ export async function saveTopicNotificationToInboxes({
   return results.filter(Boolean).length;
 }
 
-export function removeNotificationFromInbox(database, uid, notificationId) {
-  return database
-    .ref(`notificationInbox/${uid}/${notificationId}`)
-    .remove();
+export function recordOrderPushFailure(database, uid, notificationId, type) {
+  const entry = database.ref(`notificationInbox/${uid}/${notificationId}`);
+  // El estudiante puede consultar el motivo aunque FCM no esté disponible.
+  if (type === 'pedido_rechazado') return entry.update({ pushFailed: true });
+  return entry.remove();
 }

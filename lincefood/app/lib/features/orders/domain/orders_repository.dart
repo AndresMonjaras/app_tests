@@ -17,6 +17,8 @@ abstract interface class OrdersRepository {
 
   Future<OrderRecord> updateOrderStatus(String orderId, OrderStatus status);
 
+  Future<OrderRecord> rejectOrder(String orderId, String reason);
+
   /// Solo administración. Pasa un pedido activo a incidencia con motivo.
   Future<OrderRecord> reportIncident(String orderId, String reason);
 

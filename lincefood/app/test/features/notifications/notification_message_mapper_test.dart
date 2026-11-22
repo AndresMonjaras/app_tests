@@ -36,6 +36,21 @@ void main() {
     expect(mapper.mapPayload({'tipo': 'pedido_individual'}), isNull);
   });
 
+  test('el aviso de rechazo en primer plano muestra la nota y abre pedidos', () async {
+    final mapper = await NotificationMessageMapper.loadSeed();
+    const reason = 'Se agotó el platillo solicitado.';
+    final notice = mapper.mapPayload({
+      'type': 'pedido_rechazado',
+      'orderId': 'pedido-42',
+      'customText': reason,
+    });
+
+    expect(notice?.title, 'Pedido rechazado');
+    expect(notice?.body, reason);
+    expect(notice?.target, NotificationTarget.orders);
+    expect(notice?.orderId, 'pedido-42');
+  });
+
   test(
     'mapea las notificaciones de pedido y conserva solo el ID técnico',
     () async {

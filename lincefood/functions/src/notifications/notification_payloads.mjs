@@ -5,14 +5,19 @@ export const notificationTopicKeys = Object.freeze([
   'cafeteria_avisos',
 ]);
 
-export function buildOrderMessage(copies, type, orderId, notificationId) {
+export function buildOrderMessage(copies, type, orderId, notificationId, customText) {
   const copy = copies[type];
+  const body = typeof customText === 'string' ? customText.trim() : '';
   return {
     notification: {
       title: copy.titulo,
-      body: copy.cuerpo,
+      body: body || copy.cuerpo,
     },
-    data: { type, ...(orderId == null ? {} : { orderId }) },
+    data: {
+      type,
+      ...(orderId == null ? {} : { orderId }),
+      ...(body ? { customText: body } : {}),
+    },
     android: {
       priority: 'high',
       notification: {

@@ -153,7 +153,7 @@ void main() {
 
     await _montarTicket(tester, repository);
 
-    expect(find.text('Estado: Cancelado'), findsOneWidget);
+    expect(find.text('Pedido cancelado'), findsOneWidget);
     expect(find.text('Cancelar pedido'), findsNothing);
   });
 }

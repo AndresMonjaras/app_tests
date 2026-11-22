@@ -5,10 +5,12 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/local_advice_frequency_store.dart';
 import '../data/notification_preferences_gateway.dart';
 import '../data/notification_inbox_gateway.dart';
 import '../data/notification_tip_dismissals_gateway.dart';
 import '../data/notification_token_registration.dart';
+import '../domain/local_advice_frequency.dart';
 import '../domain/notification_inbox_item.dart';
 import '../domain/notification_topic_preferences.dart';
 import '../data/notification_service.dart';
@@ -68,6 +70,12 @@ final notificationPreferencesGatewayProvider =
       );
     });
 
+final localAdviceFrequencyProvider = FutureProvider<LocalAdviceFrequency>((
+  ref,
+) {
+  return ref.watch(localAdviceFrequencyStoreProvider).readFrequency();
+});
+
 class NotificationPreferencesViewState {
   const NotificationPreferencesViewState({
     required this.preferences,
@@ -98,7 +106,12 @@ class NotificationPreferencesController
   Future<void> setTopic(NotificationTopic topic, bool enabled) async {
     final current = state.hasValue ? state.requireValue : null;
     final uid = ref.read(notificationUserIdProvider);
-    if (current == null || uid == null || uid.isEmpty) return;
+    if (current == null ||
+        current.savingTopic != null ||
+        uid == null ||
+        uid.isEmpty) {
+      return;
+    }
 
     state = AsyncData(
       NotificationPreferencesViewState(
@@ -137,7 +150,12 @@ class NotificationPreferencesController
   Future<void> setLocalAdvice(bool enabled) async {
     final current = state.hasValue ? state.requireValue : null;
     final uid = ref.read(notificationUserIdProvider);
-    if (current == null || uid == null || uid.isEmpty) return;
+    if (current == null ||
+        current.savingTopic != null ||
+        uid == null ||
+        uid.isEmpty) {
+      return;
+    }
     if (current.preferences.localAdvice == enabled) return;
 
     final updated = current.preferences.copyWith(localAdvice: enabled);
@@ -172,6 +190,49 @@ class NotificationPreferencesController
         ),
       );
     }
+  }
+
+  Future<void> setLocalAdviceFrequency(LocalAdviceFrequency frequency) async {
+    final current = state.hasValue ? state.requireValue : null;
+    final uid = ref.read(notificationUserIdProvider);
+    if (current == null ||
+        current.savingTopic != null ||
+        uid == null ||
+        uid.isEmpty) {
+      return;
+    }
+
+    state = AsyncData(
+      NotificationPreferencesViewState(
+        preferences: current.preferences,
+        savingTopic: NotificationTopicPreferences.localAdviceKey,
+      ),
+    );
+
+    String? errorMessage;
+    try {
+      await ref
+          .read(localAdvicePreferenceHandlerProvider)
+          .setLocalAdviceFrequency(
+            frequency,
+            enabled: current.preferences.localAdvice,
+          );
+    } catch (error, stack) {
+      debugPrint(
+        'Consejo periódico: fallo al cambiar la frecuencia: $error\n$stack',
+      );
+      errorMessage = 'No se pudo cambiar la frecuencia. Inténtalo de nuevo.';
+    }
+
+    if (!ref.mounted) return;
+    ref.invalidate(localAdviceFrequencyProvider);
+    if (ref.read(notificationUserIdProvider) != uid) return;
+    state = AsyncData(
+      NotificationPreferencesViewState(
+        preferences: current.preferences,
+        errorMessage: errorMessage,
+      ),
+    );
   }
 }
 

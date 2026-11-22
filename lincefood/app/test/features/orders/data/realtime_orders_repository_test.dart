@@ -115,4 +115,24 @@ void main() {
       ),
     );
   });
+
+  test(
+    'rejectOrder envía el folio y la nota, y lee el pedido rechazado',
+    () async {
+      final repository = RealtimeOrdersRepository(
+        callable: (name, data) async {
+          expect(name, 'rejectOrder');
+          expect(data, {'orderId': 'order-1', 'reason': 'Café agotado'});
+          return {
+            'order': {'status': 'rejected', 'rejectionReason': 'Café agotado'},
+          };
+        },
+      );
+
+      final order = await repository.rejectOrder('order-1', '  Café agotado  ');
+
+      expect(order.status, OrderStatus.rejected);
+      expect(order.rejectionReason, 'Café agotado');
+    },
+  );
 }

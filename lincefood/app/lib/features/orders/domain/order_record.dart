@@ -1,8 +1,15 @@
+import 'package:flutter/widgets.dart' show StringCharacters;
+
 import '../../../core/errors/domain_exception.dart';
 import '../../cart/domain/cart.dart';
 import '../../catalog/domain/product.dart';
 import 'pickup_mode.dart';
 import 'order_status.dart';
+
+bool isValidRejectionReason(String reason) {
+  final length = reason.trim().characters.length;
+  return length >= 5 && length <= 200;
+}
 
 class OrderRecord {
   OrderRecord({
@@ -14,6 +21,9 @@ class OrderRecord {
     this.pickupMode = PickupMode.inStore,
     this.isCancelled = false,
     this.createdAt,
+    this.rejectionReason,
+    this.rejectedAt,
+    this.rejectedBy,
     int? totalCents,
   }) : lines = List.unmodifiable(lines),
        totalCents =
@@ -35,16 +45,21 @@ class OrderRecord {
         ? rawTotalCents.round()
         : _parseTotalCents(map['total']);
     final lines = _parseLines(map['lines']);
+    final reason = map['rejectionReason'];
+    final rejectedBy = map['rejectedBy'];
 
     return OrderRecord(
       id: id,
-      status: orderStatusFromCode(map['estado'] ?? map['status']),
+      status: orderStatusFromCode(map['status'] ?? map['estado']),
       lines: lines,
       ownerUid: (map['ownerUid'] ?? map['uid'] ?? '').toString(),
       folio: map['folio']?.toString(),
       pickupMode: PickupMode.fromCode(map['pickupMode']),
       isCancelled: map['isCancelled'] == true,
       createdAt: _parseDate(map['fecha'] ?? map['createdAt']),
+      rejectionReason: reason is String ? reason : null,
+      rejectedAt: _parseDate(map['rejectedAt']),
+      rejectedBy: rejectedBy is String ? rejectedBy : null,
       totalCents: totalCents,
     );
   }
@@ -57,6 +72,9 @@ class OrderRecord {
   final PickupMode pickupMode;
   final bool isCancelled;
   final DateTime? createdAt;
+  final String? rejectionReason;
+  final DateTime? rejectedAt;
+  final String? rejectedBy;
   final int totalCents;
 
   String get displayFolio => folio?.isNotEmpty == true ? folio! : 'LF-$id';
@@ -78,10 +96,16 @@ class OrderRecord {
       'pickupMode': pickupMode.code,
       'status': status.code,
       'createdAt': createdAt?.millisecondsSinceEpoch,
+      if (rejectionReason != null) 'rejectionReason': rejectionReason,
+      if (rejectedAt != null) 'rejectedAt': rejectedAt!.millisecondsSinceEpoch,
+      if (rejectedBy != null) 'rejectedBy': rejectedBy,
     };
   }
 
   OrderRecord transitionTo(OrderStatus nextStatus) {
+    if (nextStatus == OrderStatus.rejected) {
+      throw const DomainException('Indica el motivo del rechazo.');
+    }
     if (isCancelled) {
       throw const DomainException('Un pedido cancelado no puede cambiar.');
     }
@@ -112,11 +136,29 @@ class OrderRecord {
     return _copyWith(isCancelled: true);
   }
 
+  OrderRecord reject(String reason, DateTime rejectedAt) {
+    if (isCancelled || !status.allowsRejection) {
+      throw const DomainException(
+        'Solo se pueden rechazar pedidos pagados o confirmados.',
+      );
+    }
+    if (!isValidRejectionReason(reason)) {
+      throw const DomainException('Escribe una nota de 5 a 200 caracteres.');
+    }
+    return _copyWith(
+      status: OrderStatus.rejected,
+      rejectionReason: reason.trim(),
+      rejectedAt: rejectedAt,
+    );
+  }
+
   OrderRecord _copyWith({
     OrderStatus? status,
     List<CartLine>? lines,
     bool? isCancelled,
     DateTime? createdAt,
+    String? rejectionReason,
+    DateTime? rejectedAt,
     int? totalCents,
   }) {
     final updatedLines = lines ?? this.lines;
@@ -129,6 +171,9 @@ class OrderRecord {
       pickupMode: pickupMode,
       isCancelled: isCancelled ?? this.isCancelled,
       createdAt: createdAt ?? this.createdAt,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
+      rejectedBy: rejectedBy,
       totalCents:
           totalCents ??
           (lines == null

@@ -148,6 +148,41 @@ describe('rutas privadas y catálogo', () => {
     await assertSucceeds(get(ref(adminDatabase, 'orderEvents/order-1')));
   });
 
+  it('solo el dueño lee los avisos de rechazo y ningún cliente los escribe', async () => {
+    const path = 'rejectionNotices/owner/order-1';
+    const notice = { rejectionReason: 'Producto agotado', rejectedAt: 1, expiresAt: 600001 };
+    await testEnvironment.withSecurityRulesDisabled((context) =>
+      set(ref(context.database(), path), notice),
+    );
+    const owner = testEnvironment.authenticatedContext('owner').database();
+    await assertSucceeds(get(ref(owner, path)));
+    await assertFails(set(ref(owner, path), null));
+
+    for (const context of [
+      testEnvironment.unauthenticatedContext(),
+      testEnvironment.authenticatedContext('other'),
+      testEnvironment.authenticatedContext('staff', { staff: true }),
+      testEnvironment.authenticatedContext('admin', { admin: true }),
+    ]) {
+      const database = context.database();
+      await assertFails(get(ref(database, path)));
+      await assertFails(set(ref(database, path), notice));
+    }
+  });
+
+  it('personal y administración pueden consultar la cola y el pedido sin escribir', async () => {
+    for (const claims of [{ staff: true }, { admin: true }]) {
+      const database = testEnvironment.authenticatedContext('operator', claims).database();
+      for (const path of ['staffQueue', 'orders/order-1']) {
+        await assertSucceeds(get(ref(database, path)));
+        await assertFails(set(ref(database, path), true));
+      }
+    }
+    const student = testEnvironment.authenticatedContext('student').database();
+    await assertFails(get(ref(student, 'staffQueue')));
+    await assertFails(get(ref(student, 'orders/order-1')));
+  });
+
   it('impide al cliente modificar pedidos e índices, incluso estados', async () => {
     const customerDatabase = testEnvironment.authenticatedContext('owner').database();
     await assertFails(set(ref(customerDatabase, 'orders/order-1/status'), 'ready'));
