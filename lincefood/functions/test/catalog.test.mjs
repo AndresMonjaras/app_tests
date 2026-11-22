@@ -29,15 +29,15 @@ function createDatabase({ coldCache = false } = {}) {
             values.set(path, value);
             writes.push({ path, value });
           }
-          return { committed: true, snapshot: { exists: () => value !== null } };
+          return { committed: true, snapshot: { exists: () => value !== null, val: () => value } };
         },
-        async set(value) {
+        async get() {
+          return { exists: () => values.has(path) };
+        },
+        async update(fields) {
+          const value = { ...values.get(path), ...fields };
           values.set(path, value);
           writes.push({ path, value });
-        },
-        async remove() {
-          values.delete(path);
-          writes.push({ path, removed: true });
         },
       };
     },
@@ -73,10 +73,11 @@ test('upsert valida y guarda los precios de producto y variantes como centavos e
   await handler(adminRequest({ productId: 'coffee', product }));
   assert.deepEqual(database.values.get('products/coffee'), {
     name: 'Café', categoryId: 'bebidas', available: true, priceCents: 2500,
-    prepMinutes: 5, variants: [{ label: 'Grande', priceCents: 3000 }],
+    prepMinutes: 5, variants: [{ label: 'Grande', priceCents: 3000, available: true }],
+    description: '', ingredients: [], complements: [],
   });
 
-  for (const priceCents of [-1, 1.25, Number.MAX_SAFE_INTEGER + 1]) {
+  for (const priceCents of [0, -1, 1.25, Number.MAX_SAFE_INTEGER + 1]) {
     await assert.rejects(
       handler(adminRequest({ productId: 'coffee', product: { ...product, priceCents } })),
       (error) => error instanceof AppError && error.code === 'invalid-argument',
@@ -92,7 +93,7 @@ test('upsert valida y guarda los precios de producto y variantes como centavos e
 
 test('updateProductPrice rechaza cantidades negativas y decimales', async () => {
   const handler = createUpdateProductPriceHandler({ database: createDatabase() });
-  for (const priceCents of [-1, 10.5]) {
+  for (const priceCents of [0, -1, 10.5]) {
     await assert.rejects(
       handler(adminRequest({ productId: 'coffee', priceCents })),
       (error) => error instanceof AppError && error.code === 'invalid-argument',
@@ -112,24 +113,70 @@ test('disponibilidad requiere booleano y solo cambia ese campo', async () => {
   );
 });
 
-test('eliminar producto exige confirmación explícita', async () => {
-  const database = createDatabase();
-  database.values.set('products/coffee', { name: 'Café' });
+test('archivar exige confirmación y conserva producto y pedidos', async () => {
+  const database = createDatabase({ coldCache: true });
+  const product = { name: 'Café', priceCents: 100, available: true };
+  const order = { lines: [{ productId: 'coffee', unitPriceCents: 200 }] };
+  database.values.set('products/coffee', product);
+  database.values.set('orders/order1', order);
   const handler = createDeleteProductHandler({ database });
   await assert.rejects(
     handler(adminRequest({ productId: 'coffee' })),
     (error) => error instanceof AppError && error.code === 'failed-precondition',
   );
-  assert.equal(database.values.has('products/coffee'), true);
+  assert.deepEqual(database.values.get('products/coffee'), product);
 
-  await handler(adminRequest({ productId: 'coffee', confirmed: true }));
-  assert.equal(database.values.has('products/coffee'), false);
+  assert.deepEqual(await handler(adminRequest({ productId: 'coffee', confirmed: true })),
+    { productId: 'coffee', archived: true });
+  assert.deepEqual(database.values.get('products/coffee'),
+    { ...product, archived: true, available: false });
+  await createSetProductAvailabilityHandler({ database })(adminRequest({
+    productId: 'coffee', available: true,
+  }));
+  assert.equal(database.values.get('products/coffee').available, false);
+  assert.deepEqual(database.values.get('orders/order1'), order);
+});
+
+test('guardar en caché fría conserva la foto, la marca demo y el archivado', async () => {
+  const database = createDatabase({ coldCache: true });
+  const handler = createUpsertProductHandler({ database });
+  database.values.set('products/coffee', {
+    archived: true, demo: true, imagePath: 'menu/coffee.jpg', available: false,
+  });
+  const product = {
+    name: 'Café', categoryId: 'drinks', priceCents: 100, available: true,
+    description: ' Café americano ', ingredients: [' Café '],
+    variants: [{ label: 'Grande', priceCents: 200, available: false }],
+    complements: [{ label: 'Leche', priceCents: 50, available: true }],
+  };
+  const result = await handler(adminRequest({ productId: 'coffee', product }));
+  assert.deepEqual(result.product, {
+    ...product, description: 'Café americano', ingredients: ['Café'],
+    archived: true, demo: true, imagePath: 'menu/coffee.jpg', available: false,
+    prepMinutes: 0,
+  });
+
+  for (const field of ['variants', 'complements']) {
+    for (const options of [
+      Array.from({ length: 7 }, (_, i) => ({ label: 'Opción ' + i, priceCents: 50 })),
+      [{ label: 'a'.repeat(41), priceCents: 50 }],
+      [{ label: 'Opción', priceCents: 0 }],
+      [{ label: 'Opción', priceCents: 1.2 }],
+      [{ label: 'Opción', priceCents: 50, available: null }],
+      [{ label: 'Opción', priceCents: 50 }, { label: ' opción ', priceCents: 50 }],
+    ]) {
+      await assert.rejects(handler(adminRequest({
+        productId: 'coffee', product: { ...product, [field]: options },
+      })), { code: 'invalid-argument' });
+    }
+  }
 });
 
 test('precio y disponibilidad no recrean productos inexistentes', async () => {
   for (const [makeHandler, data] of [
     [createUpdateProductPriceHandler, { priceCents: 100 }],
     [createSetProductAvailabilityHandler, { available: true }],
+    [createDeleteProductHandler, { confirmed: true }],
   ]) {
     const database = createDatabase();
     await assert.rejects(makeHandler({ database })(adminRequest({ productId: 'missing', ...data })),

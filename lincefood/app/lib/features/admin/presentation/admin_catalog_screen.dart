@@ -104,8 +104,8 @@ class _AdminCatalogContent extends ConsumerWidget {
                           items[index],
                           available,
                         ),
-                        onDelete: () =>
-                            _confirmDelete(context, ref, items[index]),
+                        onArchive: () =>
+                            _confirmArchive(context, ref, items[index]),
                       ),
                     ),
             ),
@@ -123,7 +123,13 @@ class _AdminCatalogContent extends ConsumerWidget {
   }) async {
     final updated = await showDialog<Product>(
       context: context,
-      builder: (_) => AdminProductForm(product: product, priceOnly: priceOnly),
+      builder: (_) => AdminProductForm(
+        product: product,
+        priceOnly: priceOnly,
+        onArchive: product == null
+            ? null
+            : () => _confirmArchive(context, ref, product),
+      ),
     );
     if (updated == null || !context.mounted) return;
     await _perform(
@@ -148,7 +154,7 @@ class _AdminCatalogContent extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(
+  Future<void> _confirmArchive(
     BuildContext context,
     WidgetRef ref,
     Product product,
@@ -156,9 +162,9 @@ class _AdminCatalogContent extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar producto'),
+        title: const Text('Archivar producto'),
         content: Text(
-          '¿Quieres eliminar “${product.name}”? Esta acción no se puede deshacer.',
+          '¿Quieres archivar “${product.name}”? Se retirará del menú.',
         ),
         actions: [
           TextButton(
@@ -167,7 +173,7 @@ class _AdminCatalogContent extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar producto'),
+            child: const Text('Archivar producto'),
           ),
         ],
       ),
@@ -214,14 +220,14 @@ class _ProductAdminTile extends StatelessWidget {
     required this.onPrice,
     required this.onEdit,
     required this.onAvailability,
-    required this.onDelete,
+    required this.onArchive,
   });
 
   final Product product;
   final VoidCallback onPrice;
   final VoidCallback onEdit;
   final ValueChanged<bool> onAvailability;
-  final VoidCallback onDelete;
+  final VoidCallback onArchive;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -229,6 +235,7 @@ class _ProductAdminTile extends StatelessWidget {
       children: [
         ListTile(
           title: Text(product.name),
+          leading: product.demo ? const Chip(label: Text('Demo')) : null,
           subtitle: Text(
             '${product.categoryId.isEmpty ? 'Sin categoría' : product.categoryId} · ${formatMoney(product.displayPriceCents)}',
           ),
@@ -245,16 +252,16 @@ class _ProductAdminTile extends StatelessWidget {
           label: const Text('Editar producto'),
         ),
         SwitchListTile(
-          title: const Text('Disponible'),
-          value: product.isAvailable,
-          onChanged: onAvailability,
+          title: Text(product.archived ? 'Archivado' : 'Disponible'),
+          value: product.isAvailable && !product.archived,
+          onChanged: product.archived ? null : onAvailability,
         ),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Eliminar'),
+            onPressed: product.archived ? null : onArchive,
+            icon: const Icon(Icons.archive_outlined),
+            label: const Text('Archivar'),
           ),
         ),
       ],

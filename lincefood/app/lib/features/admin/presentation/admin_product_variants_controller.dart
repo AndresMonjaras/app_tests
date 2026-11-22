@@ -5,12 +5,13 @@ import '../../catalog/domain/product.dart';
 
 /// Campos de texto de una variante en el formulario de producto.
 class VariantFields {
-  VariantFields(String name, int cents)
+  VariantFields(String name, int cents, this.available)
     : label = TextEditingController(text: name),
       price = TextEditingController(text: adminCentsToText(cents));
 
   final TextEditingController label;
   final TextEditingController price;
+  bool available;
 
   void dispose() {
     label.dispose();
@@ -33,10 +34,19 @@ class AdminVariantsController extends Notifier<List<VariantFields>> {
         fields.dispose();
       }
     });
-    return [for (final v in _initial) _create(v.label, v.priceCents)];
+    return [
+      for (final v in _initial) _create(v.label, v.priceCents, v.isAvailable),
+    ];
   }
 
-  void add() => state = [...state, _create('', 0)];
+  void add() {
+    if (state.length < 6) state = [...state, _create('', 0, true)];
+  }
+
+  void setAvailability(VariantFields fields, bool available) {
+    fields.available = available;
+    state = [...state];
+  }
 
   void remove(VariantFields fields) {
     state = [
@@ -45,14 +55,19 @@ class AdminVariantsController extends Notifier<List<VariantFields>> {
     ];
   }
 
-  VariantFields _create(String label, int cents) {
-    final fields = VariantFields(label, cents);
+  VariantFields _create(String label, int cents, bool available) {
+    final fields = VariantFields(label, cents, available);
     _created.add(fields);
     return fields;
   }
 }
 
 final adminVariantsProvider = NotifierProvider.autoDispose
+    .family<AdminVariantsController, List<VariantFields>, List<ProductVariant>>(
+      AdminVariantsController.new,
+    );
+
+final adminComplementsProvider = NotifierProvider.autoDispose
     .family<AdminVariantsController, List<VariantFields>, List<ProductVariant>>(
       AdminVariantsController.new,
     );

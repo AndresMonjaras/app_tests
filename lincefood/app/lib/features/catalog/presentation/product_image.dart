@@ -3,19 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../media/presentation/menu_image_providers.dart';
 
-/// Foto del producto con caché en disco. Sin foto, sin URL o con error,
-/// muestra el icono de categoría.
+/// Foto remota con caché en disco, respaldada por el recurso local del menú.
 class ProductImage extends ConsumerWidget {
   const ProductImage({
     super.key,
     required this.imagePath,
     required this.fallbackIcon,
+    this.productId = '',
     required this.width,
     required this.height,
     this.borderRadius = 16,
   });
 
   final String imagePath;
+  final String productId;
   final IconData fallbackIcon;
   final double width;
   final double height;
@@ -29,9 +30,21 @@ class ProductImage extends ConsumerWidget {
       height: height,
       borderRadius: borderRadius,
     );
-    if (imagePath.isEmpty || !ref.watch(menuImagesEnabledProvider)) {
-      return fallback;
-    }
+    if (!ref.watch(menuImagesEnabledProvider)) return fallback;
+    final localPath = menuImageAssetPath(productId);
+    final local = localPath == null
+        ? fallback
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: Image.asset(
+              localPath,
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback,
+            ),
+          );
+    if (imagePath.isEmpty) return local;
 
     final file = ref.watch(menuImageFileProvider(imagePath));
     return file.when(
@@ -40,9 +53,9 @@ class ProductImage extends ConsumerWidget {
         height: height,
         borderRadius: borderRadius,
       ),
-      error: (_, _) => fallback,
+      error: (_, _) => local,
       data: (imageFile) {
-        if (imageFile == null) return fallback;
+        if (imageFile == null) return local;
         return ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
           child: Image.file(
@@ -50,7 +63,7 @@ class ProductImage extends ConsumerWidget {
             width: width,
             height: height,
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => fallback,
+            errorBuilder: (_, _, _) => local,
           ),
         );
       },

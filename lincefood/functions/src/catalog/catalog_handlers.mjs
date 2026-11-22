@@ -17,8 +17,8 @@ function requireProductId(value) {
 }
 
 function requirePrice(value) {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new AppError('invalid-argument', 'El precio debe ser un entero en centavos mayor o igual a cero.');
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new AppError('invalid-argument', 'El precio debe ser un entero en centavos mayor a cero.');
   }
   return value;
 }
@@ -41,18 +41,40 @@ function validateProduct(value) {
     throw new AppError('invalid-argument', 'El tiempo de preparación no es válido.');
   }
   const priceCents = requirePrice(value.priceCents);
-  const variants = value.variants ?? [];
-  if (!Array.isArray(variants) || variants.length > 6) {
-    throw new AppError('invalid-argument', 'El producto puede tener hasta 6 variantes.');
+  const description = (value.description ?? '');
+  if (typeof description !== 'string' || description.length > 1000) {
+    throw new AppError('invalid-argument', 'La descripción debe tener hasta 1000 caracteres.');
   }
-  const cleanVariants = variants.map((variant) => {
-    const label = typeof variant?.label === 'string' ? variant.label.trim() : '';
-    if (label.length < 1 || label.length > 40) {
-      throw new AppError('invalid-argument', 'Cada variante necesita un nombre de hasta 40 caracteres.');
+  const ingredients = value.ingredients ?? [];
+  if (!Array.isArray(ingredients) || ingredients.length > 30 ||
+      ingredients.some((item) => typeof item !== 'string' || !item.trim() || item.trim().length > 80)) {
+    throw new AppError('invalid-argument', 'Usa hasta 30 ingredientes de hasta 80 caracteres.');
+  }
+  const variants = validateOptions(value.variants ?? [], 'variantes');
+  const complements = validateOptions(value.complements ?? [], 'complementos');
+  return {
+    name, categoryId, available, prepMinutes, priceCents, variants, complements,
+    description: description.trim(), ingredients: ingredients.map((item) => item.trim()),
+  };
+}
+
+function validateOptions(options, kind) {
+  if (!Array.isArray(options) || options.length > 6) {
+    throw new AppError('invalid-argument', 'El producto puede tener hasta 6 ' + kind + '.');
+  }
+  const labels = new Set();
+  return options.map((option) => {
+    const label = typeof option?.label === 'string' ? option.label.trim() : '';
+    if (!label || label.length > 40 || labels.has(label.toLowerCase())) {
+      throw new AppError('invalid-argument', 'Los nombres deben ser únicos y de hasta 40 caracteres.');
     }
-    return { label, priceCents: requirePrice(variant.priceCents) };
+    labels.add(label.toLowerCase());
+    const available = option.available === undefined ? true : option.available;
+    if (typeof available !== 'boolean') {
+      throw new AppError('invalid-argument', 'La disponibilidad de la opción no es válida.');
+    }
+    return { label, priceCents: requirePrice(option.priceCents), available };
   });
-  return { name, categoryId, available, prepMinutes, priceCents, variants: cleanVariants };
 }
 
 export function createUpsertProductHandler({ database }) {
@@ -60,8 +82,13 @@ export function createUpsertProductHandler({ database }) {
     requireAdmin(request);
     const productId = requireProductId(request.data?.productId);
     const product = validateProduct(request.data?.product);
-    await database.ref('products/' + productId).set(product);
-    return { productId, product };
+    const ref = database.ref('products/' + productId);
+    if (!(await ref.get()).exists()) {
+      await ref.update(product);
+      return { productId, product };
+    }
+    const saved = await updateExistingProduct(database, productId, product);
+    return { productId, product: saved };
   };
 }
 
@@ -83,8 +110,8 @@ export function createSetProductAvailabilityHandler({ database }) {
     if (typeof available !== 'boolean') {
       throw new AppError('invalid-argument', 'La disponibilidad no es válida.');
     }
-    await updateExistingProduct(database, productId, { available });
-    return { productId, available };
+    const product = await updateExistingProduct(database, productId, { available });
+    return { productId, available: product.available };
   };
 }
 
@@ -93,10 +120,10 @@ export function createDeleteProductHandler({ database }) {
     requireAdmin(request);
     const productId = requireProductId(request.data?.productId);
     if (request.data?.confirmed !== true) {
-      throw new AppError('failed-precondition', 'Confirma explícitamente la eliminación del producto.');
+      throw new AppError('failed-precondition', 'Confirma explícitamente el archivado del producto.');
     }
-    await database.ref('products/' + productId).remove();
-    return { productId, deleted: true };
+    await updateExistingProduct(database, productId, { archived: true, available: false });
+    return { productId, archived: true };
   };
 }
 
@@ -104,9 +131,12 @@ async function updateExistingProduct(database, productId, fields) {
   const result = await database.ref('products/' + productId).transaction((current) => {
     // null también puede ser una caché vacía: el servidor debe validar el estado.
     if (current === null) return null;
-    return { ...current, ...fields };
+    const product = { ...current, ...fields };
+    if (product.archived === true) product.available = false;
+    return product;
   });
   if (!result.committed || !result.snapshot.exists()) {
     throw new AppError('not-found', 'El producto ya no existe. Actualiza el catálogo.');
   }
+  return result.snapshot.val();
 }
