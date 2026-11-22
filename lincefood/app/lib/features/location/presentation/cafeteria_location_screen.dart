@@ -34,7 +34,9 @@ class _CafeteriaLocationScreenState
     return Scaffold(
       appBar: AppBar(title: const Text('Ubicación de cafetería')),
       body: location.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: CircularProgressIndicator(semanticsLabel: 'Cargando ubicación'),
+        ),
         error: (_, _) => _LocationMessage(
           icon: Icons.location_off_outlined,
           title: 'No se pudo cargar la ubicación',

@@ -106,9 +106,11 @@ class _Placeholder extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(borderRadius),
     ),
-    child: const SizedBox.square(
-      dimension: 20,
-      child: CircularProgressIndicator(strokeWidth: 2),
+    child: const ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
     ),
   );
 }

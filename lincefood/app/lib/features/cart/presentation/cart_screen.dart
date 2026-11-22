@@ -131,9 +131,13 @@ class CartScreen extends ConsumerWidget {
                               ? null
                               : () => _submit(context, ref, cart, uid, pickupMode),
                           child: actionState.isWorking
-                              ? const SizedBox.square(
+                              ? SizedBox.square(
                                   dimension: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Theme.of(context).colorScheme.onPrimary,
+                                    semanticsLabel: 'Confirmando pedido',
+                                  ),
                                 )
                               : const Text('Confirmar pedido'),
                         ),
@@ -192,7 +196,7 @@ class _CartLineTile extends StatelessWidget {
         '${formatMoney(line.unitPriceCents)} c/u · ${formatMoney(line.totalCents)}',
       ),
       leading: IconButton(
-        tooltip: 'Quitar producto',
+        tooltip: 'Quitar ${line.product.name}$variant',
         onPressed: onRemove,
         icon: const Icon(Icons.delete_outline),
       ),
@@ -200,13 +204,17 @@ class _CartLineTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: 'Reducir cantidad',
+            tooltip: 'Reducir cantidad de ${line.product.name}$variant',
             onPressed: onDecrease,
             icon: const Icon(Icons.remove_circle_outline),
           ),
-          Text('${line.quantity}'),
+          Semantics(
+            label: 'Cantidad: ${line.quantity}',
+            excludeSemantics: true,
+            child: Text('${line.quantity}'),
+          ),
           IconButton(
-            tooltip: 'Aumentar cantidad',
+            tooltip: 'Aumentar cantidad de ${line.product.name}$variant',
             onPressed: onIncrease,
             icon: const Icon(Icons.add_circle_outline),
           ),

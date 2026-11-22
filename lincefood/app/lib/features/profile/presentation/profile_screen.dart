@@ -27,7 +27,11 @@ class ProfileScreen extends ConsumerWidget {
 
     return auth.when(
       loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+          const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(semanticsLabel: 'Cargando perfil'),
+            ),
+          ),
       error: (_, _) => const Scaffold(
         body: Center(child: Text('No pudimos cargar tu perfil.')),
       ),
@@ -191,29 +195,32 @@ class ProfileScreen extends ConsumerWidget {
                     child: ListTile(
                       leading: const Icon(Icons.palette_outlined),
                       title: const Text('Apariencia'),
-                      trailing: DropdownButton<ThemeMode>(
-                        value: themeMode,
-                        onChanged: preferences.isLoading
-                            ? null
-                            : (mode) {
-                                if (mode != null) {
-                                  unawaited(_changeTheme(context, ref, mode));
-                                }
-                              },
-                        items: const [
-                          DropdownMenuItem(
-                            value: ThemeMode.system,
-                            child: Text('Sistema'),
-                          ),
-                          DropdownMenuItem(
-                            value: ThemeMode.light,
-                            child: Text('Claro'),
-                          ),
-                          DropdownMenuItem(
-                            value: ThemeMode.dark,
-                            child: Text('Oscuro'),
-                          ),
-                        ],
+                      trailing: Semantics(
+                        label: 'Apariencia',
+                        child: DropdownButton<ThemeMode>(
+                          value: themeMode,
+                          onChanged: preferences.isLoading
+                              ? null
+                              : (mode) {
+                                  if (mode != null) {
+                                    unawaited(_changeTheme(context, ref, mode));
+                                  }
+                                },
+                          items: const [
+                            DropdownMenuItem(
+                              value: ThemeMode.system,
+                              child: Text('Sistema'),
+                            ),
+                            DropdownMenuItem(
+                              value: ThemeMode.light,
+                              child: Text('Claro'),
+                            ),
+                            DropdownMenuItem(
+                              value: ThemeMode.dark,
+                              child: Text('Oscuro'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

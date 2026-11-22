@@ -294,48 +294,57 @@ class _CategoryTile extends StatelessWidget {
     final franja = selected ? colors.tertiary : colors.primary;
     final textoFranja = selected ? colors.onTertiary : colors.onPrimary;
 
-    return Material(
-      color: colors.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Icon(icon, size: 36, color: colors.primary),
-            ),
-            Container(
-              width: double.infinity,
-              color: franja,
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: textoFranja,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '$count productos',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: textoFranja.withValues(alpha: 0.9),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+    return Semantics(
+      selected: selected,
+      child: Material(
+        color: colors.surfaceContainerHigh,
+        // El borde marca la selección además del color de la franja.
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: selected
+              ? BorderSide(color: colors.onSurface, width: 2)
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Icon(icon, size: 36, color: colors.primary),
               ),
-            ),
-          ],
+              Container(
+                width: double.infinity,
+                color: franja,
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textoFranja,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      count == 1 ? '1 producto' : '$count productos',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textoFranja.withValues(alpha: 0.9),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

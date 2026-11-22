@@ -59,8 +59,8 @@ class OnboardingScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Semantics(
-                          label: 'Paso ${indice + 1} de ${pasos.length}',
+                        // El texto "Paso X de Y" de abajo ya lo anuncia.
+                        ExcludeSemantics(
                           child: Row(
                             children: [
                               for (var i = 0; i < pasos.length; i++)
@@ -132,25 +132,28 @@ class OnboardingScreen extends ConsumerWidget {
                             subtitle: const Text(
                               'Elige cómo quieres ver la aplicación.',
                             ),
-                            trailing: DropdownButton<ThemeMode>(
-                              value: themeMode,
-                              onChanged: (mode) {
-                                if (mode != null) onThemeChanged?.call(mode);
-                              },
-                              items: const [
-                                DropdownMenuItem(
-                                  value: ThemeMode.system,
-                                  child: Text('Sistema'),
-                                ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.light,
-                                  child: Text('Claro'),
-                                ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.dark,
-                                  child: Text('Oscuro'),
-                                ),
-                              ],
+                            trailing: Semantics(
+                              label: 'Tema',
+                              child: DropdownButton<ThemeMode>(
+                                value: themeMode,
+                                onChanged: (mode) {
+                                  if (mode != null) onThemeChanged?.call(mode);
+                                },
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: ThemeMode.system,
+                                    child: Text('Sistema'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: ThemeMode.light,
+                                    child: Text('Claro'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: ThemeMode.dark,
+                                    child: Text('Oscuro'),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
