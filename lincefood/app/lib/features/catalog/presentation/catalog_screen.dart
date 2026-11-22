@@ -185,17 +185,15 @@ class CatalogScreen extends ConsumerWidget {
                       itemCount: filtered.length,
                       itemBuilder: (context, index) => _ProductTile(
                         product: filtered[index],
-                        onAdd: (variant) {
+                        catalog: items,
+                        onAdd: (product, variant) {
                           ref
                               .read(cartControllerProvider.notifier)
-                              .addProduct(
-                                product: filtered[index],
-                                variant: variant,
-                              );
+                              .addProduct(product: product, variant: variant);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                '${filtered[index].name} se agregó al carrito.',
+                                '${product.name} se agregó al carrito.',
                               ),
                             ),
                           );
@@ -223,6 +221,8 @@ String _categoryLabel(String category) {
       return 'Otros';
     case 'breakfast':
       return 'Desayunos';
+    case 'tortas':
+      return 'Tortas';
     case 'lunch':
       return 'Comidas';
     case 'drinks':
@@ -371,9 +371,14 @@ class _CategoryTile extends StatelessWidget {
 }
 
 class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product, required this.onAdd});
+  const _ProductTile({
+    required this.product,
+    required this.catalog,
+    required this.onAdd,
+  });
   final Product product;
-  final ValueChanged<ProductVariant?> onAdd;
+  final List<Product> catalog;
+  final void Function(Product, ProductVariant?) onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -382,13 +387,14 @@ class _ProductTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _showDetails(context),
+        onTap: () => _showDetails(context, product),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               ProductImage(
                 imagePath: product.imagePath,
+                productId: product.id,
                 fallbackIcon: _categoryIcon(product.categoryId),
                 width: 88,
                 height: 88,
@@ -410,7 +416,7 @@ class _ProductTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${product.variants.isEmpty ? '' : 'Desde '}${formatMoney(product.displayPriceCents)}${product.isAvailable ? '' : ' · Agotado'}',
+                      '${product.variants.isEmpty ? '' : 'Desde '}${formatMoney(product.displayPriceCents)}${product.canOrder ? '' : ' · Agotado'}',
                       style: TextStyle(
                         color: colors.primary,
                         fontWeight: FontWeight.w600,
@@ -421,13 +427,13 @@ class _ProductTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               IconButton.filled(
-                tooltip: !product.isAvailable
+                tooltip: !product.canOrder
                     ? 'Producto no disponible'
                     : product.variants.isEmpty
                     ? 'Agregar al carrito'
                     : 'Elegir variante',
-                onPressed: product.isAvailable
-                    ? () => _chooseVariant(context)
+                onPressed: product.canOrder
+                    ? () => _chooseVariant(context, product)
                     : null,
                 icon: const Icon(Icons.add_shopping_cart),
               ),
@@ -438,7 +444,14 @@ class _ProductTile extends StatelessWidget {
     );
   }
 
-  Future<void> _showDetails(BuildContext context) async {
+  Future<void> _showDetails(BuildContext context, Product product) async {
+    final related = catalog
+        .where(
+          (item) =>
+              item.id != product.id && item.categoryId == product.categoryId,
+        )
+        .take(4)
+        .toList();
     final add = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -453,6 +466,7 @@ class _ProductTile extends StatelessWidget {
               children: [
                 ProductImage(
                   imagePath: product.imagePath,
+                  productId: product.id,
                   fallbackIcon: _categoryIcon(product.categoryId),
                   width: double.infinity,
                   height: 200,
@@ -472,6 +486,20 @@ class _ProductTile extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(product.canOrder ? 'Disponible' : 'Agotado'),
+                if (product.description.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(product.description),
+                ],
+                if (product.ingredients.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Ingredientes',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(product.ingredients.join(', ')),
+                ],
                 if (product.prepMinutes > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -479,38 +507,82 @@ class _ProductTile extends StatelessWidget {
                       'Preparación aproximada: ${product.prepMinutes} min',
                     ),
                   ),
-                for (final v in product.variants)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(v.label),
-                    trailing: Text(formatMoney(v.priceCents)),
+                if (product.variants.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Variantes',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  for (final option in product.variants)
+                    _optionTile(option, available: product.isAvailable),
+                ],
+                if (product.complements.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Complementos opcionales',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  for (final option in product.complements)
+                    _optionTile(option, available: product.isAvailable),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: product.isAvailable
+                    onPressed: product.canOrder
                         ? () => Navigator.pop(context, true)
                         : null,
                     child: Text(
-                      product.isAvailable
+                      product.canOrder
                           ? 'Agregar al carrito'
                           : 'Producto no disponible',
                     ),
                   ),
                 ),
+                if (related.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Productos relacionados',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  for (final item in related)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(item.name),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showDetails(context, item),
+                    ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
-    if (add == true && context.mounted) await _chooseVariant(context);
+    if (add == true && context.mounted) await _chooseVariant(context, product);
   }
 
-  Future<void> _chooseVariant(BuildContext context) async {
+  Widget _optionTile(
+    ProductVariant option, {
+    bool available = true,
+    VoidCallback? onTap,
+    EdgeInsetsGeometry? contentPadding,
+  }) {
+    final enabled = available && option.isAvailable;
+    return ListTile(
+      contentPadding: contentPadding ?? EdgeInsets.zero,
+      title: Text(option.label),
+      subtitle: enabled ? null : const Text('Agotado'),
+      trailing: Text(formatMoney(option.priceCents)),
+      enabled: enabled,
+      onTap: enabled ? onTap : null,
+    );
+  }
+
+  Future<void> _chooseVariant(BuildContext context, Product product) async {
+    if (!product.canOrder) return;
     if (product.variants.isEmpty) {
-      onAdd(null);
+      onAdd(product, null);
       return;
     }
     final selected = await showDialog<ProductVariant>(
@@ -522,9 +594,8 @@ class _ProductTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final variant in product.variants)
-                ListTile(
-                  title: Text(variant.label),
-                  trailing: Text(formatMoney(variant.priceCents)),
+                _optionTile(
+                  variant,
                   onTap: () => Navigator.pop(context, variant),
                 ),
             ],
@@ -532,6 +603,6 @@ class _ProductTile extends StatelessWidget {
         ),
       ),
     );
-    if (context.mounted && selected != null) onAdd(selected);
+    if (context.mounted && selected != null) onAdd(product, selected);
   }
 }

@@ -41,10 +41,10 @@ class CallableAdminCatalogRepository implements AdminCatalogRepository {
       'priceCents': product.priceCents,
       'available': product.isAvailable,
       'prepMinutes': product.prepMinutes,
-      'variants': [
-        for (final variant in product.variants)
-          {'label': variant.label, 'priceCents': variant.priceCents},
-      ],
+      'description': product.description,
+      'ingredients': product.ingredients,
+      'complements': product.complements.map(_optionData).toList(),
+      'variants': product.variants.map(_optionData).toList(),
     },
   });
 
@@ -64,6 +64,12 @@ class CallableAdminCatalogRepository implements AdminCatalogRepository {
   @override
   Future<void> deleteProduct(String productId, {required bool confirmed}) =>
       _call('deleteProduct', {'productId': productId, 'confirmed': confirmed});
+
+  Map<String, Object> _optionData(ProductVariant option) => {
+    'label': option.label,
+    'priceCents': option.priceCents,
+    'available': option.isAvailable,
+  };
 
   Future<void> _call(String name, Map<String, Object?> data) async {
     await _functions.httpsCallable(name).call<Object?>(data);

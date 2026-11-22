@@ -1,8 +1,11 @@
 import '../../../core/errors/domain_exception.dart';
 
 class ProductVariant {
-  ProductVariant({required String label, required this.priceCents})
-    : label = label.trim() {
+  ProductVariant({
+    required String label,
+    required this.priceCents,
+    this.isAvailable = true,
+  }) : label = label.trim() {
     if (this.label.isEmpty || this.label.length > 40) {
       throw const DomainException(
         'La variante debe tener entre 1 y 40 caracteres.',
@@ -15,6 +18,7 @@ class ProductVariant {
 
   final String label;
   final int priceCents;
+  final bool isAvailable;
 
   static ProductVariant? tryFromMap(Map<dynamic, dynamic> map) {
     final label = (map['label'] ?? '').toString().trim();
@@ -22,17 +26,22 @@ class ProductVariant {
     if (label.isEmpty || label.length > 40) return null;
     if (price is! int || price < 0) return null;
 
-    return ProductVariant(label: label, priceCents: price);
+    return ProductVariant(
+      label: label,
+      priceCents: price,
+      isAvailable: map['available'] != false,
+    );
   }
 
   @override
   bool operator ==(Object other) =>
       other is ProductVariant &&
       other.label == label &&
-      other.priceCents == priceCents;
+      other.priceCents == priceCents &&
+      other.isAvailable == isAvailable;
 
   @override
-  int get hashCode => Object.hash(label, priceCents);
+  int get hashCode => Object.hash(label, priceCents, isAvailable);
 }
 
 class Product {
@@ -44,10 +53,22 @@ class Product {
     this.isAvailable = true,
     this.prepMinutes = 0,
     this.imagePath = '',
+    this.description = '',
+    this.archived = false,
+    this.demo = false,
+    List<String> ingredients = const [],
+    List<ProductVariant> complements = const [],
     List<ProductVariant> variants = const [],
-  }) : variants = List.unmodifiable(variants) {
+  }) : variants = List.unmodifiable(variants),
+       ingredients = List.unmodifiable(ingredients),
+       complements = List.unmodifiable(complements) {
     if (priceCents < 0) {
       throw const DomainException('El precio no puede ser negativo.');
+    }
+    if (this.complements.length > 6) {
+      throw const DomainException(
+        'Un producto puede tener hasta 6 complementos.',
+      );
     }
     if (this.variants.length > 6) {
       throw const DomainException('Un producto puede tener hasta 6 variantes.');
@@ -61,8 +82,18 @@ class Product {
   final int prepMinutes;
   final int priceCents;
   final List<ProductVariant> variants;
+  final List<ProductVariant> complements;
+  final String description;
+  final List<String> ingredients;
+  final bool archived;
+  final bool demo;
 
-  /// Ruta del objeto en Storage (`menu/{productId}/...`). Vacía si no hay foto.
+  bool get canOrder =>
+      isAvailable &&
+      !archived &&
+      (variants.isEmpty || variants.any((variant) => variant.isAvailable));
+
+  /// Ruta del objeto en Storage (bajo `menu/`). Vacía si no hay foto.
   final String imagePath;
 
   int get displayPriceCents {
@@ -78,26 +109,6 @@ class Product {
   }
 
   factory Product.fromMap(String id, Map<dynamic, dynamic> map) {
-    final variants = <ProductVariant>[];
-    final rawVariants = map['variants'];
-    final Iterable<dynamic> variantItems;
-
-    if (rawVariants is List) {
-      variantItems = rawVariants;
-    } else if (rawVariants is Map) {
-      variantItems = rawVariants.values;
-    } else {
-      variantItems = const [];
-    }
-
-    for (final item in variantItems) {
-      if (variants.length == 6) break;
-      if (item is! Map) continue;
-
-      final variant = ProductVariant.tryFromMap(item);
-      if (variant != null) variants.add(variant);
-    }
-
     final rawPrice = map['priceCents'];
     final price = rawPrice is int && rawPrice >= 0 ? rawPrice : 0;
     final rawPrepMinutes = map['prepMinutes'];
@@ -114,10 +125,33 @@ class Product {
       prepMinutes: prepMinutes,
       priceCents: price,
       imagePath: _safeMenuImagePath(map['imagePath']),
-      variants: variants,
+      variants: _readOptions(map['variants']),
+      complements: _readOptions(map['complements']),
+      description: map['description'] is String
+          ? map['description'] as String
+          : '',
+      ingredients: _databaseList(map['ingredients'])
+          .whereType<String>()
+          .toList(),
+      archived: map['archived'] == true,
+      demo: map['demo'] == true,
     );
   }
 }
+
+Iterable<dynamic> _databaseList(Object? value) {
+  if (value is List) return value;
+  if (value is Map) return value.values;
+  return const [];
+}
+
+List<ProductVariant> _readOptions(Object? value) =>
+    _databaseList(value)
+        .whereType<Map>()
+        .map(ProductVariant.tryFromMap)
+        .whereType<ProductVariant>()
+        .take(6)
+        .toList();
 
 /// Acepta solo rutas bajo `menu/` sin segmentos de navegación.
 String _safeMenuImagePath(Object? raw) {

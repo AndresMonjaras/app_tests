@@ -12,13 +12,261 @@
     }
   },
   "categories": {
-    "breakfast": {"name": "Desayunos", "sortOrder": 1},
-    "lunch": {"name": "Comidas", "sortOrder": 2},
-    "drinks": {"name": "Bebidas", "sortOrder": 3}
+    "tortas": {
+      "name": "Tortas",
+      "sortOrder": 1,
+      "demo": true
+    },
+    "breakfast": {
+      "name": "Desayunos",
+      "sortOrder": 2,
+      "demo": true
+    },
+    "drinks": {
+      "name": "Bebidas",
+      "sortOrder": 3,
+      "demo": true
+    }
   },
   "products": {
-    "sandwich": {"name": "Sándwich", "categoryId": "breakfast", "available": true, "prepMinutes": 5, "imagePath": "menu/sandwich/v1.jpg", "variants": [{"label": "Chico", "priceCents": 3000}, {"label": "Grande", "priceCents": 4000}]},
-    "torta": {"name": "Torta", "categoryId": "lunch", "priceCents": 5000, "available": true, "prepMinutes": 8, "imagePath": "menu/torta/v1.jpg"},
-    "water": {"name": "Agua fresca", "categoryId": "drinks", "priceCents": 2000, "available": true, "prepMinutes": 2, "imagePath": "menu/water/v1.jpg"}
+    "torta-jamon": {
+      "name": "Jamón",
+      "categoryId": "tortas",
+      "description": "Torta de jamón con verduras frescas.",
+      "ingredients": [
+        "Bolillo",
+        "Jamón",
+        "Queso",
+        "Jitomate",
+        "Lechuga"
+      ],
+      "priceCents": 4500,
+      "prepMinutes": 6,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "complements": [
+        {
+          "label": "Bebida",
+          "priceCents": 1800,
+          "available": true
+        },
+        {
+          "label": "Papas",
+          "priceCents": 2500,
+          "available": true
+        }
+      ]
+    },
+    "torta-milanesa": {
+      "name": "Milanesa",
+      "categoryId": "tortas",
+      "description": "Torta de milanesa de res crujiente.",
+      "ingredients": [
+        "Bolillo",
+        "Milanesa de res",
+        "Frijoles",
+        "Aguacate",
+        "Jitomate"
+      ],
+      "priceCents": 5900,
+      "prepMinutes": 10,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "complements": [
+        {
+          "label": "Bebida",
+          "priceCents": 1800,
+          "available": true
+        },
+        {
+          "label": "Papas",
+          "priceCents": 2500,
+          "available": true
+        }
+      ]
+    },
+    "torta-pierna": {
+      "name": "Pierna",
+      "categoryId": "tortas",
+      "description": "Torta de pierna de cerdo adobada.",
+      "ingredients": [
+        "Bolillo",
+        "Pierna de cerdo",
+        "Cebolla",
+        "Jitomate"
+      ],
+      "priceCents": 5600,
+      "prepMinutes": 8,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "complements": [
+        {
+          "label": "Bebida",
+          "priceCents": 1800,
+          "available": true
+        },
+        {
+          "label": "Papas",
+          "priceCents": 2500,
+          "available": true
+        }
+      ]
+    },
+    "torta-pollo": {
+      "name": "Pollo",
+      "categoryId": "tortas",
+      "description": "Torta de pollo con lechuga y mayonesa.",
+      "ingredients": [
+        "Bolillo",
+        "Pollo",
+        "Lechuga",
+        "Mayonesa"
+      ],
+      "priceCents": 5200,
+      "prepMinutes": 8,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "complements": [
+        {
+          "label": "Bebida",
+          "priceCents": 1800,
+          "available": true
+        },
+        {
+          "label": "Papas",
+          "priceCents": 2500,
+          "available": true
+        }
+      ]
+    },
+    "desayuno-dia": {
+      "name": "Desayuno del día",
+      "categoryId": "breakfast",
+      "description": "Desayuno con huevo, pan tostado y fruta.",
+      "ingredients": [
+        "Huevo",
+        "Pan tostado",
+        "Fruta de temporada"
+      ],
+      "priceCents": 6500,
+      "prepMinutes": 12,
+      "available": true,
+      "archived": false,
+      "demo": true
+    },
+    "chilaquiles": {
+      "name": "Chilaquiles",
+      "categoryId": "breakfast",
+      "description": "Totopos bañados en salsa con crema y queso.",
+      "ingredients": [
+        "Totopos",
+        "Salsa",
+        "Crema",
+        "Queso",
+        "Cebolla"
+      ],
+      "priceCents": 5800,
+      "prepMinutes": 10,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "variants": [
+        {
+          "label": "Verdes",
+          "priceCents": 5800,
+          "available": true
+        },
+        {
+          "label": "Rojos",
+          "priceCents": 5800,
+          "available": false
+        }
+      ]
+    },
+    "huevos": {
+      "name": "Huevos al gusto",
+      "categoryId": "breakfast",
+      "description": "Dos huevos con frijoles y tortillas.",
+      "ingredients": [
+        "Huevo",
+        "Frijoles",
+        "Tortillas"
+      ],
+      "priceCents": 4900,
+      "prepMinutes": 10,
+      "available": true,
+      "archived": false,
+      "demo": true
+    },
+    "agua": {
+      "name": "Agua",
+      "categoryId": "drinks",
+      "description": "Agua natural fría.",
+      "ingredients": [
+        "Agua"
+      ],
+      "priceCents": 1500,
+      "prepMinutes": 1,
+      "available": true,
+      "archived": false,
+      "demo": true
+    },
+    "refresco": {
+      "name": "Refresco",
+      "categoryId": "drinks",
+      "description": "Refresco de cola servido frío.",
+      "ingredients": [
+        "Agua carbonatada",
+        "Jarabe de cola"
+      ],
+      "priceCents": 2400,
+      "prepMinutes": 1,
+      "available": true,
+      "archived": false,
+      "demo": true
+    },
+    "jugo": {
+      "name": "Jugo",
+      "categoryId": "drinks",
+      "description": "Jugo de naranja recién exprimido.",
+      "ingredients": [
+        "Naranja"
+      ],
+      "priceCents": 3000,
+      "prepMinutes": 3,
+      "available": true,
+      "archived": false,
+      "demo": true
+    },
+    "cafe": {
+      "name": "Café",
+      "categoryId": "drinks",
+      "description": "Café americano recién preparado.",
+      "ingredients": [
+        "Café",
+        "Agua"
+      ],
+      "priceCents": 2200,
+      "prepMinutes": 3,
+      "available": true,
+      "archived": false,
+      "demo": true,
+      "variants": [
+        {
+          "label": "Chico",
+          "priceCents": 2200,
+          "available": true
+        },
+        {
+          "label": "Grande",
+          "priceCents": 2900,
+          "available": true
+        }
+      ]
+    }
   }
 }
