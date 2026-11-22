@@ -1,0 +1,18 @@
+{
+  "cafeteria": {
+    "name": "Cafetería Universitaria",
+    "currency": "MXN",
+    "acceptingOrders": false,
+    "locationConfigured": false
+  },
+  "categories": {
+    "breakfast": {"name": "Desayunos", "sortOrder": 1},
+    "lunch": {"name": "Comidas", "sortOrder": 2},
+    "drinks": {"name": "Bebidas", "sortOrder": 3}
+  },
+  "products": {
+    "sandwich": {"name": "Sándwich", "categoryId": "breakfast", "available": true, "prepMinutes": 5, "imagePath": "menu/sandwich/v1.jpg", "variants": [{"label": "Chico", "priceCents": 3000}, {"label": "Grande", "priceCents": 4000}]},
+    "torta": {"name": "Torta", "categoryId": "lunch", "priceCents": 5000, "available": true, "prepMinutes": 8, "imagePath": "menu/torta/v1.jpg"},
+    "water": {"name": "Agua fresca", "categoryId": "drinks", "priceCents": 2000, "available": true, "prepMinutes": 2, "imagePath": "menu/water/v1.jpg"}
+  }
+}
