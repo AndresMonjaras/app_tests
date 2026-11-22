@@ -4,20 +4,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
 import '../../cart/presentation/cart_controller.dart';
-import '../../profile/data/firebase_profile_repository.dart';
 import '../../profile/domain/avatar_preset.dart';
-import '../../profile/presentation/profile_controller.dart';
 import '../domain/product.dart';
 import 'catalog_providers.dart';
 import 'product_image.dart';
 
 class CatalogScreen extends ConsumerWidget {
-  const CatalogScreen({super.key});
+  const CatalogScreen({
+    super.key,
+    this.userPhotoUrl,
+    this.avatarPreset = AvatarPreset.neutro,
+  });
+
+  final String? userPhotoUrl;
+  final AvatarPreset avatarPreset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photoUrl = ref.watch(profilePhotoUrlProvider);
-    final preset = ref.watch(currentAvatarPresetProvider);
     final products = ref.watch(catalogProductsProvider);
     final filter = ref.watch(catalogFilterProvider);
     final query = filter.query;
@@ -30,7 +33,11 @@ class CatalogScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Mi perfil',
             onPressed: () => Navigator.of(context).pushNamed(AppRouter.profile),
-            icon: ProfileAvatar(preset: preset, photoUrl: photoUrl, radius: 16),
+            icon: ProfileAvatar(
+              preset: avatarPreset,
+              photoUrl: userPhotoUrl,
+              radius: 16,
+            ),
           ),
           IconButton(
             tooltip: 'Abrir carrito',

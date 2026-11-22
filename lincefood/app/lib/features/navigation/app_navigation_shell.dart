@@ -55,7 +55,7 @@ class AppNavigationShell extends ConsumerWidget {
       radius: 12,
     );
     final screens = [
-      const CatalogScreen(),
+      CatalogScreen(userPhotoUrl: photoUrl, avatarPreset: preset),
       const OrdersScreen(),
       const CafeteriaLocationScreen(),
       const ProfileScreen(),

@@ -10,31 +10,31 @@ void main() {
   test('la foto compartida sigue los cambios de los proveedores', () async {
     const customPhoto = 'https://example.test/avatar-propio.jpg';
     const googlePhoto = 'https://example.test/avatar-google.jpg';
+    const githubPhoto = 'https://example.test/avatar-github.jpg';
     const facebookPhoto = 'https://example.test/avatar-facebook.jpg';
     final users = StreamController<User?>();
     addTearDown(users.close);
+    var canEditAvatar = false;
     final container = ProviderContainer(
       overrides: [
         authUserProvider.overrideWith((ref) => users.stream),
-        avatarEligibilityProvider.overrideWith((ref) async => true),
+        avatarEligibilityProvider.overrideWith((ref) async => canEditAvatar),
       ],
     );
     addTearDown(container.dispose);
-    final urls = StreamController<String?>();
-    addTearDown(urls.close);
-    final expected = expectLater(
-      urls.stream,
-      emitsInOrder([customPhoto, googlePhoto, facebookPhoto, null]),
-    );
-    final subscription = container.listen(
-      profilePhotoUrlProvider,
-      (_, photoUrl) => urls.add(photoUrl),
-    );
-    addTearDown(subscription.close);
+    final photo = container.listen(profilePhotoUrlProvider, (_, _) {});
+    addTearDown(photo.close);
 
     users.add(const _User(customPhoto, [_Provider('password')]));
-    await container.read(avatarEligibilityProvider.future);
     await container.pump();
+    await container.read(avatarEligibilityProvider.future);
+    expect(photo.read(), isNull);
+
+    canEditAvatar = true;
+    container.invalidate(avatarEligibilityProvider);
+    await container.read(avatarEligibilityProvider.future);
+    expect(photo.read(), customPhoto);
+
     users.add(
       const _User(customPhoto, [
         _Provider('password'),
@@ -42,11 +42,24 @@ void main() {
       ]),
     );
     await container.pump();
+    expect(photo.read(), googlePhoto);
+
+    users.add(
+      const _User(customPhoto, [
+        _Provider('facebook.com', facebookPhoto),
+        _Provider('github.com', githubPhoto),
+      ]),
+    );
+    await container.pump();
+    expect(photo.read(), githubPhoto);
+
     users.add(const _User(null, [_Provider('facebook.com', facebookPhoto)]));
     await container.pump();
-    users.add(null);
+    expect(photo.read(), facebookPhoto);
 
-    await expected;
+    users.add(null);
+    await container.pump();
+    expect(photo.read(), isNull);
   });
 }
 

@@ -53,7 +53,7 @@ final avatarPresetProvider = StreamProvider.autoDispose.family<String?, String>(
       ref.watch(profileAvatarRepositoryProvider).watchAvatarPreset(uid),
 );
 
-final currentAvatarPresetProvider = Provider<AvatarPreset>((ref) {
+final currentAvatarPresetProvider = Provider.autoDispose<AvatarPreset>((ref) {
   final uid = ref.watch(authUserProvider).asData?.value?.uid;
   if (uid == null) return AvatarPreset.neutro;
   final preset = ref.watch(avatarPresetProvider(uid)).asData?.value;
