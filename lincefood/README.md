@@ -85,6 +85,9 @@ cd <DIRECTORIO_DEL_REPOSITORIO>/lincefood
 firebase use PROJECT_ID
 cp app/config/firebase.example.json app/dart_defines.local.json
 # Completa los valores del proyecto de desarrollo en dart_defines.local.json.
+# GOOGLE_SERVER_CLIENT_ID es el ID de cliente web (tipo 3) del proyecto en
+# Firebase; sin él Google Sign-In falla en Android. El SHA-1 de tu keystore de
+# depuración debe estar registrado en la app Android de Firebase.
 
 # 2. Dependencias de la app
 cd app

@@ -54,8 +54,10 @@ final avatarPresetProvider = StreamProvider.autoDispose.family<String?, String>(
 );
 
 final currentAvatarPresetProvider = Provider.autoDispose<AvatarPreset>((ref) {
-  final uid = ref.watch(authUserProvider).asData?.value?.uid;
-  if (uid == null) return AvatarPreset.neutro;
+  final user = ref.watch(authUserProvider).asData?.value;
+  // Los avatares predefinidos son solo para cuentas con correo verificado.
+  if (user == null || !user.emailVerified) return AvatarPreset.neutro;
+  final uid = user.uid;
   final preset = ref.watch(avatarPresetProvider(uid)).asData?.value;
   return AvatarPreset.fromValue(preset);
 });

@@ -117,7 +117,10 @@
     "profiles": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.staff === true)",
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid",
+        "avatarPreset": {
+          ".validate": "newData.isString() && (newData.val() === 'neutro' || newData.val() === 'lince_masculino' || newData.val() === 'lince_femenino') && auth.token.email_verified === true"
+        }
       }
     },
     "ordersByUser": {

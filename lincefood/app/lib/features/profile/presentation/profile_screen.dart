@@ -66,9 +66,11 @@ class ProfileScreen extends ConsumerWidget {
             user.emailVerified &&
             avatarEligibility.asData?.value == true;
         final presetState = ref.watch(avatarPresetProvider(user.uid));
-        final selectedPreset = AvatarPreset.fromValue(
-          presetState.asData?.value,
-        );
+        // Los avatares predefinidos son solo para cuentas con correo verificado.
+        final canPickPreset = isEmailAccount && user.emailVerified;
+        final selectedPreset = canPickPreset
+            ? AvatarPreset.fromValue(presetState.asData?.value)
+            : AvatarPreset.neutro;
 
         return Scaffold(
           appBar: AppBar(title: const Text('Mi perfil')),
@@ -191,50 +193,53 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                         ],
                         const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: DropdownButtonFormField<AvatarPreset>(
-                              key: ValueKey((
-                                selectedPreset,
-                                avatarState.errorMessage,
-                              )),
-                              initialValue: selectedPreset,
-                              decoration: const InputDecoration(
-                                labelText: 'Avatar del perfil',
-                                border: InputBorder.none,
+                        if (canPickPreset)
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
                               ),
-                              items: [
-                                for (final preset in AvatarPreset.values)
-                                  DropdownMenuItem(
-                                    value: preset,
-                                    enabled: preset.available,
-                                    child: Text(
-                                      preset.available
-                                          ? preset.label
-                                          : '${preset.label} · Próximamente',
+                              child: DropdownButtonFormField<AvatarPreset>(
+                                key: ValueKey((
+                                  selectedPreset,
+                                  avatarState.errorMessage,
+                                )),
+                                initialValue: selectedPreset,
+                                decoration: const InputDecoration(
+                                  labelText: 'Avatar del perfil',
+                                  border: InputBorder.none,
+                                ),
+                                items: [
+                                  for (final preset in AvatarPreset.values)
+                                    DropdownMenuItem(
+                                      value: preset,
+                                      enabled: preset.available,
+                                      child: Text(
+                                        preset.available
+                                            ? preset.label
+                                            : '${preset.label} · Próximamente',
+                                      ),
                                     ),
-                                  ),
-                              ],
-                              onChanged: avatarState.isBusy
-                                  ? null
-                                  : (preset) {
-                                      if (preset == null) return;
-                                      unawaited(
-                                        ref
-                                            .read(
-                                              profileControllerProvider
-                                                  .notifier,
-                                            )
-                                            .seleccionarPreset(
-                                              user.uid,
-                                              preset,
-                                            ),
-                                      );
-                                    },
+                                ],
+                                onChanged: avatarState.isBusy
+                                    ? null
+                                    : (preset) {
+                                        if (preset == null) return;
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                profileControllerProvider
+                                                    .notifier,
+                                              )
+                                              .seleccionarPreset(
+                                                user.uid,
+                                                preset,
+                                              ),
+                                        );
+                                      },
+                              ),
                             ),
                           ),
-                        ),
                         if (presetState.hasError) ...[
                           const SizedBox(height: 8),
                           const Text('No se pudo cargar el avatar guardado.'),

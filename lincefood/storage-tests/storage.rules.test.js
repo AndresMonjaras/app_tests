@@ -43,6 +43,7 @@ describe('reglas de Firebase Storage', () => {
     const ownerStorage = testEnvironment
       .authenticatedContext('owner', {
         email_verified: true,
+        avatar_editable: true,
         firebase: { sign_in_provider: 'password' },
       })
       .storage(bucketUrl);
@@ -172,6 +173,7 @@ describe('reglas de Firebase Storage', () => {
     const ownerStorage = testEnvironment
       .authenticatedContext('owner', {
         email_verified: true,
+        avatar_editable: true,
         firebase: { sign_in_provider: 'password' },
       })
       .storage(bucketUrl);
@@ -216,6 +218,7 @@ describe('reglas de Firebase Storage', () => {
     const ownerStorage = testEnvironment
       .authenticatedContext('owner', {
         email_verified: true,
+        avatar_editable: true,
         firebase: { sign_in_provider: 'password' },
       })
       .storage(bucketUrl);

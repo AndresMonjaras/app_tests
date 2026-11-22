@@ -331,6 +331,21 @@ describe('reglas de historial oculto', () => {
   });
 });
 
+describe('reglas del avatar predefinido', () => {
+  it('solo acepta presets válidos desde una cuenta con correo verificado', async () => {
+    const verified = testEnvironment
+      .authenticatedContext('owner', { email_verified: true })
+      .database();
+    const unverified = testEnvironment
+      .authenticatedContext('owner', { email_verified: false })
+      .database();
+
+    await assertSucceeds(set(ref(verified, 'profiles/owner/avatarPreset'), 'lince_femenino'));
+    await assertFails(set(ref(verified, 'profiles/owner/avatarPreset'), 'otro'));
+    await assertFails(set(ref(unverified, 'profiles/owner/avatarPreset'), 'lince_masculino'));
+  });
+});
+
 describe('reglas del panel de administración', () => {
   it('expone solo promociones activas al público incluso mediante consulta', async () => {
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
