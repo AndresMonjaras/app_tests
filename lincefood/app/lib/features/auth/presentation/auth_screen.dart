@@ -228,9 +228,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       AuthSocialButtons(
                         busy: state.isBusy,
                         googleEnabled: providers.google,
-                        facebookEnabled: providers.facebook,
+                        githubEnabled: providers.github,
                         onGoogle: controller.signInWithGoogle,
-                        onFacebook: controller.signInWithFacebook,
+                        onGitHub: controller.signInWithGitHub,
                       ),
                     ],
                     const SizedBox(height: 12),

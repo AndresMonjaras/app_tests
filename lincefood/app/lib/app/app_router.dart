@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/admin/presentation/admin_catalog_screen.dart';
 import '../features/admin/presentation/admin_panel_screen.dart';
@@ -14,6 +15,7 @@ import '../features/pickup_qr/presentation/pickup_qr_screen.dart';
 import '../features/orders/presentation/staff_orders_screen.dart';
 import '../features/plans/presentation/plans_screen.dart';
 import '../features/privacy/privacy_notice_screen.dart';
+import '../features/profile/data/firebase_profile_repository.dart';
 import '../features/profile/presentation/profile_screen.dart';
 
 class AppRouter {
@@ -45,7 +47,12 @@ class AppRouter {
       onboarding || auth || emailVerification || home => const AuthGateScreen(),
       admin => const ProtectedRoute(child: AdminCatalogScreen()),
       adminPanel => const ProtectedRoute(child: AdminPanelScreen()),
-      catalog => const ProtectedRoute(child: CatalogScreen()),
+      catalog => ProtectedRoute(
+        child: Consumer(
+          builder: (context, ref, child) =>
+              CatalogScreen(userPhotoUrl: ref.watch(profilePhotoUrlProvider)),
+        ),
+      ),
       cart => const ProtectedRoute(child: CartScreen()),
       orders => ProtectedRoute(child: OrdersScreen(orderId: orderId)),
       staffOrders => const ProtectedRoute(child: StaffOrdersScreen()),

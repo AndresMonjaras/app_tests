@@ -1,15 +1,16 @@
 import 'dart:async';
 
-import '../../admin/presentation/admin_catalog_providers.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
+import '../../admin/presentation/admin_catalog_providers.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../biometrics/biometric_protection.dart';
 import '../../media/domain/private_avatar_cache.dart';
+import '../data/firebase_profile_repository.dart';
 import '../domain/avatar_rules.dart';
 import 'profile_controller.dart';
 
@@ -25,6 +26,7 @@ class ProfileScreen extends ConsumerWidget {
     final preferences = ref.watch(appPreferencesProvider);
     final biometricAvailability = ref.watch(biometricAvailabilityProvider);
     final avatarState = ref.watch(profileControllerProvider);
+    ref.watch(profileSyncProvider);
 
     return auth.when(
       loading: () => const Scaffold(
@@ -44,13 +46,24 @@ class ProfileScreen extends ConsumerWidget {
 
         final themeMode =
             preferences.asData?.value.themeMode ?? ThemeMode.system;
-        final displayName = user.displayName?.trim().isNotEmpty == true
+        final profile = ref.watch(customerProfileProvider).asData?.value;
+        final syncedName = profile?.name.trim();
+        final displayName = syncedName?.isNotEmpty == true
+            ? syncedName!
+            : user.displayName?.trim().isNotEmpty == true
             ? user.displayName!.trim()
             : 'Estudiante';
         final providerId = user.providerData.length == 1
             ? user.providerData.single.providerId
             : '';
-        final canChangeAvatar = puedeEditarAvatar(providerId);
+        final socialProviderLabel = _providerLabel(user.providerData);
+        final photoUrl = ref.watch(profilePhotoUrlProvider);
+        final isEmailAccount = puedeEditarAvatar(providerId);
+        final avatarEligibility = ref.watch(avatarEligibilityProvider);
+        final canEditAvatar =
+            isEmailAccount &&
+            user.emailVerified &&
+            avatarEligibility.asData?.value == true;
 
         return Scaffold(
           appBar: AppBar(title: const Text('Mi perfil')),
@@ -66,12 +79,10 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         CircleAvatar(
                           radius: 44,
-                          backgroundImage: user.photoURL == null
+                          foregroundImage: photoUrl == null
                               ? null
-                              : NetworkImage(user.photoURL!),
-                          child: user.photoURL == null
-                              ? const Icon(Icons.person_outline, size: 44)
-                              : null,
+                              : NetworkImage(photoUrl),
+                          child: const Icon(Icons.person_outline, size: 44),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -81,12 +92,14 @@ class ProfileScreen extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Text(user.email ?? ''),
                         const SizedBox(height: 4),
+                        Text('Acceso con $socialProviderLabel'),
+                        const SizedBox(height: 4),
                         Text(
                           user.emailVerified
                               ? 'Correo verificado'
                               : 'Correo pendiente de verificación',
                         ),
-                        if (canChangeAvatar) ...[
+                        if (canEditAvatar) ...[
                           const SizedBox(height: 12),
                           Wrap(
                             spacing: 8,
@@ -94,8 +107,7 @@ class ProfileScreen extends ConsumerWidget {
                             alignment: WrapAlignment.center,
                             children: [
                               FilledButton.tonalIcon(
-                                onPressed:
-                                    avatarState.isBusy || !user.emailVerified
+                                onPressed: avatarState.isBusy
                                     ? null
                                     : () => unawaited(
                                         ref
@@ -115,15 +127,14 @@ class ProfileScreen extends ConsumerWidget {
                                       )
                                     : const Icon(Icons.add_a_photo_outlined),
                                 label: Text(
-                                  user.photoURL == null
+                                  photoUrl == null
                                       ? 'Añadir avatar'
                                       : 'Cambiar avatar',
                                 ),
                               ),
-                              if (user.photoURL != null)
+                              if (photoUrl != null)
                                 OutlinedButton.icon(
-                                  onPressed:
-                                      avatarState.isBusy || !user.emailVerified
+                                  onPressed: avatarState.isBusy
                                       ? null
                                       : () => unawaited(
                                           ref
@@ -138,22 +149,43 @@ class ProfileScreen extends ConsumerWidget {
                                 ),
                             ],
                           ),
-                          if (!user.emailVerified) ...[
-                            const SizedBox(height: 8),
-                            const Text(
+                        ],
+                        if (isEmailAccount && !user.emailVerified)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
                               'Verifica tu correo para cambiar el avatar.',
                             ),
-                          ],
-                          if (avatarState.errorMessage != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              avatarState.errorMessage!,
+                          ),
+                        if (isEmailAccount &&
+                            user.emailVerified &&
+                            !canEditAvatar)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              avatarEligibility.isLoading
+                                  ? 'Verificando permisos para el avatar…'
+                                  : 'La edición segura del avatar aún no está habilitada en Firebase.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
                             ),
-                          ],
+                          ),
+                        if (!isEmailAccount)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'La foto se administra desde $socialProviderLabel.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        if (avatarState.errorMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            avatarState.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -348,4 +380,18 @@ class ProfileScreen extends ConsumerWidget {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+String _providerLabel(List<UserInfo> providers) {
+  if (providers.isEmpty) return 'tu cuenta';
+  final labels = providers.map((provider) {
+    return switch (provider.providerId) {
+      'password' => 'correo y contraseña',
+      'google.com' => 'Google',
+      'github.com' => 'GitHub',
+      'facebook.com' => 'Facebook',
+      _ => 'otro proveedor',
+    };
+  }).toSet();
+  return labels.join(' y ');
 }

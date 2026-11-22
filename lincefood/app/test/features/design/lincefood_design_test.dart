@@ -28,6 +28,7 @@ import 'package:lincefood_app/features/orders/presentation/orders_providers.dart
         uidActivoProvider;
 import 'package:lincefood_app/features/payments/domain/payment_gateway.dart';
 import 'package:lincefood_app/features/payments/presentation/payment_providers.dart';
+import 'package:lincefood_app/features/profile/data/firebase_profile_repository.dart';
 import 'package:lincefood_app/shared/widgets/fixed_bottom_bar.dart';
 
 // Productos de cuatro categorías para probar la cuadrícula.
@@ -236,6 +237,9 @@ void main() {
         appPreferencesProvider.overrideWith(_TestPreferencesController.new),
         biometricAvailabilityProvider.overrideWith((ref) async => false),
         adminAccessProvider.overrideWith((ref) async => false),
+        customerProfileProvider.overrideWith((ref) => Stream.value(null)),
+        profileSyncProvider.overrideWith((ref) async => false),
+        avatarEligibilityProvider.overrideWith((ref) async => false),
         catalogRepositoryProvider.overrideWithValue(
           InMemoryCatalogRepository(_productos),
         ),

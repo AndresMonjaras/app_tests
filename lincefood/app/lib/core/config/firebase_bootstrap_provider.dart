@@ -1,4 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_configuration.dart';
@@ -13,6 +17,14 @@ final firebaseBootstrapProvider = FutureProvider<FirebaseBootstrapStatus>((
 
   try {
     await Firebase.initializeApp(options: options);
+    if (FirebaseConfiguration.useEmulators) {
+      final host = FirebaseConfiguration.emulatorHost;
+      await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+      FirebaseDatabase.instance.useDatabaseEmulator(host, 9000);
+      FirebaseStorage.instance.useStorageEmulator(host, 9199);
+      FirebaseFunctions.instanceFor(region: 'us-central1')
+          .useFunctionsEmulator(host, 5001);
+    }
     return FirebaseBootstrapStatus.ready;
   } on FirebaseException {
     return FirebaseBootstrapStatus.missing;

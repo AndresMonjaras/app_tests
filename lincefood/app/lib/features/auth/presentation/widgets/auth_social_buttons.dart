@@ -6,21 +6,21 @@ class AuthSocialButtons extends StatelessWidget {
   const AuthSocialButtons({
     required this.busy,
     required this.googleEnabled,
-    required this.facebookEnabled,
+    required this.githubEnabled,
     required this.onGoogle,
-    required this.onFacebook,
+    required this.onGitHub,
     super.key,
   });
 
   final bool busy;
   final bool googleEnabled;
-  final bool facebookEnabled;
+  final bool githubEnabled;
   final VoidCallback onGoogle;
-  final VoidCallback onFacebook;
+  final VoidCallback onGitHub;
 
   @override
   Widget build(BuildContext context) {
-    final allAvailable = googleEnabled && facebookEnabled;
+    final allAvailable = googleEnabled && githubEnabled;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -50,10 +50,10 @@ class AuthSocialButtons extends StatelessWidget {
         const SizedBox(height: 10),
         OutlinedButton(
           style: _socialButtonStyle,
-          onPressed: busy || !facebookEnabled ? null : onFacebook,
+          onPressed: busy || !githubEnabled ? null : onGitHub,
           child: const _ProviderLabel(
-            icon: Icons.facebook,
-            text: 'Continuar con Facebook',
+            icon: Icons.code,
+            text: 'Continuar con GitHub',
           ),
         ),
         if (!allAvailable)

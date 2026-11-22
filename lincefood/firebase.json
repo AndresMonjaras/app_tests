@@ -8,6 +8,9 @@
   "storage": {
     "rules": "firebase/storage.rules"
   },
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": "hosting",
     "ignore": [
@@ -15,5 +18,13 @@
       "**/.*",
       "**/node_modules/**"
     ]
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "database": { "port": 9000 },
+    "functions": { "port": 5001 },
+    "storage": { "port": 9199 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
   }
 }

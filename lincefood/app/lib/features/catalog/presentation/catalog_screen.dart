@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
 import '../../cart/presentation/cart_controller.dart';
 import '../domain/product.dart';
@@ -8,10 +9,13 @@ import 'catalog_providers.dart';
 import 'product_image.dart';
 
 class CatalogScreen extends ConsumerWidget {
-  const CatalogScreen({super.key});
+  const CatalogScreen({super.key, this.userPhotoUrl});
+
+  final String? userPhotoUrl;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final photoUrl = userPhotoUrl;
     final products = ref.watch(catalogProductsProvider);
     final filter = ref.watch(catalogFilterProvider);
     final query = filter.query;
@@ -21,6 +25,15 @@ class CatalogScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Lincefood'),
         actions: [
+          IconButton(
+            tooltip: 'Mi perfil',
+            onPressed: () => Navigator.of(context).pushNamed(AppRouter.profile),
+            icon: CircleAvatar(
+              radius: 16,
+              foregroundImage: photoUrl == null ? null : NetworkImage(photoUrl),
+              child: const Icon(Icons.person_outline, size: 20),
+            ),
+          ),
           IconButton(
             tooltip: 'Abrir carrito',
             onPressed: () => Navigator.of(context).pushNamed('/cart'),

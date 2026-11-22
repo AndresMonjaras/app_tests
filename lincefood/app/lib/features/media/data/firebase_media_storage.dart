@@ -30,7 +30,7 @@ class FirebaseMediaStorage implements MediaStorage {
   }
 
   @override
-  Future<String> uploadAvatar(
+  Future<StoredAvatar> uploadAvatar(
     String uid,
     Uint8List bytes,
     String contentType,
@@ -38,9 +38,20 @@ class FirebaseMediaStorage implements MediaStorage {
     MediaUploadValidator.validate(bytes, contentType);
     MediaUploadValidator.validatePathSegment(uid, 'uid');
 
-    final reference = _storage.ref('profiles/$uid/avatar/avatar');
+    final extension = switch (contentType) {
+      'image/jpeg' => 'jpg',
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => throw ArgumentError.value(contentType, 'contentType'),
+    };
+    final path =
+        'profiles/$uid/avatar/${DateTime.now().microsecondsSinceEpoch}.$extension';
+    final reference = _storage.ref(path);
     await reference.putData(bytes, SettableMetadata(contentType: contentType));
-    return reference.getDownloadURL();
+    return StoredAvatar(
+      path: path,
+      downloadUrl: await reference.getDownloadURL(),
+    );
   }
 
   @override
@@ -50,10 +61,21 @@ class FirebaseMediaStorage implements MediaStorage {
   }
 
   @override
-  Future<void> deleteAvatar(String uid) async {
+  Future<void> deleteAvatar(String uid, String path) async {
     MediaUploadValidator.validatePathSegment(uid, 'uid');
+    final prefix = 'profiles/$uid/avatar/';
+    final fileName = path.startsWith(prefix)
+        ? path.substring(prefix.length)
+        : '';
+    if (fileName.isEmpty || fileName.contains('/') || fileName.contains('..')) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'La ruta no pertenece al avatar.',
+      );
+    }
     try {
-      await _storage.ref('profiles/$uid/avatar/avatar').delete();
+      await _storage.ref(path).delete();
     } on FirebaseException catch (error) {
       if (error.code != 'object-not-found') rethrow;
     }

@@ -1,62 +1,115 @@
-# Integración del Plan A en Lincefood
+# Auditoría de avance del Plan A
 
-## Decisión de migración
+Actualizado: 22 de noviembre de 2026. Esta auditoría separa lo integrado en el
+código de lo que exige configuración, autorización o evidencia externa. No
+equivale al reporte técnico final.
 
-La app Flutter vive en `app/` y el repo ya contenía catálogo, carrito, pedidos,
-modelo de dominio y pruebas de B/C. Se conservó esa estructura y Riverpod; no se
-copió encima el `main.dart`, el shell ni el controlador Provider del repo
-`app_cafeteria`. La fuente original permanece intacta como respaldo.
+## Migración inspeccionada
 
-## Trabajo integrado localmente
+- Proyecto fuente: `finanzas-familiares`, rama `feat/mapa`, commit base
+  `ea0aafa1f5dabb25139805e97a905a9d9cb096ef`; su árbol estaba limpio durante la
+  inspección.
+- El Flutter package fuente está en `app/`; declara Dart `^3.13.0` y contiene
+  Firebase Auth, Google/Facebook, FCM, Provider, Maps y otros módulos del dominio
+  financiero. No se deben copiar modelos, datos, reglas ni credenciales de ese
+  dominio.
+- Lincefood ya tenía catálogo, carrito, pedidos, pagos/QR y Riverpod. Se mantuvo
+  su arquitectura y esos módulos; la migración no reemplazó el `main.dart` ni
+  arrastró el dominio de finanzas.
+- La fuente permanece intacta. En la revisión del 22 de noviembre de 2026,
+  `flutter analyze` pasó; `flutter test` encontró una falla preexistente en
+  `cambio_sesion_navegacion_test.dart` (espera conservar una instancia de
+  `ScaffoldMessengerState` que ya está desmontada). El resto de las pruebas que
+  alcanzaron a ejecutarse pasó. No se modificó el repositorio fuente.
 
-| Área | Adaptación en Lincefood | Estado |
+## Matriz de estado
+
+| Área | Estado actual | Evidencia / pendiente |
 |---|---|---|
-| Arquitectura/estado | Riverpod existente, providers por Auth, perfil, preferencias y FCM | Código integrado |
-| Auth | Email/contraseña, registro, verificación, reenvío, recuperación, Google y Facebook | Falta configurar y probar proveedores remotos |
-| Guard | Onboarding → sesión → email verificado → shell con módulos existentes | Implementado localmente |
-| Perfil | Nombre/correo/proveedor, foto social, avatar privado por email con custom claim | Storage/Functions no desplegados |
-| Preferencias | Onboarding y tema persistentes con Shared Preferences | Implementado localmente |
-| UI | Tema claro/oscuro, fuente Plus Jakarta Sans con licencia OFL, menú adaptable y privacidad borrador | Identidad Lincefood preservada |
-| FCM | Listener raíz, apertura de pedidos, topics públicos y asociación del token al UID | Falta validar en dispositivo y proyecto destino |
-| Firebase | App Check, persistencia RTDB, emuladores, reglas y callable local | Falta config real y pruebas de emulador |
+| Arquitectura y estado | Integrado | Riverpod existente conservado; no se introdujo un segundo gestor. |
+| Email/contraseña, verificación y recuperación | Probado manualmente por el alumno | Pruebas 1 y 2 comunicadas como superadas en Android. |
+| Sesión, perfil y preferencias | Probado manualmente por el alumno | Prueba 3 comunicada como superada. |
+| Google y GitHub | Cubierto y aprobado por el docente | El alumno probó ambos en Android; la rúbrica requiere dos proveedores. |
+| Manejo de cuentas con proveedor distinto | Probado | El alumno confirma OAuth en Google y GitHub; tests locales cubren vinculación, correo distinto, error temporal y cierre de sesión. |
+| Perfil y avatar | Código implementado | Muestra nombre/correo/proveedor; redes sociales conservan su foto. Email usa custom claim confiable, ruta versionada en Storage y `avatarPath` en RTDB. La callable y reglas locales requieren despliegue y prueba para activar edición segura en Firebase real. |
+| Tema, onboarding y navegación adaptable | Código y pruebas de widget | Persistencia existente; navegación inferior a 360 px y `NavigationRail` a 1280 px. La navegación ancha pasa también con escalado 1.6; layouts del catálogo prueban móvil y escritorio. |
+| Privacidad | Borrador académico listo | Datos institucionales confirmados por el alumno. El aviso incluye los plazos de referencia del prototipo (90/30 días), identificados como propuestas y no como política de producción. |
+| FCM, topics y ciclo de vida | Fuera del cierre de A | El servicio global está integrado. B.6 es responsable de validar envío, topics y foreground/background/terminated. Los cambios locales de A no alteran ese flujo. |
+| RTDB: catálogo | Fuera del cierre de A | Pertenece al catálogo/flujo B. Perfil y sincronización de nombre sí pertenecen a A.4. |
+| Reglas y Emulator Suite | Configuración local añadida | Auth, RTDB, Functions y Storage Emulator declarados. Los emuladores arrancaron, pero la prueba móvil local falló por conexión HTTP/host; es opcional si se valida Firebase real. |
+| Función de permiso de avatar | Código local integrado | `synchronizeAvatarEligibility` calcula `avatar_editable` consultando Admin Auth y conserva los demás claims. No desplegada ni invocada en Firebase real. |
+| Despliegue de avatar | Pendiente del owner | El intento no desplegó nada porque falta `iam.serviceAccounts.ActAs` para la cuenta del alumno. El owner debe desplegar la callable y las reglas de Storage y vigilar los costos de Blaze. |
+| Validación Lincefood | Pasó localmente | `flutter analyze`, 188 pruebas Flutter, build APK debug y 64 pruebas de Functions pasaron. No implica despliegue ni prueba de servicios remotos. |
 
-## Firebase y límites
+## Cambios locales de esta ronda
 
-La documentación existente identifica el proyecto `lincefood-app`, la app
-Android `com.lincefood.app` y plan Spark. El código espera valores de Firebase
-por `--dart-define-from-file`; los valores reales van en un archivo local
-ignorado. No hay claves ni datos reales en el repo.
+- Unificada la edición de avatar en `ProfileAvatarRepository`; eliminada la
+  segunda implementación antigua que subía a Storage sin actualizar `photoURL`.
+- El avatar se guarda con nombre versionado para que `photoURL` cambie y se
+  invalide la imagen anterior. La ruta se registra en `/profiles/{uid}`. Al
+  reemplazar o borrar se limpia únicamente la versión conocida, sin listar el
+  directorio privado de Storage.
+- La UI solo muestra controles de edición cuando la cuenta es exclusivamente de
+  correo, está verificada y recibió el custom claim del servidor. Las reglas de
+  Storage vuelven a comprobar ese claim; ocultar botones no es la protección.
+- Añadido `NavigationRail` para ventanas anchas y avatar en el destino de Perfil.
+- El catálogo recibe la URL del avatar desde el shell; no crea una segunda
+  suscripción Auth propia, por lo que las pantallas de catálogo aisladas siguen
+  funcionando en pruebas.
+- El conflicto entre proveedores OAuth conserva la credencial solo en memoria.
+  Tras el acceso con la cuenta preexistente, enlaza únicamente si coincide el
+  correo de esa cuenta. Se añadieron pruebas unitarias para coincidencia,
+  descarte de correo distinto, reintento tras error de red y limpieza al salir.
+- El aviso de privacidad de la app detalla cuenta, pedidos, pagos de prueba,
+  notificaciones, ubicación y autenticación biométrica. El alumno confirma los
+  datos institucionales y las propuestas de conservación/baja para el prototipo.
+- Pruebas de shell confirman navegación inferior en 360 px y NavigationRail en
+  1280 px con texto a escala 1.6; la pantalla de privacidad pasa con texto 1.5.
+- En notificaciones se corrigió la ruta del asset local de consejos. Se retiró
+  una implementación vieja de `core/notifications` que no tenía consumidores y
+  duplicaba listeners/preferencias frente al servicio activo de
+  `features/notifications`; permanece una sola implementación. No se cambió la
+  lógica FCM de B ni se quitaron sus canales.
+- Emulator Suite habilitable solo en builds locales. El archivo
+  `google-services.json` local se añadió a `.gitignore`; conservarlo fuera del
+  repositorio.
 
-Las reglas de RTDB se ampliaron conservando catálogo, pedidos, pagos, planes y
-roles. El permiso para avatar requiere custom claim `avatar_editable`, que solo
-la callable de Functions asigna luego de consultar proveedores en Admin Auth.
-La UI no es la barrera de seguridad. Storage requiere Blaze para habilitar
-bucket; no se ha activado ni se ha desplegado nada.
+## Validación local de esta ronda
 
-## Pendientes para cerrar A
+Ejecutado desde `app/`:
 
-1. Verificación local ejecutada desde `app/`: las 39 pruebas de `flutter test`
-   pasan, `flutter analyze` termina con **No issues found**, y
-   `flutter build apk --debug` genera el APK. También se instaló y abrió en un
-   Samsung SM M356B con Android 16; sin configuración de Firebase muestra la
-   pantalla esperada de configuración pendiente.
-2. Configurar el archivo local de Firebase para `lincefood-app`; habilitar RTDB
-   y Auth (correo, Google, Facebook) con el responsable de la cuenta.
-3. Confirmar autorización de Blaze antes de crear Storage o desplegar Functions.
-4. Instalar dependencias de `functions/`, probar la callable y reglas en
-   Emulator Suite.
-5. Probar registro, verificación, OAuth, cierre de sesión, perfiles y FCM en
-   Android. Configurar SHA y credenciales de Meta sin incluir App Secret.
-6. Completar responsables, contacto y retención en el aviso institucional.
+```text
+Lincefood app/: flutter analyze               → No issues found
+Lincefood app/: flutter test                  → 188 pruebas pasaron
+Lincefood app/: flutter build apk --debug     → completado con aviso y pruebas
+Lincefood functions/: npm test                → 64 pruebas pasaron, incluidas
+  cuatro pruebas nuevas del permiso de avatar
+Repo fuente app/: flutter analyze             → No issues found
+Repo fuente app/: flutter test                → falla preexistente en
+  test/cambio_sesion_navegacion_test.dart; 43 pruebas pasaron antes del fallo
+```
 
-Las pruebas automatizadas anteriores no sustituyen la prueba autenticada en
-Android. Esa prueba depende de recibir la configuración de desarrollo y de que
-el responsable habilite los proveedores/servicios correspondientes en Firebase.
+Los emuladores Firebase arrancaron, pero no se completó una prueba móvil local
+por configuración de host/conexión. No se requiere para usar el proyecto remoto.
+Las pruebas manuales comunicadas por el alumno se registran como tales, no como
+una repetición automatizada.
 
-Para revisión visual local se añadió `--dart-define=LINFOOD_PREVIEW=true` en
-builds no release. Abre onboarding y la UI de acceso con autenticación
-deshabilitada. El flujo de preview se cubre con una prueba de widget; no simula
-Firebase ni sustituye la prueba conectada.
+## Único pendiente para cerrar A
 
-No se desplegaron recursos, no se importaron semillas y no se ejecutaron
-comandos de Git.
+El owner debe desplegar `synchronizeAvatarEligibility` y revisar/desplegar las
+reglas completas de Storage. El intento del alumno se detuvo por falta de
+`iam.serviceAccounts.ActAs`, así que no cambió Firebase remoto. Después del
+despliegue, probar edición/eliminación con una cuenta email y confirmar que
+Google y GitHub no permiten editar la foto. Vigilar el presupuesto Blaze.
+
+El alumno confirma que Google/GitHub y la vinculación OAuth ya están probados,
+y que los datos institucionales y el borrador de privacidad están confirmados.
+No hay otros pendientes del Plan A.
+
+No forman parte del cierre de A: catálogo de RTDB, FCM/topics y ciclo de vida,
+operación de pedidos, Stripe, QR, mapa ni pruebas T07–T23. Corresponden a B/C.
+Google y GitHub cumplen los dos proveedores autorizados por el docente; Facebook
+no queda como pendiente.
+
+No se importaron semillas, no se cambiaron ajustes en Firebase Console y no se
+ejecutaron comandos de Git.

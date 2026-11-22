@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseAuthService {
@@ -7,6 +7,8 @@ class FirebaseAuthService {
 
   final FirebaseAuth auth;
   Future<void>? _googleInitialization;
+  AuthCredential? _credentialAwaitingAccountSignIn;
+  String? _emailAwaitingAccountSignIn;
 
   User? get currentUser => auth.currentUser;
 
@@ -36,10 +38,11 @@ class FirebaseAuthService {
 
   Future<void> signInWithEmail(String email, String password) async {
     await auth.setLanguageCode('es');
-    await auth.signInWithEmailAndPassword(
+    final result = await auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+    await _linkPendingCredential(result.user);
   }
 
   Future<void> signInWithGoogle() async {
@@ -65,24 +68,31 @@ class FirebaseAuthService {
     }
 
     final credential = GoogleAuthProvider.credential(idToken: idToken);
-    final result = await auth.signInWithCredential(credential);
+    late final UserCredential result;
+    try {
+      result = await auth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (error) {
+      _rememberCredentialForLinking(error, credential);
+      rethrow;
+    }
     await _requireUser(result.user);
+    await _linkPendingCredential(result.user);
   }
 
-  Future<void> signInWithFacebook() async {
-    final result = await FacebookAuth.instance.login(permissions: ['email']);
-    if (result.status != LoginStatus.success || result.accessToken == null) {
-      throw FirebaseAuthException(
-        code: 'facebook-login-cancelled',
-        message: result.message ?? 'Se canceló el acceso con Facebook.',
-      );
+  Future<void> signInWithGitHub() async {
+    final provider = GithubAuthProvider();
+    provider.addScope('user:email');
+    late final UserCredential authResult;
+    try {
+      authResult = kIsWeb
+          ? await auth.signInWithPopup(provider)
+          : await auth.signInWithProvider(provider);
+    } on FirebaseAuthException catch (error) {
+      _rememberCredentialForLinking(error, error.credential);
+      rethrow;
     }
-
-    final credential = FacebookAuthProvider.credential(
-      result.accessToken!.tokenString,
-    );
-    final authResult = await auth.signInWithCredential(credential);
     await _requireUser(authResult.user);
+    await _linkPendingCredential(authResult.user);
   }
 
   Future<void> recoverPassword(String email) async {
@@ -90,7 +100,51 @@ class FirebaseAuthService {
     await auth.sendPasswordResetEmail(email: email.trim());
   }
 
-  Future<void> signOut() => auth.signOut();
+  Future<void> signOut() async {
+    await auth.signOut();
+    _clearPendingLink();
+  }
+
+  void _rememberCredentialForLinking(
+    FirebaseAuthException error,
+    AuthCredential? fallbackCredential,
+  ) {
+    if (error.code != 'account-exists-with-different-credential') return;
+    final pendingCredential = error.credential ?? fallbackCredential;
+    final email = error.email?.trim().toLowerCase();
+    if (pendingCredential == null || email == null || email.isEmpty) return;
+    _credentialAwaitingAccountSignIn = pendingCredential;
+    _emailAwaitingAccountSignIn = email;
+  }
+
+  Future<void> _linkPendingCredential(User? user) async {
+    final pendingCredential = _credentialAwaitingAccountSignIn;
+    final pendingEmail = _emailAwaitingAccountSignIn;
+    if (pendingCredential == null || pendingEmail == null || user == null) {
+      return;
+    }
+
+    if (user.email?.trim().toLowerCase() != pendingEmail) {
+      _clearPendingLink();
+      return;
+    }
+
+    try {
+      await user.linkWithCredential(pendingCredential);
+      _clearPendingLink();
+    } on FirebaseAuthException catch (error) {
+      if (error.code != 'network-request-failed' &&
+          error.code != 'too-many-requests') {
+        _clearPendingLink();
+      }
+      rethrow;
+    }
+  }
+
+  void _clearPendingLink() {
+    _credentialAwaitingAccountSignIn = null;
+    _emailAwaitingAccountSignIn = null;
+  }
 
   Future<void> _requireUser(User? user) async {
     if (user == null) {

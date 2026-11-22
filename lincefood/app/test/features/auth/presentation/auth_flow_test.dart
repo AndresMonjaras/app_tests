@@ -26,7 +26,7 @@ class AuthFake implements FirebaseAuthService {
   @override
   Future<void> signInWithGoogle() => signInWithEmail('', '');
   @override
-  Future<void> signInWithFacebook() => signInWithEmail('', '');
+  Future<void> signInWithGitHub() => signInWithEmail('', '');
   @override
   Future<void> recoverPassword(String email) => signInWithEmail(email, '');
   @override
@@ -75,14 +75,14 @@ void main() {
         overrides: [
           firebaseAuthServiceProvider.overrideWithValue(fake),
           authProviderAvailabilityProvider.overrideWithValue(
-            const AuthProviderAvailability(google: true, facebook: true),
+            const AuthProviderAvailability(google: true, github: true),
           ),
         ],
       );
       addTearDown(container.dispose);
       final controller = container.read(authFormControllerProvider.notifier);
-      fake.code = 'facebook-login-cancelled';
-      await controller.signInWithFacebook();
+      fake.code = 'web-context-cancelled';
+      await controller.signInWithGitHub();
       expect(
         container.read(authFormControllerProvider).error,
         contains('canceló'),
@@ -233,7 +233,12 @@ void main() {
   test('errores legibles y recuperación sin enumerar cuentas', () async {
     final fake = AuthFake();
     final container = ProviderContainer(
-      overrides: [firebaseAuthServiceProvider.overrideWithValue(fake)],
+      overrides: [
+        firebaseAuthServiceProvider.overrideWithValue(fake),
+        authProviderAvailabilityProvider.overrideWithValue(
+          const AuthProviderAvailability(google: false, github: false),
+        ),
+      ],
     );
     addTearDown(container.dispose);
     final controller = container.read(authFormControllerProvider.notifier);
