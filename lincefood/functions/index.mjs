@@ -132,3 +132,4 @@ export {
   sendRecommendation,
   sendTopicNotification,
 } from './src/notifications/index.mjs';
+export { createMembershipPaymentIntent } from './src/memberships/callable.mjs';

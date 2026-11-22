@@ -17,3 +17,13 @@ final currentMembershipProvider = StreamProvider.autoDispose<Membership?>((
   if (uid == null) return Stream<Membership?>.value(null);
   return ref.watch(membershipRepositoryProvider).watchMembership(uid);
 });
+
+final membershipPricesProvider =
+    StreamProvider.autoDispose<Map<String, MembershipPrices>>((ref) {
+      final uid = ref.watch(authUserProvider).value?.uid;
+      if (uid == null) return Stream.value(const {});
+      return FirebaseDatabase.instance
+          .ref('membershipPlans')
+          .onValue
+          .map((event) => membershipPricesFromMap(event.snapshot.value));
+    });
