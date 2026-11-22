@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lincefood_app/features/profile/domain/profile_avatar_repository.dart';
+import 'package:lincefood_app/features/profile/domain/avatar_preset.dart';
 import 'package:lincefood_app/features/profile/presentation/profile_controller.dart';
 
 void main() {
@@ -75,6 +76,24 @@ void main() {
     expect(repository.removedUid, 'usuario-1');
     expect(container.read(profileControllerProvider).errorMessage, isNull);
   });
+
+  test('guarda el preset seleccionado en el repositorio activo', () async {
+    final repository = _FakeAvatarRepository();
+    final container = ProviderContainer(
+      overrides: [
+        profileAvatarRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(profileControllerProvider.notifier)
+        .seleccionarPreset('usuario-1', AvatarPreset.linceMasculino);
+
+    expect(repository.presetUid, 'usuario-1');
+    expect(repository.savedPreset, 'lince_masculino');
+    expect(container.read(profileControllerProvider).errorMessage, isNull);
+  });
 }
 
 class _FakePicker implements AvatarImagePicker {
@@ -91,6 +110,8 @@ class _FakeAvatarRepository implements ProfileAvatarRepository {
   Uint8List? savedBytes;
   String? savedContentType;
   String? removedUid;
+  String? presetUid;
+  String? savedPreset;
 
   @override
   Future<void> saveAvatar(
@@ -107,4 +128,13 @@ class _FakeAvatarRepository implements ProfileAvatarRepository {
   Future<void> removeAvatar(String uid) async {
     removedUid = uid;
   }
+
+  @override
+  Future<void> saveAvatarPreset(String uid, String value) async {
+    presetUid = uid;
+    savedPreset = value;
+  }
+
+  @override
+  Stream<String?> watchAvatarPreset(String uid) => Stream.value(savedPreset);
 }

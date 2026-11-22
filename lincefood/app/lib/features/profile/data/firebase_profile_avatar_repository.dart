@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 import '../../media/domain/media_storage.dart';
 import '../../media/domain/media_upload_validator.dart';
@@ -11,10 +12,12 @@ class FirebaseProfileAvatarRepository implements ProfileAvatarRepository {
   FirebaseProfileAvatarRepository({
     required this._authentication,
     required this._mediaStorage,
+    required this._database,
   });
 
   final FirebaseAuth _authentication;
   final MediaStorage _mediaStorage;
+  final FirebaseDatabase _database;
 
   @override
   Future<void> saveAvatar(
@@ -38,6 +41,24 @@ class FirebaseProfileAvatarRepository implements ProfileAvatarRepository {
     final user = _requireEditableUser(uid);
     await _mediaStorage.deleteAvatar(uid);
     await user.updatePhotoURL(null);
+  }
+
+  @override
+  Future<void> saveAvatarPreset(String uid, String value) async {
+    _requireEditableUser(uid);
+    const presets = {'neutro', 'lince_masculino', 'lince_femenino'};
+    if (!presets.contains(value)) {
+      throw ArgumentError.value(value, 'value');
+    }
+    await _database.ref('profiles/$uid').update({'avatarPreset': value});
+  }
+
+  @override
+  Stream<String?> watchAvatarPreset(String uid) {
+    return _database.ref('profiles/$uid/avatarPreset').onValue.map((event) {
+      final value = event.snapshot.value;
+      return value is String ? value : null;
+    });
   }
 
   User _requireEditableUser(String uid) {

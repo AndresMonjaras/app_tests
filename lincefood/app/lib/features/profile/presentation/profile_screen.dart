@@ -11,6 +11,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../biometrics/biometric_protection.dart';
 import '../../media/domain/private_avatar_cache.dart';
 import '../domain/avatar_rules.dart';
+import '../domain/avatar_preset.dart';
 import 'profile_controller.dart';
 
 // Evita que las tarjetas de ajustes se estiren en escritorio.
@@ -51,6 +52,8 @@ class ProfileScreen extends ConsumerWidget {
             ? user.providerData.single.providerId
             : '';
         final canChangeAvatar = puedeEditarAvatar(providerId);
+        final presetState = ref.watch(avatarPresetProvider(user.uid));
+        final selectedPreset = AvatarPreset.fromValue(presetState.asData?.value);
 
         return Scaffold(
           appBar: AppBar(title: const Text('Mi perfil')),
@@ -64,14 +67,10 @@ class ProfileScreen extends ConsumerWidget {
                   Center(
                     child: Column(
                       children: [
-                        CircleAvatar(
+                        ProfileAvatar(
                           radius: 44,
-                          backgroundImage: user.photoURL == null
-                              ? null
-                              : NetworkImage(user.photoURL!),
-                          child: user.photoURL == null
-                              ? const Icon(Icons.person_outline, size: 44)
-                              : null,
+                          photoUrl: user.photoURL,
+                          preset: selectedPreset,
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -154,6 +153,51 @@ class ProfileScreen extends ConsumerWidget {
                               ),
                             ),
                           ],
+                        ],
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: DropdownButtonFormField<AvatarPreset>(
+                              initialValue: selectedPreset,
+                              decoration: const InputDecoration(
+                                labelText: 'Avatar del perfil',
+                                border: InputBorder.none,
+                              ),
+                              items: [
+                                for (final preset in AvatarPreset.values)
+                                  DropdownMenuItem(
+                                    value: preset,
+                                    enabled: preset.available,
+                                    child: Text(
+                                      preset.available
+                                          ? preset.label
+                                          : '${preset.label} · Próximamente',
+                                    ),
+                                  ),
+                              ],
+                              onChanged: avatarState.isBusy
+                                  ? null
+                                  : (preset) {
+                                      if (preset == null) return;
+                                      unawaited(
+                                        ref
+                                            .read(
+                                              profileControllerProvider
+                                                  .notifier,
+                                            )
+                                            .seleccionarPreset(
+                                              user.uid,
+                                              preset,
+                                            ),
+                                      );
+                                    },
+                            ),
+                          ),
+                        ),
+                        if (presetState.hasError) ...[
+                          const SizedBox(height: 8),
+                          const Text('No se pudo cargar el avatar guardado.'),
                         ],
                       ],
                     ),

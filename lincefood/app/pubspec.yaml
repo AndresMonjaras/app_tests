@@ -41,6 +41,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/avatars/
     - assets/notifications/notificaciones.seed.json
     - assets/images/
   fonts:

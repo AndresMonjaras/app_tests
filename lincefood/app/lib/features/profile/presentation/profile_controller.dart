@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../auth/presentation/auth_controller.dart';
@@ -6,6 +7,7 @@ import '../../media/domain/media_upload_validator.dart';
 import '../../media/domain/private_avatar_cache.dart';
 import '../../media/presentation/media_storage_provider.dart';
 import '../data/firebase_profile_avatar_repository.dart';
+import '../domain/avatar_preset.dart';
 import '../domain/profile_avatar_repository.dart';
 
 abstract interface class AvatarImagePicker {
@@ -41,8 +43,14 @@ final profileAvatarRepositoryProvider = Provider<ProfileAvatarRepository>((
   return FirebaseProfileAvatarRepository(
     authentication: ref.watch(firebaseAuthProvider),
     mediaStorage: ref.watch(mediaStorageProvider),
+    database: FirebaseDatabase.instance,
   );
 });
+
+final avatarPresetProvider = StreamProvider.autoDispose.family<String?, String>(
+  (ref, uid) =>
+      ref.watch(profileAvatarRepositoryProvider).watchAvatarPreset(uid),
+);
 
 class ProfileAvatarState {
   const ProfileAvatarState({this.isBusy = false, this.errorMessage});
@@ -98,6 +106,23 @@ class ProfileController extends Notifier<ProfileAvatarState> {
       if (ref.mounted) {
         state = const ProfileAvatarState(
           errorMessage: 'No se pudo eliminar el avatar. Inténtalo de nuevo.',
+        );
+      }
+    }
+  }
+
+  Future<void> seleccionarPreset(String uid, AvatarPreset preset) async {
+    if (state.isBusy || !preset.available) return;
+    state = const ProfileAvatarState(isBusy: true);
+    try {
+      await ref
+          .read(profileAvatarRepositoryProvider)
+          .saveAvatarPreset(uid, preset.value);
+      if (ref.mounted) state = const ProfileAvatarState();
+    } catch (_) {
+      if (ref.mounted) {
+        state = const ProfileAvatarState(
+          errorMessage: 'No se pudo guardar la selección. Inténtalo de nuevo.',
         );
       }
     }
