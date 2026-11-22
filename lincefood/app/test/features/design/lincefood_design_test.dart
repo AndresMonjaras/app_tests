@@ -1,13 +1,24 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/app/app_theme.dart';
+import 'package:lincefood_app/core/preferences/app_preferences_controller.dart';
+import 'package:lincefood_app/features/admin/presentation/admin_catalog_providers.dart'
+    show adminAccessProvider;
+import 'package:lincefood_app/features/auth/presentation/auth_controller.dart'
+    show authUserProvider;
+import 'package:lincefood_app/features/biometrics/biometric_protection.dart'
+    show biometricAvailabilityProvider;
 import 'package:lincefood_app/features/cart/presentation/cart_controller.dart';
 import 'package:lincefood_app/features/cart/presentation/cart_screen.dart';
 import 'package:lincefood_app/features/catalog/data/in_memory_catalog_repository.dart';
 import 'package:lincefood_app/features/catalog/domain/product.dart';
 import 'package:lincefood_app/features/catalog/presentation/catalog_providers.dart';
 import 'package:lincefood_app/features/catalog/presentation/catalog_screen.dart';
+import 'package:lincefood_app/features/location/presentation/location_providers.dart'
+    show cafeteriaLocationProvider;
+import 'package:lincefood_app/features/navigation/app_navigation_shell.dart';
 import 'package:lincefood_app/features/orders/data/memory_orders_repository.dart';
 import 'package:lincefood_app/features/orders/presentation/orders_providers.dart'
     show
@@ -21,10 +32,10 @@ import 'package:lincefood_app/shared/widgets/fixed_bottom_bar.dart';
 
 // Productos de cuatro categorías para probar la cuadrícula.
 final _productos = [
-  Product(id: 'cafe', name: 'Café', priceCents: 550, categoryId: 'Bebidas'),
-  Product(id: 'flan', name: 'Flan', priceCents: 900, categoryId: 'Postres'),
-  Product(id: 'papas', name: 'Papas', priceCents: 700, categoryId: 'Snacks'),
-  Product(id: 'sopa', name: 'Sopa', priceCents: 1200, categoryId: 'Comidas'),
+  Product(id: 'cafe', name: 'Café', priceCents: 550, categoryId: 'drinks'),
+  Product(id: 'flan', name: 'Flan', priceCents: 900, categoryId: 'breakfast'),
+  Product(id: 'papas', name: 'Papas', priceCents: 700, categoryId: ''),
+  Product(id: 'sopa', name: 'Sopa', priceCents: 1200, categoryId: 'lunch'),
 ];
 
 Future<void> _abrirCatalogo(
@@ -72,14 +83,18 @@ void main() {
   ) async {
     await _abrirCatalogo(tester, tamano: const Size(360, 800));
 
-    // Orden alfabético: Bebidas, Comidas, Postres, Snacks.
+    // El orden usa ids de Firebase; las etiquetas visibles están localizadas.
+    final otros = tester.getTopLeft(find.text('Otros'));
     final bebidas = tester.getTopLeft(find.text('Bebidas'));
     final comidas = tester.getTopLeft(find.text('Comidas'));
-    final postres = tester.getTopLeft(find.text('Postres'));
+    final desayunos = tester.getTopLeft(find.text('Desayunos'));
 
-    expect(comidas.dy, bebidas.dy);
-    expect(postres.dx, bebidas.dx);
-    expect(postres.dy, greaterThan(bebidas.dy));
+    expect(otros.dy, desayunos.dy);
+    expect(bebidas.dy, comidas.dy);
+    expect(bebidas.dy, greaterThan(otros.dy));
+    expect(find.text('breakfast'), findsNothing);
+    expect(find.text('lunch'), findsNothing);
+    expect(find.text('drinks'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -88,8 +103,8 @@ void main() {
   ) async {
     await _abrirCatalogo(tester, tamano: const Size(1280, 800));
 
-    final y = tester.getTopLeft(find.text('Bebidas')).dy;
-    for (final etiqueta in ['Postres', 'Snacks', 'Comidas']) {
+    final y = tester.getTopLeft(find.text('Otros')).dy;
+    for (final etiqueta in ['Desayunos', 'Bebidas', 'Comidas']) {
       expect(tester.getTopLeft(find.text(etiqueta)).dy, y);
     }
     expect(tester.takeException(), isNull);
@@ -105,6 +120,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('el encabezado de categoria usa la etiqueta en español', (
+    tester,
+  ) async {
+    await _abrirCatalogo(tester, tamano: const Size(360, 800));
+
+    await tester.tap(find.text('Desayunos'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('breakfast'), findsNothing);
+    expect(find.text('Desayunos'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('el catalogo se pinta en tema oscuro sin errores', (
     tester,
   ) async {
@@ -114,7 +142,7 @@ void main() {
       modo: ThemeMode.dark,
     );
 
-    expect(find.text('Snacks'), findsOneWidget);
+    expect(find.text('Desayunos'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -167,6 +195,8 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(find.text('\$5.50 MXN c/u'), findsOneWidget);
+    expect(find.text('Subtotal \$11.00 MXN'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -196,6 +226,85 @@ void main() {
     expect(find.byType(FixedBottomBar), findsNothing);
     expect(find.text('Tu carrito está vacío.'), findsOneWidget);
   });
+
+  testWidgets('el shell usa riel ancho y barra inferior en móvil', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        authUserProvider.overrideWith((ref) => Stream.value(_TestUser())),
+        appPreferencesProvider.overrideWith(_TestPreferencesController.new),
+        biometricAvailabilityProvider.overrideWith((ref) async => false),
+        adminAccessProvider.overrideWith((ref) async => false),
+        catalogRepositoryProvider.overrideWithValue(
+          InMemoryCatalogRepository(_productos),
+        ),
+        cafeteriaLocationProvider.overrideWith((ref) => Stream.value(null)),
+        uidActivoProvider.overrideWithValue('test-uid'),
+        staffPermissionProvider.overrideWith((ref) async => false),
+        orderClockProvider.overrideWith((ref) => Stream.value(DateTime.now())),
+        ordersRepositoryProvider.overrideWithValue(MemoryOrdersRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AppNavigationShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    tester.view.physicalSize = const Size(360, 800);
+    await tester.pump();
+
+    expect(find.byType(NavigationRail), findsNothing);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(CatalogScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _TestPreferencesController extends AppPreferencesController {
+  @override
+  Future<AppPreferences> build() async =>
+      const AppPreferences(onboardingComplete: true);
+}
+
+class _TestUser implements User {
+  @override
+  String? get displayName => 'Estudiante';
+
+  @override
+  String? get email => 'estudiante@example.test';
+
+  @override
+  bool get emailVerified => true;
+
+  @override
+  String? get photoURL => null;
+
+  @override
+  List<UserInfo> get providerData => const <UserInfo>[];
+
+  @override
+  String get uid => 'test-uid';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _PasarelaFalsa implements PaymentGateway {
