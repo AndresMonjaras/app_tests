@@ -1,134 +1,104 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/preferences/app_preferences_controller.dart';
 import '../domain/onboarding_step.dart';
 
-class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key});
+class OnboardingScreen extends StatelessWidget {
+  const OnboardingScreen({
+    this.themeMode = ThemeMode.system,
+    this.onThemeChanged,
+    this.onCompleted,
+    super.key,
+  });
 
-  @override
-  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  final _pageController = PageController();
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeChanged;
+  final VoidCallback? onCompleted;
 
   @override
   Widget build(BuildContext context) {
-    final page = ref.watch(onboardingPageProvider);
     final colors = Theme.of(context).colorScheme;
-    final isLastPage = page == OnboardingStep.steps.length - 1;
-
-    Future<void> finishOnboarding() async {
-      await ref.read(appPreferencesProvider.notifier).finishOnboarding();
-    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lincefood'),
         actions: [
-          TextButton(onPressed: finishOnboarding, child: const Text('Saltar')),
+          TextButton(onPressed: onCompleted, child: const Text('Saltar')),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: OnboardingStep.steps.length,
-                onPageChanged: (index) {
-                  ref.read(onboardingPageProvider.notifier).select(index);
-                },
-                itemBuilder: (context, index) {
-                  final step = OnboardingStep.steps[index];
-                  final icon = switch (index) {
-                    0 => Icons.restaurant_menu,
-                    1 => Icons.lock_outline,
-                    _ => Icons.shopping_bag_outlined,
-                  };
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 144,
-                          height: 144,
-                          decoration: BoxDecoration(
-                            color: colors.primaryContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            icon,
-                            size: 68,
-                            color: colors.onPrimaryContainer,
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-                        Text(
-                          step.title,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          step.description,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                      ],
-                    ),
-                  );
-                },
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Text(
+            'Tu cafetería, a tu ritmo',
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w800, height: 1.15),
+          ),
+          const SizedBox(height: 20),
+          for (final step in OnboardingStep.steps)
+            Card(
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                leading: CircleAvatar(
+                  backgroundColor: colors.primaryContainer,
+                  foregroundColor: colors.onPrimaryContainer,
+                  child: const Icon(Icons.check),
+                ),
+                title: Text(
+                  step.title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(step.description),
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                OnboardingStep.steps.length,
-                (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: index == page ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: index == page
-                        ? colors.primary
-                        : colors.outlineVariant,
-                    borderRadius: BorderRadius.circular(8),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Tema'),
+              subtitle: const Text('Elige cómo quieres ver la aplicación.'),
+              trailing: DropdownButton<ThemeMode>(
+                value: themeMode,
+                onChanged: (mode) {
+                  if (mode != null) onThemeChanged?.call(mode);
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: ThemeMode.system,
+                    child: Text('Sistema'),
                   ),
-                ),
+                  DropdownMenuItem(
+                    value: ThemeMode.light,
+                    child: Text('Claro'),
+                  ),
+                  DropdownMenuItem(
+                    value: ThemeMode.dark,
+                    child: Text('Oscuro'),
+                  ),
+                ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    if (isLastPage) {
-                      finishOnboarding();
-                    } else {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  },
-                  child: Text(isLastPage ? 'Comenzar' : 'Continuar'),
-                ),
-              ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: onCompleted,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Comenzar'),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward, size: 20),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Puedes cambiar el tema después desde tu perfil.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }

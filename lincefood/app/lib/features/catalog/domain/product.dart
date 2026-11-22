@@ -43,6 +43,7 @@ class Product {
     this.categoryId = '',
     this.isAvailable = true,
     this.prepMinutes = 0,
+    this.imagePath = '',
     List<ProductVariant> variants = const [],
   }) : variants = List.unmodifiable(variants) {
     if (priceCents < 0) {
@@ -60,6 +61,9 @@ class Product {
   final int prepMinutes;
   final int priceCents;
   final List<ProductVariant> variants;
+
+  /// Ruta del objeto en Storage (`menu/{productId}/...`). Vacía si no hay foto.
+  final String imagePath;
 
   int get displayPriceCents {
     if (variants.isEmpty) return priceCents;
@@ -109,7 +113,16 @@ class Product {
       isAvailable: map['available'] == true,
       prepMinutes: prepMinutes,
       priceCents: price,
+      imagePath: _safeMenuImagePath(map['imagePath']),
       variants: variants,
     );
   }
+}
+
+/// Acepta solo rutas bajo `menu/` sin segmentos de navegación.
+String _safeMenuImagePath(Object? raw) {
+  if (raw is! String) return '';
+  final path = raw.trim();
+  final isMenuPath = path.startsWith('menu/') && !path.contains('..');
+  return isMenuPath && !path.contains('//') ? path : '';
 }
