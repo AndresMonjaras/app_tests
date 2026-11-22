@@ -24,6 +24,7 @@ class AppNavigationShell extends ConsumerWidget {
   const AppNavigationShell({super.key});
 
   static const _sections = AppSection.values;
+  static const _railBreakpoint = 768.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,22 +58,55 @@ class AppNavigationShell extends ConsumerWidget {
       ),
     ];
 
+    void onSelected(int index) => ref
+        .read(navigationControllerProvider.notifier)
+        .select(_sections[index]);
+
+    final useRail = MediaQuery.sizeOf(context).width >= _railBreakpoint;
+    final content = IndexedStack(index: selected.index, children: screens);
+
     return Scaffold(
-      body: IndexedStack(index: selected.index, children: screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selected.index,
-        onDestinationSelected: (index) => ref
-            .read(navigationControllerProvider.notifier)
-            .select(_sections[index]),
-        destinations: [
-          for (final item in destinations)
-            NavigationDestination(
-              icon: Icon(item.icon),
-              selectedIcon: Icon(item.selectedIcon),
-              label: item.label,
-            ),
+      // Row con tres slots fijos: el contenido siempre queda en el índice 2,
+      // así el IndexedStack no se desmonta al cruzar el breakpoint.
+      body: Row(
+        children: [
+          if (useRail)
+            NavigationRail(
+              selectedIndex: selected.index,
+              onDestinationSelected: onSelected,
+              labelType: NavigationRailLabelType.all,
+              destinations: [
+                for (final item in destinations)
+                  NavigationRailDestination(
+                    icon: Icon(item.icon),
+                    selectedIcon: Icon(item.selectedIcon),
+                    label: Text(item.label),
+                  ),
+              ],
+            )
+          else
+            const SizedBox.shrink(),
+          if (useRail)
+            const VerticalDivider(width: 1)
+          else
+            const SizedBox.shrink(),
+          Expanded(child: content),
         ],
       ),
+      bottomNavigationBar: useRail
+          ? null
+          : NavigationBar(
+              selectedIndex: selected.index,
+              onDestinationSelected: onSelected,
+              destinations: [
+                for (final item in destinations)
+                  NavigationDestination(
+                    icon: Icon(item.icon),
+                    selectedIcon: Icon(item.selectedIcon),
+                    label: item.label,
+                  ),
+              ],
+            ),
       floatingActionButton: selected == AppSection.home
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.of(context).pushNamed('/cart'),
