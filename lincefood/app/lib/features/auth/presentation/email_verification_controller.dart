@@ -149,6 +149,7 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
 }
 
 final emailVerificationControllerProvider =
-    NotifierProvider<EmailVerificationController, EmailVerificationState>(
-      EmailVerificationController.new,
-    );
+    NotifierProvider.autoDispose<
+      EmailVerificationController,
+      EmailVerificationState
+    >(EmailVerificationController.new);

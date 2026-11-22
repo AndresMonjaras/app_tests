@@ -101,11 +101,11 @@ class AuthFormController extends Notifier<AuthFormState> {
     await ref.read(firebaseAuthServiceProvider).signInWithGoogle();
   });
 
-  Future<void> signInWithFacebook() => _perform(() async {
-    if (!ref.read(authProviderAvailabilityProvider).facebook) {
+  Future<void> signInWithGitHub() => _perform(() async {
+    if (!ref.read(authProviderAvailabilityProvider).github) {
       throw FirebaseAuthException(code: 'operation-not-allowed');
     }
-    await ref.read(firebaseAuthServiceProvider).signInWithFacebook();
+    await ref.read(firebaseAuthServiceProvider).signInWithGitHub();
   });
 
   Future<void> _perform(Future<void> Function() action) async {
@@ -147,11 +147,11 @@ class AuthFormController extends Notifier<AuthFormState> {
     'network-request-failed' => 'Revisa tu conexión e inténtalo de nuevo.',
     'operation-not-allowed' =>
       'Este método de acceso no está disponible en este momento.',
-    'account-exists-with-different-credential' || 'credential-already-in-use' => 'Usa el método con el que creaste tu cuenta. Si necesitas vincular otro proveedor, contacta a administración desde tu cuenta.',
+    'account-exists-with-different-credential' => 'Ya existe una cuenta con ese correo. Inicia sesión con el método que usaste antes; vincularemos este proveedor después de confirmar tu identidad.',
+    'credential-already-in-use' => 'Ese proveedor ya está vinculado a otra cuenta. Inicia sesión con la cuenta que ya lo usa.',
     'popup-closed-by-user' ||
-    'cancelled-popup-request' => 'Se canceló el acceso.',
-    'facebook-login-cancelled' =>
-      error.message ?? 'Se canceló el acceso con Facebook.',
+    'cancelled-popup-request' ||
+    'web-context-cancelled' => 'Se canceló el acceso.',
     'missing-google-token' =>
       error.message ?? 'No se pudo obtener la credencial de Google.',
     'email-required' =>
@@ -164,22 +164,19 @@ final authFormControllerProvider =
     NotifierProvider<AuthFormController, AuthFormState>(AuthFormController.new);
 
 class AuthProviderAvailability {
-  const AuthProviderAvailability({
-    required this.google,
-    required this.facebook,
-  });
+  const AuthProviderAvailability({required this.google, required this.github});
 
   final bool google;
-  final bool facebook;
+  final bool github;
 
-  bool get hasProviders => google || facebook;
+  bool get hasProviders => google || github;
 }
 
 final authProviderAvailabilityProvider = Provider<AuthProviderAvailability>((
   ref,
 ) {
   return const AuthProviderAvailability(
-    google: bool.fromEnvironment('GOOGLE_SIGN_IN_ENABLED'),
-    facebook: bool.fromEnvironment('FACEBOOK_SIGN_IN_ENABLED'),
+    google: bool.fromEnvironment('GOOGLE_SIGN_IN_ENABLED', defaultValue: true),
+    github: bool.fromEnvironment('GITHUB_SIGN_IN_ENABLED', defaultValue: true),
   );
 });

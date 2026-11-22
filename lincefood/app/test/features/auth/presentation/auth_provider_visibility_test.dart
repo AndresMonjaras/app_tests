@@ -12,7 +12,7 @@ void main() {
       ProviderScope(
         overrides: [
           authProviderAvailabilityProvider.overrideWithValue(
-            const AuthProviderAvailability(google: false, facebook: false),
+            const AuthProviderAvailability(google: false, github: false),
           ),
         ],
         child: const MaterialApp(home: AuthScreen()),
@@ -20,11 +20,11 @@ void main() {
     );
 
     expect(find.text('Continuar con Google'), findsOneWidget);
-    expect(find.text('Continuar con Facebook'), findsOneWidget);
+    expect(find.text('Continuar con GitHub'), findsOneWidget);
     expect(
       tester
           .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Continuar con Facebook'),
+            find.widgetWithText(OutlinedButton, 'Continuar con GitHub'),
           )
           .onPressed,
       isNull,
@@ -38,7 +38,7 @@ void main() {
       ProviderScope(
         overrides: [
           authProviderAvailabilityProvider.overrideWithValue(
-            const AuthProviderAvailability(google: true, facebook: false),
+            const AuthProviderAvailability(google: true, github: false),
           ),
         ],
         child: const MaterialApp(home: AuthScreen()),
@@ -46,11 +46,11 @@ void main() {
     );
 
     expect(find.text('Continuar con Google'), findsOneWidget);
-    expect(find.text('Continuar con Facebook'), findsOneWidget);
+    expect(find.text('Continuar con GitHub'), findsOneWidget);
     expect(
       tester
           .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Continuar con Facebook'),
+            find.widgetWithText(OutlinedButton, 'Continuar con GitHub'),
           )
           .onPressed,
       isNull,

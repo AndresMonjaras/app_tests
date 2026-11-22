@@ -2,6 +2,4 @@
 # Habilita un proveedor solo después de configurarlo en Firebase y su consola.
 # Para Maps, compila con --dart-define=GOOGLE_MAPS_ENABLED=true.
 # Los botones sociales requieren sus dart-define respectivos en true.
-FACEBOOK_APP_ID=YOUR_FACEBOOK_APP_ID
-FACEBOOK_CLIENT_TOKEN=YOUR_FACEBOOK_CLIENT_TOKEN
 GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY

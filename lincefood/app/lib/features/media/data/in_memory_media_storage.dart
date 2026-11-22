@@ -7,6 +7,7 @@ class InMemoryMediaStorage implements MediaStorage {
   final Map<String, Uint8List> _files = {};
   final Map<String, String> _contentTypes = {};
   int _nextProductImageId = 0;
+  int _nextAvatarVersion = 0;
 
   Map<String, Uint8List> get files => Map.unmodifiable({
     for (final entry in _files.entries)
@@ -30,7 +31,7 @@ class InMemoryMediaStorage implements MediaStorage {
   }
 
   @override
-  Future<String> uploadAvatar(
+  Future<StoredAvatar> uploadAvatar(
     String uid,
     Uint8List bytes,
     String contentType,
@@ -38,9 +39,16 @@ class InMemoryMediaStorage implements MediaStorage {
     MediaUploadValidator.validate(bytes, contentType);
     MediaUploadValidator.validatePathSegment(uid, 'uid');
 
-    final path = 'profiles/$uid/avatar/avatar';
+    final extension = switch (contentType) {
+      'image/jpeg' => 'jpg',
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => throw ArgumentError.value(contentType, 'contentType'),
+    };
+    final path =
+        'profiles/$uid/avatar/avatar-${_nextAvatarVersion++}.$extension';
     _save(path, bytes, contentType);
-    return 'memory://$path';
+    return StoredAvatar(path: path, downloadUrl: 'memory://$path');
   }
 
   @override
@@ -51,10 +59,19 @@ class InMemoryMediaStorage implements MediaStorage {
   }
 
   @override
-  Future<void> deleteAvatar(String uid) async {
+  Future<void> deleteAvatar(String uid, String path) async {
     MediaUploadValidator.validatePathSegment(uid, 'uid');
-
-    final path = 'profiles/$uid/avatar/avatar';
+    final prefix = 'profiles/$uid/avatar/';
+    final fileName = path.startsWith(prefix)
+        ? path.substring(prefix.length)
+        : '';
+    if (fileName.isEmpty || fileName.contains('/') || fileName.contains('..')) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'La ruta no pertenece al avatar.',
+      );
+    }
     _files.remove(path);
     _contentTypes.remove(path);
   }

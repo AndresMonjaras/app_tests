@@ -8,6 +8,7 @@ app/coverage/
 
 # Local Android SDK paths and Maps key (the example is safe to commit).
 app/android/local.properties
+app/android/app/google-services.json
 
 # Firebase local state and generated logs.
 .firebase/

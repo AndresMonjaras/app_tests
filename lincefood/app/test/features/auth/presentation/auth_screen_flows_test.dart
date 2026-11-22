@@ -20,7 +20,7 @@ class _RecordingAuthService implements FirebaseAuthService {
   Future<void> signInWithGoogle() async => llamadas.add('google');
 
   @override
-  Future<void> signInWithFacebook() async => llamadas.add('facebook');
+  Future<void> signInWithGitHub() async => llamadas.add('github');
 
   @override
   Future<void> recoverPassword(String email) async =>
@@ -34,14 +34,14 @@ Future<void> _pumpLogin(
   WidgetTester tester, {
   required _RecordingAuthService service,
   bool google = false,
-  bool facebook = false,
+  bool github = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         firebaseAuthServiceProvider.overrideWithValue(service),
         authProviderAvailabilityProvider.overrideWithValue(
-          AuthProviderAvailability(google: google, facebook: facebook),
+          AuthProviderAvailability(google: google, github: github),
         ),
       ],
       child: const MaterialApp(home: AuthScreen()),

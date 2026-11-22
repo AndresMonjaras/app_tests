@@ -16,6 +16,7 @@ service firebase.storage {
       return request.auth != null
         && request.auth.uid == uid
         && request.auth.token.email_verified == true
+        && request.auth.token.avatar_editable == true
         && request.auth.token.firebase.sign_in_provider == 'password';
     }
 

@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../auth/presentation/auth_controller.dart';
 import '../../media/domain/media_upload_validator.dart';
 import '../../media/presentation/media_storage_provider.dart';
 import '../data/firebase_profile_avatar_repository.dart';
+import '../data/firebase_profile_repository.dart';
 import '../domain/profile_avatar_repository.dart';
 
 abstract interface class AvatarImagePicker {
@@ -35,6 +37,7 @@ final profileAvatarRepositoryProvider = Provider<ProfileAvatarRepository>((
 ) {
   return FirebaseProfileAvatarRepository(
     authentication: ref.watch(firebaseAuthProvider),
+    database: FirebaseDatabase.instance,
     mediaStorage: ref.watch(mediaStorageProvider),
   );
 });
@@ -67,6 +70,8 @@ class ProfileController extends Notifier<ProfileAvatarState> {
       await ref
           .read(profileAvatarRepositoryProvider)
           .saveAvatar(uid, bytes, contentType);
+      ref.invalidate(customerProfileProvider);
+      ref.invalidate(avatarEligibilityProvider);
       if (ref.mounted) state = const ProfileAvatarState();
     } on ArgumentError {
       if (ref.mounted) {
@@ -88,6 +93,8 @@ class ProfileController extends Notifier<ProfileAvatarState> {
     state = const ProfileAvatarState(isBusy: true);
     try {
       await ref.read(profileAvatarRepositoryProvider).removeAvatar(uid);
+      ref.invalidate(customerProfileProvider);
+      ref.invalidate(avatarEligibilityProvider);
       if (ref.mounted) state = const ProfileAvatarState();
     } catch (_) {
       if (ref.mounted) {

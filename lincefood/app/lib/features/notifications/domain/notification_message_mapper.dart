@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
-const notificationCopySeedAsset = '../firebase/seeds/notificaciones.seed.json';
+const notificationCopySeedAsset = 'assets/data/notificaciones.seed.json';
 
 enum NotificationTarget { catalog, orders }
 

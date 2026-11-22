@@ -22,7 +22,8 @@ void main() {
       );
 
       expect(productPath, startsWith('menu/product-1/'));
-      expect(avatarPath, 'memory://profiles/user-1/avatar/avatar');
+      expect(avatarPath.path, startsWith('profiles/user-1/avatar/avatar-'));
+      expect(avatarPath.downloadUrl, 'memory://${avatarPath.path}');
       expect(storage.files, hasLength(2));
       expect(
         storage.contentTypes.values,
@@ -51,13 +52,15 @@ void main() {
     test('elimina el avatar sin afectar imágenes de menú', () async {
       final storage = InMemoryMediaStorage();
       final bytes = Uint8List.fromList([1, 2, 3]);
-      await storage.uploadAvatar('user-1', bytes, 'image/jpeg');
+      final avatar = await storage.uploadAvatar('user-1', bytes, 'image/jpeg');
       await storage.uploadProductImage('product-1', bytes, 'image/jpeg');
 
-      await storage.deleteAvatar('user-1');
+      await storage.deleteAvatar('user-1', avatar.path);
 
       expect(
-        storage.files.containsKey('profiles/user-1/avatar/avatar'),
+        storage.files.keys.any(
+          (path) => path.startsWith('profiles/user-1/avatar/'),
+        ),
         isFalse,
       );
       expect(storage.files.keys, hasLength(1));

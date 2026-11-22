@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/presentation/auth_controller.dart';
 import '../catalog/presentation/catalog_screen.dart';
 import '../location/presentation/cafeteria_location_screen.dart';
 import '../orders/presentation/orders_screen.dart';
@@ -28,51 +29,79 @@ class AppNavigationShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(navigationControllerProvider);
+    final authUser = ref.watch(authUserProvider).asData?.value;
+    final width = MediaQuery.sizeOf(context).width;
+    final useRail = width >= 840;
     final screens = [
-      const CatalogScreen(),
+      CatalogScreen(userPhotoUrl: authUser?.photoURL),
       const OrdersScreen(),
       const CafeteriaLocationScreen(),
       const ProfileScreen(),
     ];
-    const destinations = [
-      _NavigationDestination(
+    final destinations = [
+      const _NavigationDestination(
         label: 'Inicio',
-        icon: Icons.home_outlined,
-        selectedIcon: Icons.home,
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home),
       ),
-      _NavigationDestination(
+      const _NavigationDestination(
         label: 'Pedidos',
-        icon: Icons.receipt_long_outlined,
-        selectedIcon: Icons.receipt_long,
+        icon: Icon(Icons.receipt_long_outlined),
+        selectedIcon: Icon(Icons.receipt_long),
       ),
-      _NavigationDestination(
+      const _NavigationDestination(
         label: 'Mapa',
-        icon: Icons.map_outlined,
-        selectedIcon: Icons.map,
+        icon: Icon(Icons.map_outlined),
+        selectedIcon: Icon(Icons.map),
       ),
       _NavigationDestination(
         label: 'Perfil',
-        icon: Icons.person_outline,
-        selectedIcon: Icons.person,
+        icon: _ProfileNavigationAvatar(photoUrl: authUser?.photoURL),
+        selectedIcon: _ProfileNavigationAvatar(photoUrl: authUser?.photoURL),
       ),
     ];
 
+    final body = IndexedStack(index: selected.index, children: screens);
     return Scaffold(
-      body: IndexedStack(index: selected.index, children: screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selected.index,
-        onDestinationSelected: (index) => ref
-            .read(navigationControllerProvider.notifier)
-            .select(_sections[index]),
-        destinations: [
-          for (final item in destinations)
-            NavigationDestination(
-              icon: Icon(item.icon),
-              selectedIcon: Icon(item.selectedIcon),
-              label: item.label,
+      body: useRail
+          ? Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: selected.index,
+                  labelType: NavigationRailLabelType.all,
+                  onDestinationSelected: (index) => ref
+                      .read(navigationControllerProvider.notifier)
+                      .select(_sections[index]),
+                  destinations: [
+                    for (final item in destinations)
+                      NavigationRailDestination(
+                        icon: item.icon,
+                        selectedIcon: item.selectedIcon,
+                        label: Text(item.label),
+                      ),
+                  ],
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: body),
+              ],
+            )
+          : body,
+      bottomNavigationBar: useRail
+          ? null
+          : NavigationBar(
+              selectedIndex: selected.index,
+              onDestinationSelected: (index) => ref
+                  .read(navigationControllerProvider.notifier)
+                  .select(_sections[index]),
+              destinations: [
+                for (final item in destinations)
+                  NavigationDestination(
+                    icon: item.icon,
+                    selectedIcon: item.selectedIcon,
+                    label: item.label,
+                  ),
+              ],
             ),
-        ],
-      ),
       floatingActionButton: selected == AppSection.home
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.of(context).pushNamed('/cart'),
@@ -92,6 +121,28 @@ class _NavigationDestination {
   });
 
   final String label;
-  final IconData icon;
-  final IconData selectedIcon;
+  final Widget icon;
+  final Widget selectedIcon;
+}
+
+class _ProfileNavigationAvatar extends StatelessWidget {
+  const _ProfileNavigationAvatar({this.photoUrl});
+
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photoUrl == null || photoUrl!.isEmpty) {
+      return const Icon(Icons.person_outline);
+    }
+    return ClipOval(
+      child: Image.network(
+        photoUrl!,
+        width: 24,
+        height: 24,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const Icon(Icons.person_outline),
+      ),
+    );
+  }
 }

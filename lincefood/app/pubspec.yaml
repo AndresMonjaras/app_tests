@@ -22,7 +22,6 @@ dependencies:
   firebase_storage: ^14.1.0
   image_picker: ^1.2.4
   google_sign_in: ^7.2.0
-  flutter_facebook_auth: ^7.3.3
   local_auth: ^3.0.2
   google_maps_flutter: ^2.19.0
   geolocator: ^14.0.1
@@ -40,5 +39,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - ../firebase/seeds/notificaciones.seed.json
+    - assets/data/notificaciones.seed.json
     - assets/images/
