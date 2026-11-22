@@ -5,6 +5,8 @@ import '../catalog/presentation/catalog_screen.dart';
 import '../location/presentation/cafeteria_location_screen.dart';
 import '../orders/presentation/orders_screen.dart';
 import '../profile/data/firebase_profile_repository.dart';
+import '../profile/domain/avatar_preset.dart';
+import '../profile/presentation/profile_controller.dart';
 import '../profile/presentation/profile_screen.dart';
 
 enum AppSection { home, orders, map, profile }
@@ -31,8 +33,14 @@ class AppNavigationShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(navigationControllerProvider);
     final photoUrl = ref.watch(profilePhotoUrlProvider);
+    final preset = ref.watch(currentAvatarPresetProvider);
+    final avatar = ProfileAvatar(
+      preset: preset,
+      photoUrl: photoUrl,
+      radius: 12,
+    );
     final screens = [
-      CatalogScreen(userPhotoUrl: photoUrl),
+      const CatalogScreen(),
       const OrdersScreen(),
       const CafeteriaLocationScreen(),
       const ProfileScreen(),
@@ -55,8 +63,8 @@ class AppNavigationShell extends ConsumerWidget {
       ),
       _NavigationDestination(
         label: 'Perfil',
-        icon: _ProfileNavigationAvatar(photoUrl: photoUrl),
-        selectedIcon: _ProfileNavigationAvatar(photoUrl: photoUrl),
+        icon: avatar,
+        selectedIcon: avatar,
       ),
     ];
 
@@ -130,26 +138,4 @@ class _NavigationDestination {
   final String label;
   final Widget icon;
   final Widget selectedIcon;
-}
-
-class _ProfileNavigationAvatar extends StatelessWidget {
-  const _ProfileNavigationAvatar({this.photoUrl});
-
-  final String? photoUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    if (photoUrl == null || photoUrl!.isEmpty) {
-      return const Icon(Icons.person_outline);
-    }
-    return ClipOval(
-      child: Image.network(
-        photoUrl!,
-        width: 24,
-        height: 24,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(Icons.person_outline),
-      ),
-    );
-  }
 }

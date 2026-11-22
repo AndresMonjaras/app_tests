@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../../media/domain/media_storage.dart';
 import '../../media/domain/media_upload_validator.dart';
 import '../domain/avatar_rules.dart';
+import '../domain/customer_profile.dart';
 import '../domain/profile_avatar_repository.dart';
 
 class FirebaseProfileAvatarRepository implements ProfileAvatarRepository {
@@ -95,14 +96,33 @@ class FirebaseProfileAvatarRepository implements ProfileAvatarRepository {
     }
   }
 
-  Future<User> _requireEditableUser(String uid) async {
+  @override
+  Future<void> saveAvatarPreset(String uid, String value) async {
+    _requireCurrentUser(uid);
+    await _database.ref('profiles/$uid').update(avatarPresetUpdate(value));
+  }
+
+  @override
+  Stream<String?> watchAvatarPreset(String uid) {
+    return _database.ref('profiles/$uid/avatarPreset').onValue.map((event) {
+      final value = event.snapshot.value;
+      return value is String ? value : null;
+    });
+  }
+
+  User _requireCurrentUser(String uid) {
     final user = _authentication.currentUser;
-    final providerId = user != null && user.providerData.length == 1
-        ? user.providerData.single.providerId
-        : '';
     if (user == null || user.uid != uid) {
       throw StateError('La sesión cambió. Inicia sesión e inténtalo de nuevo.');
     }
+    return user;
+  }
+
+  Future<User> _requireEditableUser(String uid) async {
+    final user = _requireCurrentUser(uid);
+    final providerId = user.providerData.length == 1
+        ? user.providerData.single.providerId
+        : '';
     if (!puedeEditarAvatar(providerId) || !user.emailVerified) {
       throw StateError(
         'Verifica el correo de tu cuenta para cambiar el avatar.',

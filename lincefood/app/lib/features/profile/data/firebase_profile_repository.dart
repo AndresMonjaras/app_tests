@@ -26,12 +26,14 @@ class FirebaseProfileRepository {
       final fields = value is Map
           ? value.map((key, item) => MapEntry('$key', item))
           : const <String, Object?>{};
+      final preset = fields['avatarPreset'];
       return CustomerProfile(
         id: user.uid,
         name: (fields['displayName'] as String?) ?? user.displayName ?? '',
         email: user.email ?? '',
         provider: user.providerData.map((info) => info.providerId).join(', '),
         providerPhotoUrl: _profilePhotoUrl(user),
+        avatarPreset: preset is String ? preset : 'neutro',
         hasCustomPhoto:
             user.providerData.length == 1 &&
             user.providerData.single.providerId == 'password' &&
@@ -75,11 +77,27 @@ final firebaseProfileRepositoryProvider = Provider<FirebaseProfileRepository>(
 
 final profilePhotoUrlProvider = Provider<String?>((ref) {
   final user = ref.watch(authUserProvider).asData?.value;
-  return user == null ? null : _profilePhotoUrl(user);
+  if (user == null) return null;
+  if (user.providerData.length == 1 &&
+      user.providerData.single.providerId == 'password' &&
+      (!user.emailVerified ||
+          ref.watch(avatarEligibilityProvider).asData?.value != true)) {
+    return null;
+  }
+  return _profilePhotoUrl(user);
 });
 
 String? _profilePhotoUrl(User user) {
   final providers = user.providerData;
+  for (final provider in providers) {
+    final photoUrl = provider.photoURL?.trim();
+    if ((provider.providerId == 'google.com' ||
+            provider.providerId == 'github.com') &&
+        photoUrl != null &&
+        photoUrl.isNotEmpty) {
+      return photoUrl;
+    }
+  }
   for (final provider in providers) {
     final photoUrl = provider.photoURL?.trim();
     if (provider.providerId != 'password' &&
@@ -89,8 +107,9 @@ String? _profilePhotoUrl(User user) {
     }
   }
   // Al vincular una cuenta social, Firebase puede conservar el avatar de correo.
-  if (providers.length > 1 &&
-      providers.any((provider) => provider.providerId == 'password')) {
+  if (providers.isEmpty ||
+      (providers.length > 1 &&
+          providers.any((provider) => provider.providerId == 'password'))) {
     return null;
   }
   final photoUrl = user.photoURL?.trim();

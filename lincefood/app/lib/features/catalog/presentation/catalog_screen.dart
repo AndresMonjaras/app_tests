@@ -4,18 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
 import '../../cart/presentation/cart_controller.dart';
+import '../../profile/data/firebase_profile_repository.dart';
+import '../../profile/domain/avatar_preset.dart';
+import '../../profile/presentation/profile_controller.dart';
 import '../domain/product.dart';
 import 'catalog_providers.dart';
 import 'product_image.dart';
 
 class CatalogScreen extends ConsumerWidget {
-  const CatalogScreen({super.key, this.userPhotoUrl});
-
-  final String? userPhotoUrl;
+  const CatalogScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photoUrl = userPhotoUrl;
+    final photoUrl = ref.watch(profilePhotoUrlProvider);
+    final preset = ref.watch(currentAvatarPresetProvider);
     final products = ref.watch(catalogProductsProvider);
     final filter = ref.watch(catalogFilterProvider);
     final query = filter.query;
@@ -28,11 +30,7 @@ class CatalogScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Mi perfil',
             onPressed: () => Navigator.of(context).pushNamed(AppRouter.profile),
-            icon: CircleAvatar(
-              radius: 16,
-              foregroundImage: photoUrl == null ? null : NetworkImage(photoUrl),
-              child: const Icon(Icons.person_outline, size: 20),
-            ),
+            icon: ProfileAvatar(preset: preset, photoUrl: photoUrl, radius: 16),
           ),
           IconButton(
             tooltip: 'Abrir carrito',

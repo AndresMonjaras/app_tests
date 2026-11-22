@@ -15,7 +15,6 @@ import '../features/pickup_qr/presentation/pickup_qr_screen.dart';
 import '../features/orders/presentation/staff_orders_screen.dart';
 import '../features/plans/presentation/plans_screen.dart';
 import '../features/privacy/privacy_notice_screen.dart';
-import '../features/profile/data/firebase_profile_repository.dart';
 import '../features/profile/presentation/profile_screen.dart';
 
 class AppRouter {
@@ -47,12 +46,7 @@ class AppRouter {
       onboarding || auth || emailVerification || home => const AuthGateScreen(),
       admin => const ProtectedRoute(child: AdminCatalogScreen()),
       adminPanel => const ProtectedRoute(child: AdminPanelScreen()),
-      catalog => ProtectedRoute(
-        child: Consumer(
-          builder: (context, ref, child) =>
-              CatalogScreen(userPhotoUrl: ref.watch(profilePhotoUrlProvider)),
-        ),
-      ),
+      catalog => const ProtectedRoute(child: CatalogScreen()),
       cart => const ProtectedRoute(child: CartScreen()),
       orders => ProtectedRoute(child: OrdersScreen(orderId: orderId)),
       staffOrders => const ProtectedRoute(child: StaffOrdersScreen()),

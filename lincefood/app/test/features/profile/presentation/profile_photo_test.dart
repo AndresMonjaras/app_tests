@@ -14,7 +14,10 @@ void main() {
     final users = StreamController<User?>();
     addTearDown(users.close);
     final container = ProviderContainer(
-      overrides: [authUserProvider.overrideWith((ref) => users.stream)],
+      overrides: [
+        authUserProvider.overrideWith((ref) => users.stream),
+        avatarEligibilityProvider.overrideWith((ref) async => true),
+      ],
     );
     addTearDown(container.dispose);
     final urls = StreamController<String?>();
@@ -30,6 +33,7 @@ void main() {
     addTearDown(subscription.close);
 
     users.add(const _User(customPhoto, [_Provider('password')]));
+    await container.read(avatarEligibilityProvider.future);
     await container.pump();
     users.add(
       const _User(customPhoto, [
@@ -48,6 +52,12 @@ void main() {
 
 class _User implements User {
   const _User(this.photoURL, this.providerData);
+
+  @override
+  String get uid => 'perfil-de-prueba';
+
+  @override
+  bool get emailVerified => true;
 
   @override
   final String? photoURL;
