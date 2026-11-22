@@ -18,7 +18,7 @@ class OrderTimeline extends StatelessWidget {
   static const List<_TimelineStep> _steps = [
     _TimelineStep(OrderStatus.paid, 'Pagado'),
     _TimelineStep(OrderStatus.confirmed, 'Confirmado'),
-    _TimelineStep(OrderStatus.preparing, 'En preparación'),
+    _TimelineStep(OrderStatus.preparing, 'En cocina'),
     _TimelineStep(OrderStatus.ready, 'Listo para recoger'),
     _TimelineStep(OrderStatus.delivered, 'Entregado'),
   ];
