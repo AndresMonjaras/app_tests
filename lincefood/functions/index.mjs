@@ -146,3 +146,4 @@ export {
   setCafeteriaLocation,
   validateDeliveryLocation,
 } from './src/location/index.mjs';
+export { createMembershipPaymentIntent } from './src/memberships/callable.mjs';

@@ -1,0 +1,28 @@
+{
+  "membershipPlans": {
+    "basico": {
+      "demo": true,
+      "prices": {
+        "weekly": 0,
+        "monthly": 0,
+        "lifetime": 0
+      }
+    },
+    "campus_plus": {
+      "demo": true,
+      "prices": {
+        "weekly": 1000,
+        "monthly": 3000,
+        "lifetime": 30000
+      }
+    },
+    "campus_pro": {
+      "demo": true,
+      "prices": {
+        "weekly": 1500,
+        "monthly": 5000,
+        "lifetime": 50000
+      }
+    }
+  }
+}

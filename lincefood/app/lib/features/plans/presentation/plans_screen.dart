@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../payments/presentation/payment_dependencies.dart';
 import '../domain/service_plan.dart';
+import 'membership_checkout.dart';
 import 'plans_providers.dart';
-
-const _pendingCheckoutNotice =
-    'Suscripción pendiente de configuración en Stripe Sandbox.';
 
 class PlansScreen extends ConsumerWidget {
   const PlansScreen({super.key});
@@ -14,93 +13,114 @@ class PlansScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final membership = ref.watch(currentMembershipProvider);
-    final now = DateTime.now();
-    final currentPlanId = membership.value?.planId ?? 'basico';
+    final prices = ref.watch(membershipPricesProvider);
+    final configured = ref.watch(paymentConfiguredProvider);
+    final checkout = ref.watch(membershipCheckoutProvider);
+    final controller = ref.read(membershipCheckoutProvider.notifier);
+    final current = membership.value;
+    final active = current?.hasBenefits(DateTime.now()) == true
+        ? current
+        : null;
+    final currentPlan = _servicePlanById(active?.planId ?? 'basico');
+    final intentId = checkout.intentId;
+    final confirming =
+        intentId != null && current?.appliedPayments.contains(intentId) != true;
+    final canPay =
+        configured && !checkout.busy && !confirming && membership is AsyncData;
+    final paymentMessage = checkout.busy
+        ? 'Iniciando pago…'
+        : confirming
+        ? 'Esperando confirmación del pago…'
+        : checkout.message;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Planes de servicio')),
+      bottomNavigationBar: paymentMessage == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Semantics(liveRegion: true, child: Text(paymentMessage)),
+              ),
+            ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'Los planes reservan horarios de recogida. No cambian pedidos ya confirmados por la cafetería. Los precios son de prueba.',
-          ),
+          if (membership.isLoading)
+            const LinearProgressIndicator(semanticsLabel: 'Cargando plan')
+          else
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  membership.hasError
+                      ? 'No se pudo consultar tu plan.'
+                      : _describeMembership(active, currentPlan),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
-          _MembershipStatus(
-            loading: membership.isLoading,
-            membership: membership.value,
-            now: now,
+          SegmentedButton<MembershipPeriod>(
+            showSelectedIcon: false,
+            segments: [
+              for (final period in MembershipPeriod.values)
+                ButtonSegment(value: period, label: Text(period.label)),
+            ],
+            selected: {checkout.period},
+            onSelectionChanged: checkout.busy
+                ? null
+                : (selection) => controller.selectPeriod(selection.single),
           ),
+          if (prices.isLoading)
+            const LinearProgressIndicator(semanticsLabel: 'Cargando precios')
+          else if (prices.hasError)
+            const Text('No se pudieron consultar los precios.'),
+          if (!configured) const Text('Pagos no configurados.'),
           const SizedBox(height: 16),
           for (final plan in servicePlans)
-            _PlanCard(plan: plan, isCurrent: plan.id == currentPlanId),
+            _PlanCard(
+              plan: plan,
+              isCurrent: plan.id == currentPlan?.id && membership is AsyncData,
+              price: prices.value?[plan.id]?.amounts[checkout.period],
+              demo: prices.value?[plan.id]?.demo ?? false,
+              onPay:
+                  canPay &&
+                      (active?.period != MembershipPeriod.lifetime ||
+                          (checkout.period == MembershipPeriod.lifetime &&
+                              plan.reservationsPerMonth >
+                                  (currentPlan?.reservationsPerMonth ?? 0)))
+                  ? () => controller.pay(plan.id)
+                  : null,
+            ),
         ],
       ),
     );
   }
 }
 
-class _MembershipStatus extends StatelessWidget {
-  const _MembershipStatus({
-    required this.loading,
-    required this.membership,
-    required this.now,
-  });
-
-  final bool loading;
-  final Membership? membership;
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const LinearProgressIndicator(semanticsLabel: 'Cargando plan');
-    }
-    final current = membership;
-    final text = current == null
-        ? 'Plan actual: Básico.'
-        : _describe(current, now);
-    return Card(
-      child: Padding(padding: const EdgeInsets.all(16), child: Text(text)),
-    );
-  }
-
-  String _describe(Membership membership, DateTime now) {
-    final plan = servicePlanById(membership.planId);
-    final name = plan?.name ?? 'Desconocido';
-    final end = membership.currentPeriodEnd;
-    if (membership.status == 'past_due') {
-      return 'Plan actual: $name. Pago pendiente; los beneficios están suspendidos.';
-    }
-    if (membership.hasBenefits(now) && end != null) {
-      final until = _formatDate(end);
-      return membership.cancelAtPeriodEnd
-          ? 'Plan actual: $name. La renovación está cancelada; beneficios hasta $until.'
-          : 'Plan actual: $name. Beneficios activos hasta $until.';
-    }
-    return 'Plan actual: $name. Sin beneficios activos.';
-  }
-}
-
 class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.plan, required this.isCurrent});
+  const _PlanCard({
+    required this.plan,
+    required this.isCurrent,
+    required this.price,
+    required this.demo,
+    required this.onPay,
+  });
 
   final ServicePlan plan;
   final bool isCurrent;
+  final int? price;
+  final bool demo;
+  final VoidCallback? onPay;
 
   @override
   Widget build(BuildContext context) {
-    final price = plan.isPaid
-        ? '${formatMoney(plan.priceCentsPerMonth)} al mes (prueba)'
-        : 'Sin costo';
-    final String buttonLabel;
-    if (isCurrent) {
-      buttonLabel = 'Tu plan actual';
-    } else if (plan.isPaid) {
-      buttonLabel = 'Pendiente de Stripe Sandbox';
-    } else {
-      buttonLabel = 'Plan predeterminado';
-    }
+    final amount = price;
+    final priceLabel = !plan.isPaid
+        ? 'Sin costo'
+        : amount == null
+        ? 'Precio no disponible'
+        : '${formatMoney(amount)}${demo ? ' (demostración)' : ''}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -110,8 +130,9 @@ class _PlanCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(plan.name, style: Theme.of(context).textTheme.titleLarge),
+            if (isCurrent) const Text('Tu plan actual'),
             const SizedBox(height: 4),
-            Text(price),
+            Text(priceLabel),
             const SizedBox(height: 12),
             const Text(
               'Consulta, compra, seguimiento, QR y avisos: incluidos.',
@@ -125,19 +146,16 @@ class _PlanCard extends StatelessWidget {
               Text(
                 'Reserva hasta ${plan.maxLeadHours} h antes de la recogida.',
               ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(onPressed: null, child: Text(buttonLabel)),
-            ),
-            if (plan.isPaid && !isCurrent)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _pendingCheckoutNotice,
-                  style: Theme.of(context).textTheme.bodySmall,
+            if (plan.isPaid && amount != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onPay,
+                  child: Text('Pagar ${formatMoney(amount)}'),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -145,16 +163,34 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-ServicePlan? servicePlanById(String id) {
+ServicePlan? _servicePlanById(String id) {
   for (final plan in servicePlans) {
     if (plan.id == id) return plan;
   }
   return null;
 }
 
-String _formatDate(DateTime date) {
-  final local = date.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  return '$day/$month/${local.year}';
+String _describeMembership(Membership? membership, ServicePlan? plan) {
+  final name = plan?.name ?? 'Desconocido';
+  if (membership == null) return 'Tu plan: $name';
+  if (membership.period == MembershipPeriod.lifetime) {
+    return 'Tu plan: $name · de por vida';
+  }
+  final end = membership.currentPeriodEnd?.toLocal();
+  if (end == null) return 'Tu plan: $name';
+  const months = [
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
+  return 'Tu plan: $name · vence el ${end.day} ${months[end.month - 1]}';
 }

@@ -132,7 +132,7 @@ describe('rutas privadas y catálogo', () => {
       'pickupTokens/token-1',
       'staffQueue/order-1',
       'pickupDeliveries/order-1',
-      'memberships/owner',
+      'membershipPayments/owner/pi_1',
       'pickupSlots/slot-1',
     ];
 
@@ -147,6 +147,42 @@ describe('rutas privadas y catálogo', () => {
     const adminDatabase = testEnvironment.authenticatedContext('admin', { admin: true }).database();
     await assertFails(get(ref(customerDatabase, 'orderEvents/order-1')));
     await assertSucceeds(get(ref(adminDatabase, 'orderEvents/order-1')));
+  });
+
+  it('solo el dueño puede leer su membresía y ningún cliente puede escribirla', async () => {
+    const path = 'memberships/owner';
+    const membership = { planId: 'campus_pro', period: 'lifetime', status: 'active' };
+    await testEnvironment.withSecurityRulesDisabled((context) =>
+      set(ref(context.database(), path), membership),
+    );
+    const owner = testEnvironment.authenticatedContext('owner').database();
+    const other = testEnvironment.authenticatedContext('other').database();
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    const guest = testEnvironment.unauthenticatedContext().database();
+
+    await assertSucceeds(get(ref(owner, path)));
+    await assertFails(get(ref(owner, 'memberships')));
+    for (const database of [other, admin, guest]) {
+      await assertFails(get(ref(database, path)));
+    }
+    for (const database of [owner, other, admin, guest]) {
+      await assertFails(set(ref(database, path), membership));
+    }
+  });
+
+  it('solo usuarios autenticados leen los precios y ningún cliente los modifica', async () => {
+    const path = 'membershipPlans/campus_plus/prices/weekly';
+    await testEnvironment.withSecurityRulesDisabled((context) =>
+      set(ref(context.database(), path), 1000),
+    );
+    const owner = testEnvironment.authenticatedContext('owner').database();
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    const guest = testEnvironment.unauthenticatedContext().database();
+    await assertSucceeds(get(ref(owner, 'membershipPlans')));
+    await assertFails(get(ref(guest, path)));
+    for (const database of [owner, admin, guest]) {
+      await assertFails(set(ref(database, path), 1));
+    }
   });
 
   it('solo el dueño lee los avisos de rechazo y ningún cliente los escribe', async () => {

@@ -184,6 +184,20 @@ export function createStripeWebhookHandler({
     const outcome = rule.outcome;
 
     const intent = event.data?.object;
+    if (intent?.metadata?.type === 'membership') {
+      if (event.type !== 'payment_intent.succeeded') {
+        response.status(200).send('Evento de membresía ignorado.');
+        return;
+      }
+      try {
+        const { activateMembershipFromPayment } = await import('./memberships/membership_handlers.mjs');
+        const activated = await activateMembershipFromPayment(database, intent);
+        response.status(200).send(activated ? 'OK' : 'El cobro no coincide con la membresía.');
+      } catch (_) {
+        response.status(500).send('No se pudo confirmar la membresía.');
+      }
+      return;
+    }
     const orderId = intent?.metadata?.orderId;
     if (typeof orderId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(orderId)) {
       response.status(200).send('Evento sin pedido asociado.');
