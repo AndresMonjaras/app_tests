@@ -5,11 +5,20 @@
     "acceptingOrders": false,
     "locationConfigured": true,
     "location": {
-      "latitude": 20.5409871,
-      "longitude": -100.8128506,
-      "label": "Cafetería 3 ITC",
-      "address": "Tecnológico, 38010 Celaya, Gto."
+      "lat": 20.54146,
+      "lng": -100.81192,
+      "label": "Cafetería · Campus II",
+      "address": "TecNM Celaya Campus II, Centro de Convivencia Estudiantil, Av. Antonio García Cubas 1200 esq. Ignacio Borunda, Col. Alfredo Vázquez Bonfil, C.P. 38010, Celaya, Gto.",
+      "approximate": true,
+      "hours": "Lunes a viernes, 7:30–19:00"
     }
+  },
+  "deliveryCoverage": {
+    "centerLat": 20.54146,
+    "centerLng": -100.81192,
+    "radiusMeters": 350,
+    "approximate": true,
+    "note": "Radio provisional, validar límites reales del Campus II"
   },
   "categories": {
     "tortas": {

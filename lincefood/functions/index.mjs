@@ -142,3 +142,7 @@ export {
   upsertScholarship,
   revokeScholarship,
 } from './src/admin/index.mjs';
+export {
+  setCafeteriaLocation,
+  validateDeliveryLocation,
+} from './src/location/index.mjs';

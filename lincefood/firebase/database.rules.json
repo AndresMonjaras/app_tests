@@ -29,12 +29,54 @@
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true",
       "location": {
-        "latitude": {
+        ".validate": "newData.hasChildren(['lat', 'lng', 'address', 'label', 'approximate', 'hours'])",
+        "lat": {
           ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
         },
-        "longitude": {
+        "lng": {
           ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+        },
+        "address": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+        },
+        "label": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "approximate": {
+          ".validate": "newData.isBoolean()"
+        },
+        "hours": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160"
+        },
+        "$other": {
+          ".validate": false
         }
+      },
+      "locationConfigured": {
+        ".validate": "newData.isBoolean()"
+      }
+    },
+    "deliveryCoverage": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.admin === true",
+      ".validate": "newData.hasChildren(['centerLat', 'centerLng', 'radiusMeters', 'approximate', 'note'])",
+      "centerLat": {
+        ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+      },
+      "centerLng": {
+        ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+      },
+      "radiusMeters": {
+        ".validate": "newData.isNumber() && newData.val() > 0"
+      },
+      "approximate": {
+        ".validate": "newData.isBoolean()"
+      },
+      "note": {
+        ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300"
+      },
+      "$other": {
+        ".validate": false
       }
     },
     "categories": {

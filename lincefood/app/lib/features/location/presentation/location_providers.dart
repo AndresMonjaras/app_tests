@@ -3,7 +3,9 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/cafeteria_location_repository.dart';
+import '../data/delivery_location_repository.dart';
 import '../domain/cafeteria_location.dart';
+import '../domain/delivery_location.dart';
 
 final cafeteriaLocationRepositoryProvider =
     Provider<CafeteriaLocationRepository>((ref) {
@@ -15,14 +17,12 @@ final cafeteriaLocationProvider = StreamProvider<CafeteriaLocation?>((ref) {
   return ref.watch(cafeteriaLocationRepositoryProvider).watchLocation();
 });
 
-class MapLocationSearchController extends Notifier<bool> {
-  @override
-  bool build() => false;
+final deliveryCoverageProvider = StreamProvider<DeliveryCoverage?>((ref) {
+  if (Firebase.apps.isEmpty) return Stream.value(null);
+  return watchDeliveryCoverage(FirebaseDatabase.instance);
+});
 
-  void setSearching(bool searching) => state = searching;
-}
-
-final mapLocationSearchProvider =
-    NotifierProvider<MapLocationSearchController, bool>(
-      MapLocationSearchController.new,
-    );
+final deliveryLocationValidatorProvider =
+    Provider<Future<bool> Function(double, double)>((ref) {
+      return validateDeliveryLocation;
+    });

@@ -6,7 +6,7 @@ import '../features/admin/presentation/admin_panel_screen.dart';
 
 import '../features/cart/presentation/cart_screen.dart';
 import '../features/catalog/presentation/catalog_screen.dart';
-import '../features/location/presentation/cafeteria_location_screen.dart';
+import '../features/navigation/app_navigation_shell.dart';
 import '../features/navigation/auth_gate_screen.dart';
 import '../features/notifications/presentation/notification_preferences_screen.dart';
 import '../features/notifications/presentation/notifications_inbox_screen.dart';
@@ -50,9 +50,8 @@ class AppRouter {
       cart => const ProtectedRoute(child: CartScreen()),
       orders => ProtectedRoute(child: OrdersScreen(orderId: orderId)),
       staffOrders => const ProtectedRoute(child: StaffOrdersScreen()),
-      map || cafeteriaLocation => const ProtectedRoute(
-        child: CafeteriaLocationScreen(),
-      ),
+      map ||
+      cafeteriaLocation => ProtectedRoute(child: AppNavigationShell.openMap()),
       profile => const ProtectedRoute(child: ProfileScreen()),
       notificationPreferences => const ProtectedRoute(
         child: NotificationPreferencesScreen(),
