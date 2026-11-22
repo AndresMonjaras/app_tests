@@ -45,34 +45,4 @@ void main() {
 
     expect(find.text('Firebase no está configurado'), findsOneWidget);
   });
-
-  testWidgets(
-    'la vista previa permite revisar onboarding y Auth sin Firebase',
-    (tester) async {
-      await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(home: OnboardingScreen(previewMode: true)),
-        ),
-      );
-
-      await tester.tap(find.text('Continuar'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Continuar'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Comenzar'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text(
-          'Vista previa sin Firebase: puedes revisar las pantallas, pero el inicio de sesión está desactivado.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Inicia sesión'), findsOneWidget);
-      expect(
-        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-        isNull,
-      );
-    },
-  );
 }

@@ -13,16 +13,18 @@ flutter test
 flutter run --dart-define-from-file=config/firebase.dev.json
 ```
 
-Para revisar onboarding y la interfaz de acceso en un dispositivo sin Firebase,
-usa el modo de vista previa en una compilación de desarrollo:
+Para configurar el mapa en Android, agrega la clave restringida por paquete y
+SHA-1/SHA-256 a `android/local.properties` (Flutter ya crea ese archivo). Usa
+[`android/local.properties.example`](android/local.properties.example) como
+referencia; añade la línea sin reemplazar las rutas locales del SDK:
 
-```bash
-flutter run --dart-define=LINFOOD_PREVIEW=true
+```properties
+GOOGLE_MAPS_API_KEY=TU_CLAVE_RESTRINGIDA
 ```
 
-Este modo no autentica usuarios ni consulta el catálogo. Sin la bandera, la app
-mantiene la pantalla de configuración faltante; las compilaciones release
-ignoran la vista previa.
+Con Firebase configurado, activa el mapa con
+`--dart-define=GOOGLE_MAPS_ENABLED=true`. Sin coordenadas verificadas o sin esa
+autorización, se muestra un estado pendiente y la etiqueta/dirección disponible.
 
 La app conserva Riverpod como gestor de estado. No copies un `pubspec.lock` de
 otro proyecto; resuelve las dependencias desde esta carpeta.

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/orders/presentation/orders_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
-import '../../shared/widgets/feature_placeholder.dart';
+import '../../features/location/presentation/cafeteria_location_screen.dart';
 
 enum AppSection { catalog, orders, location, profile }
 
@@ -32,10 +32,7 @@ class AppNavigationShell extends ConsumerWidget {
     final screens = [
       const CatalogScreen(),
       const OrdersScreen(),
-      const FeaturePlaceholder(
-        title: 'Ubicación',
-        description: 'La ubicación real de la cafetería se mostrará cuando el campus confirme sus coordenadas.',
-      ),
+      const CafeteriaLocationScreen(),
       const ProfileScreen(),
     ];
     final destinations = const [

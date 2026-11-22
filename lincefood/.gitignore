@@ -6,6 +6,9 @@ app/.pub/
 app/build/
 app/coverage/
 
+# Local Android SDK paths and Maps key (the example is safe to commit).
+app/android/local.properties
+
 # Firebase local state and generated logs.
 .firebase/
 firebase-debug.log

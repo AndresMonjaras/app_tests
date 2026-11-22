@@ -1,0 +1,3 @@
+# Agrega esta línea a android/local.properties
+# Flutter genera sdk.dir y flutter.sdk según el equipo local.
+GOOGLE_MAPS_API_KEY=REEMPLAZA_CON_TU_CLAVE_RESTRINGIDA

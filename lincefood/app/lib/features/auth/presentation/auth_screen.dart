@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_controller.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({super.key, this.previewOnly = false});
-
-  final bool previewOnly;
+  const AuthScreen({super.key});
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -44,20 +42,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               padding: const EdgeInsets.all(24),
               shrinkWrap: true,
               children: [
-                if (widget.previewOnly) ...[
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        'Vista previa sin Firebase: puedes revisar las '
-                        'pantallas, pero el inicio de sesión está desactivado.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
                 Icon(
                   Icons.local_cafe_outlined,
                   size: 56,
@@ -180,7 +164,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: widget.previewOnly || state.isBusy
+                          onPressed: state.isBusy
                               ? null
                               : () {
                                   if (!_formKey.currentState!.validate()) {
@@ -222,7 +206,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   const Divider(height: 24),
                   OutlinedButton.icon(
-                    onPressed: widget.previewOnly || state.isBusy
+                    onPressed: state.isBusy
                         ? null
                         : controller.signInWithGoogle,
                     icon: const Icon(Icons.g_mobiledata, size: 26),
@@ -230,7 +214,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: widget.previewOnly || state.isBusy
+                    onPressed: state.isBusy
                         ? null
                         : controller.signInWithFacebook,
                     icon: const Icon(Icons.facebook),

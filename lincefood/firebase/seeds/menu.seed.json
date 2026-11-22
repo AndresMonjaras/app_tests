@@ -1,9 +1,15 @@
 {
   "cafeteria": {
-    "name": "Cafetería Universitaria",
+    "name": "Cafetería 3 ITC",
     "currency": "MXN",
     "acceptingOrders": false,
-    "locationConfigured": false
+    "locationConfigured": true,
+    "location": {
+      "latitude": 20.5409871,
+      "longitude": -100.8128506,
+      "label": "Cafetería 3 ITC",
+      "address": "Tecnológico, 38010 Celaya, Gto."
+    }
   },
   "categories": {
     "breakfast": {"name": "Desayunos", "sortOrder": 1},

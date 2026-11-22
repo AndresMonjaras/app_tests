@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/preferences/app_preferences_controller.dart';
-import '../../auth/presentation/auth_screen.dart';
 import '../domain/onboarding_step.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key, this.previewMode = false});
-
-  final bool previewMode;
+  const OnboardingScreen({super.key});
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -31,13 +28,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
     Future<void> finishOnboarding() async {
       await ref.read(appPreferencesProvider.notifier).finishOnboarding();
-      if (widget.previewMode && context.mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const AuthScreen(previewOnly: true),
-          ),
-        );
-      }
     }
 
     return Scaffold(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/preferences/app_preferences_controller.dart';
+import '../../biometrics/biometric_protection.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../navigation/auth_gate_screen.dart';
 import '../../../core/notifications/firebase_notification_service.dart';
@@ -42,6 +43,7 @@ class _ProfileContent extends ConsumerWidget {
     final upload = ref.watch(avatarUploadProvider);
     final preferences = ref.watch(appPreferencesProvider).asData?.value;
     final notifications = ref.watch(notificationPreferencesProvider);
+    final biometricAvailability = ref.watch(biometricAvailabilityProvider);
     final providerIds = user.providerData
         .map((item) => item.providerId)
         .toSet();
@@ -202,6 +204,44 @@ class _ProfileContent extends ConsumerWidget {
                         .read(notificationPreferencesProvider.notifier)
                         .setPreference(entry.key, enabled),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.fingerprint),
+                  title: const Text('Proteger QR con biometría'),
+                  subtitle: const Text(
+                    'Solicita huella o rostro antes de mostrar el código de recogida.',
+                  ),
+                  value: preferences?.protectPickupQrWithBiometrics ?? false,
+                  onChanged: (enabled) async {
+                    if (!enabled) {
+                      await ref
+                          .read(appPreferencesProvider.notifier)
+                          .setPickupQrBiometrics(false);
+                      return;
+                    }
+                    if (biometricAvailability.asData?.value != true) {
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Configura una huella o rostro en el dispositivo para activar esta protección.',
+                            ),
+                          ),
+                        );
+                      return;
+                    }
+                    await ref
+                        .read(appPreferencesProvider.notifier)
+                        .setPickupQrBiometrics(true);
+                  },
+                ),
               ],
             ),
           ),

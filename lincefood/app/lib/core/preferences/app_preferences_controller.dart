@@ -7,21 +7,29 @@ class AppPreferences {
   const AppPreferences({
     this.themeMode = ThemeMode.system,
     this.onboardingComplete = false,
+    this.protectPickupQrWithBiometrics = false,
   });
 
   final ThemeMode themeMode;
   final bool onboardingComplete;
+  final bool protectPickupQrWithBiometrics;
 
-  AppPreferences copyWith({ThemeMode? themeMode, bool? onboardingComplete}) =>
-      AppPreferences(
-        themeMode: themeMode ?? this.themeMode,
-        onboardingComplete: onboardingComplete ?? this.onboardingComplete,
-      );
+  AppPreferences copyWith({
+    ThemeMode? themeMode,
+    bool? onboardingComplete,
+    bool? protectPickupQrWithBiometrics,
+  }) => AppPreferences(
+    themeMode: themeMode ?? this.themeMode,
+    onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+    protectPickupQrWithBiometrics:
+        protectPickupQrWithBiometrics ?? this.protectPickupQrWithBiometrics,
+  );
 }
 
 class AppPreferencesController extends AsyncNotifier<AppPreferences> {
   static const _themeKey = 'lincefood_theme_mode';
   static const _onboardingKey = 'lincefood_onboarding_complete';
+  static const _biometricQrKey = 'lincefood_protect_pickup_qr';
 
   @override
   Future<AppPreferences> build() async {
@@ -34,6 +42,8 @@ class AppPreferencesController extends AsyncNotifier<AppPreferences> {
     return AppPreferences(
       themeMode: mode,
       onboardingComplete: preferences.getBool(_onboardingKey) ?? false,
+      protectPickupQrWithBiometrics:
+          preferences.getBool(_biometricQrKey) ?? false,
     );
   }
 
@@ -53,6 +63,13 @@ class AppPreferencesController extends AsyncNotifier<AppPreferences> {
     await preferences.setBool(_onboardingKey, true);
     final current = state.asData?.value ?? const AppPreferences();
     state = AsyncData(current.copyWith(onboardingComplete: true));
+  }
+
+  Future<void> setPickupQrBiometrics(bool enabled) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_biometricQrKey, enabled);
+    final current = state.asData?.value ?? const AppPreferences();
+    state = AsyncData(current.copyWith(protectPickupQrWithBiometrics: enabled));
   }
 }
 
