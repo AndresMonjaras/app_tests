@@ -19,8 +19,8 @@ class PaymentScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(paymentControllerProvider, (previous, next) {
-      if (next.status == PaymentStatus.pagado &&
-          previous?.status != PaymentStatus.pagado) {
+      if (next.status == PaymentStatus.esperandoConfirmacion &&
+          previous?.status != PaymentStatus.esperandoConfirmacion) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => OrdersScreen(orderId: orderId),
@@ -32,7 +32,8 @@ class PaymentScreen extends ConsumerWidget {
     final isConfigured = ref.watch(paymentConfiguredProvider);
     final paymentState = ref.watch(paymentControllerProvider);
     final isProcessing = paymentState.status == PaymentStatus.procesando;
-    final isPaid = paymentState.status == PaymentStatus.pagado;
+    final isAwaitingConfirmation =
+        paymentState.status == PaymentStatus.esperandoConfirmacion;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Pago')),
@@ -53,7 +54,7 @@ class PaymentScreen extends ConsumerWidget {
             ],
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: !isConfigured || isProcessing || isPaid
+              onPressed: !isConfigured || isProcessing || isAwaitingConfirmation
                   ? null
                   : () => ref
                         .read(paymentControllerProvider.notifier)
@@ -71,11 +72,16 @@ class PaymentScreen extends ConsumerWidget {
                         Text('Pagar ahora'),
                       ],
                     )
-                  : Text(isPaid ? 'Pagado' : 'Pagar ahora'),
+                  : Text(
+                      isAwaitingConfirmation ? 'Pago enviado' : 'Pagar ahora',
+                    ),
             ),
-            if (paymentState.status == PaymentStatus.pagado) ...[
+            if (isAwaitingConfirmation) ...[
               const SizedBox(height: 16),
-              const Text('Pago realizado correctamente.'),
+              const Text(
+                'Pago enviado. Confirmaremos tu pedido cuando Stripe lo verifique.',
+                textAlign: TextAlign.center,
+              ),
             ],
             if (paymentState.message case final message?) ...[
               const SizedBox(height: 16),

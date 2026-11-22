@@ -121,3 +121,66 @@ describe('reglas de Realtime Database para notificaciones', () => {
     );
   });
 });
+
+describe('rutas privadas y catálogo', () => {
+  it('deniega lectura y escritura de rutas privadas a clientes', async () => {
+    const customerDatabase = testEnvironment.authenticatedContext('owner').database();
+    const staffDatabase = testEnvironment.authenticatedContext('staff', { staff: true }).database();
+    const privatePaths = [
+      'payments/order-1',
+      'pickupTokens/token-1',
+      'staffQueue/order-1',
+      'pickupDeliveries/order-1',
+      'memberships/owner',
+      'pickupSlots/slot-1',
+    ];
+
+    for (const path of privatePaths) {
+      await assertFails(get(ref(customerDatabase, path)));
+      await assertFails(set(ref(customerDatabase, path), { value: true }));
+    }
+
+    await assertFails(get(ref(staffDatabase, 'pickupDeliveries/order-1')));
+    await assertFails(get(ref(customerDatabase, 'orderEvents/order-1')));
+    await assertSucceeds(get(ref(staffDatabase, 'orderEvents/order-1')));
+    const adminDatabase = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    await assertFails(get(ref(customerDatabase, 'orderEvents/order-1')));
+    await assertSucceeds(get(ref(adminDatabase, 'orderEvents/order-1')));
+  });
+
+  it('impide al cliente modificar pedidos e índices, incluso estados', async () => {
+    const customerDatabase = testEnvironment.authenticatedContext('owner').database();
+    await assertFails(set(ref(customerDatabase, 'orders/order-1/status'), 'ready'));
+    await assertFails(set(ref(customerDatabase, 'ordersByUser/owner/order-1'), true));
+  });
+
+  it('reserva catálogo para lectura autenticada y escritura administrativa', async () => {
+    const customerDatabase = testEnvironment.authenticatedContext('owner').database();
+    const staffDatabase = testEnvironment.authenticatedContext('staff', { staff: true }).database();
+    const adminDatabase = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    const product = {
+      name: 'Prueba', categoryId: 'breakfast', priceCents: 1000,
+      available: true, prepMinutes: 5,
+    };
+
+    await assertSucceeds(get(ref(customerDatabase, 'products')));
+    await assertFails(set(ref(customerDatabase, 'products/test'), product));
+    await assertFails(set(ref(customerDatabase, 'categories/test'), { name: 'Prueba' }));
+    await assertFails(set(ref(staffDatabase, 'categories/test'), { name: 'Prueba' }));
+    await assertSucceeds(set(ref(adminDatabase, 'products/test'), product));
+    await assertSucceeds(set(ref(adminDatabase, 'categories/test'), { name: 'Prueba' }));
+    await assertFails(set(ref(adminDatabase, 'products/test'), { ...product, available: 'sí' }));
+    await assertFails(set(ref(adminDatabase, 'products/test'), { ...product, priceCents: 1.5 }));
+    await assertFails(set(ref(adminDatabase, 'products/test'), { ...product, priceCents: -1 }));
+  });
+
+  it('restringe cafeteria al administrador y valida coordenadas', async () => {
+    const staffDatabase = testEnvironment.authenticatedContext('staff', { staff: true }).database();
+    const adminDatabase = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    await assertFails(set(ref(staffDatabase, 'cafeteria/name'), 'Otra'));
+    await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/latitude'), 20.5));
+    await assertFails(set(ref(adminDatabase, 'cafeteria/location/latitude'), 91));
+    await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/longitude'), -100.8));
+    await assertFails(set(ref(adminDatabase, 'cafeteria/location/longitude'), -181));
+  });
+});

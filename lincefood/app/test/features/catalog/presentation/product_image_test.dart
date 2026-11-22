@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,6 +10,13 @@ import 'package:lincefood_app/features/catalog/presentation/product_image.dart';
 import 'package:lincefood_app/features/media/data/in_memory_media_storage.dart';
 import 'package:lincefood_app/features/media/presentation/media_storage_provider.dart';
 import 'package:lincefood_app/features/media/presentation/menu_image_providers.dart';
+
+class _PendingMediaStorage extends InMemoryMediaStorage {
+  final Completer<String> url = Completer<String>();
+
+  @override
+  Future<String> productImageUrl(String path) => url.future;
+}
 
 class _FailingMediaStorage extends InMemoryMediaStorage {
   @override
@@ -71,6 +79,16 @@ void main() {
 
     expect(find.byIcon(Icons.restaurant_outlined), findsOneWidget);
     expect(find.byType(CachedNetworkImage), findsNothing);
+  });
+
+  testWidgets('muestra placeholder mientras resuelve la URL', (tester) async {
+    final storage = _PendingMediaStorage();
+    await tester.pumpWidget(_app(imagesEnabled: true, storage: storage));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    storage.url.complete('https://example.test/menu/torta.jpg');
+    await tester.pump();
   });
 
   testWidgets('sin ruta de imagen muestra el icono', (tester) async {

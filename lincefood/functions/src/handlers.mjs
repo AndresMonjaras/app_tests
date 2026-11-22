@@ -20,6 +20,16 @@ function requireOrderId(value) {
   return value;
 }
 
+// Comprueba que el cobro de Stripe corresponde al pedido, al importe y al dueño guardados.
+function matchesOrderIntent(order, intent) {
+  return (
+    !!order &&
+    intent?.amount_received === order.totalCents &&
+    intent?.currency === 'mxn' &&
+    intent?.metadata?.uid === order.ownerUid
+  );
+}
+
 export function createCreateOrderHandler({ database, serverTimestamp }) {
   return async (request) => {
     const uid = requireUid(request);
@@ -48,7 +58,6 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
     const updates = {};
     updates['orders/' + orderId] = order;
     updates['ordersByUser/' + uid + '/' + orderId] = order;
-    updates['staffQueue/' + orderId] = { orderId };
     await database.ref().update(updates);
 
     return { orderId, folio };
@@ -86,12 +95,15 @@ export function createCreatePaymentIntentHandler({ database, stripe }) {
         amount: order.totalCents,
         currency: 'mxn',
         automatic_payment_methods: { enabled: true },
-        metadata: { orderId },
+        metadata: { orderId, uid },
       },
       { idempotencyKey: 'order-' + orderId },
     );
     if (!intent.client_secret) {
       throw new AppError('internal', 'Stripe no devolvió el pago solicitado.');
+    }
+    if (intent.livemode !== false) {
+      throw new AppError('internal', 'Stripe no devolvió un pago de prueba.');
     }
 
     await database.ref('payments/' + orderId).set({
@@ -126,15 +138,28 @@ export function createStripeWebhookHandler({
       return;
     }
 
-    const outcomeByType = {
-      'payment_intent.succeeded': 'succeeded',
-      'payment_intent.payment_failed': 'failed',
+    if (event.livemode !== false) {
+      response.status(400).send('Solo se aceptan eventos de prueba.');
+      return;
+    }
+
+    const ruleByType = {
+      'payment_intent.succeeded': { outcome: 'succeeded' },
+      'payment_intent.payment_failed': {
+        outcome: 'failed',
+        fallbackReason: 'El pago fue rechazado.',
+      },
+      'payment_intent.canceled': {
+        outcome: 'failed',
+        fallbackReason: 'El pago fue cancelado.',
+      },
     };
-    const outcome = outcomeByType[event.type];
-    if (!outcome) {
+    const rule = ruleByType[event.type];
+    if (!rule) {
       response.status(200).send('Evento ignorado.');
       return;
     }
+    const outcome = rule.outcome;
 
     const intent = event.data?.object;
     const orderId = intent?.metadata?.orderId;
@@ -145,13 +170,29 @@ export function createStripeWebhookHandler({
 
     const failureReason =
       outcome === 'failed'
-        ? intent.last_payment_error?.message || 'El pago fue rechazado.'
+        ? intent.last_payment_error?.message || rule.fallbackReason
         : undefined;
+
+    // El cobro solo cuenta si coincide con el pedido guardado en el servidor.
+    let intentMismatch = false;
     const orderResult = await database
       .ref('orders/' + orderId)
-      .transaction((current) =>
-        transitionOrderForPayment(current, outcome, failureReason) ?? undefined,
-      );
+      .transaction((current) => {
+        intentMismatch = false;
+        if (outcome === 'succeeded' && !matchesOrderIntent(current, intent)) {
+          intentMismatch = true;
+          return undefined;
+        }
+        return (
+          transitionOrderForPayment(current, outcome, failureReason) ?? undefined
+        );
+      });
+
+    if (intentMismatch) {
+      console.error('El cobro no coincide con el pedido.', orderId, intent.id);
+      response.status(200).send('El cobro no coincide con el pedido.');
+      return;
+    }
 
     if (orderResult.committed) {
       const updatedOrder = orderResult.snapshot.val();
@@ -161,7 +202,7 @@ export function createStripeWebhookHandler({
           'ordersByUser/' + updatedOrder.ownerUid + '/' + orderId
         ] = updatedOrder;
       }
-      if (updatedOrder?.status === 'pagado') {
+      if (updatedOrder?.status === 'paid') {
         updates['staffQueue/' + orderId] = { orderId };
       }
       if (Object.keys(updates).length > 0) {

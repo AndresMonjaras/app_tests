@@ -30,8 +30,11 @@ extension OrderStatusCode on OrderStatus {
   };
 }
 
+/// El cliente puede cancelar mientras el pedido no haya entrado a cocina.
 bool canCustomerCancel(OrderStatus status) {
-  return status == OrderStatus.paymentPending;
+  return status == OrderStatus.paymentPending ||
+      status == OrderStatus.paid ||
+      status == OrderStatus.confirmed;
 }
 
 OrderStatus orderStatusFromCode(Object? value) {
@@ -51,5 +54,25 @@ OrderStatus orderStatusFromCode(Object? value) {
     'entregado' => OrderStatus.delivered,
     'incidente' => OrderStatus.incident,
     _ => OrderStatus.paymentPending,
+  };
+}
+
+extension OrderStatusFlow on OrderStatus {
+  /// Siguiente paso que puede aplicar el personal. Null si no hay ninguno.
+  /// La entrega no está aquí: solo ocurre al escanear el QR de recogida.
+  OrderStatus? get nextStaffStep => switch (this) {
+    OrderStatus.paid => OrderStatus.confirmed,
+    OrderStatus.confirmed => OrderStatus.preparing,
+    OrderStatus.preparing => OrderStatus.ready,
+    _ => null,
+  };
+
+  /// Solo un pedido pagado y activo puede pasar a incidencia.
+  bool get allowsIncident => switch (this) {
+    OrderStatus.paid ||
+    OrderStatus.confirmed ||
+    OrderStatus.preparing ||
+    OrderStatus.ready => true,
+    _ => false,
   };
 }

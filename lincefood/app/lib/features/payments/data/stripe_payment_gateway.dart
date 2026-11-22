@@ -17,7 +17,8 @@ class StripePaymentGateway implements PaymentGateway {
   bool _stripeInitialized = false;
 
   Future<void> _ensureConfigured() async {
-    if (_publishableKey.isEmpty) {
+    // La app solo trabaja con claves de prueba.
+    if (!_publishableKey.startsWith('pk_test_')) {
       throw const PaymentConfigurationException();
     }
     if (_stripeInitialized) return;
@@ -51,6 +52,13 @@ class StripePaymentGateway implements PaymentGateway {
         paymentIntentClientSecret: clientSecret,
       ),
     );
-    await Stripe.instance.presentPaymentSheet();
+    try {
+      await Stripe.instance.presentPaymentSheet();
+    } on StripeException catch (error) {
+      if (error.error.code == FailureCode.Canceled) {
+        throw const PaymentCancelledException();
+      }
+      rethrow;
+    }
   }
 }

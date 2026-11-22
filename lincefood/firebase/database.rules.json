@@ -5,7 +5,15 @@
 
     "cafeteria": {
       ".read": "auth != null",
-      ".write": "auth != null && auth.token.staff === true"
+      ".write": "auth != null && auth.token.admin === true",
+      "location": {
+        "latitude": {
+          ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+        },
+        "longitude": {
+          ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+        }
+      }
     },
 
     "categories": {
@@ -19,6 +27,7 @@
       "$productId": {
         ".validate": "newData.hasChildren(['name', 'categoryId', 'available', 'prepMinutes']) && (newData.hasChild('variants') || newData.hasChild('priceCents'))",
         "priceCents": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0" },
+        "available": { ".validate": "newData.isBoolean()" },
         "prepMinutes": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 240" },
         "variants": {
           ".validate": "newData.hasChildren(['0'])",
@@ -70,7 +79,7 @@
     },
 
     "pickupSlots": {
-      ".read": "auth != null",
+      ".read": false,
       ".write": false
     },
 
@@ -80,10 +89,16 @@
     },
 
     "memberships": {
+      ".read": false,
+      ".write": false,
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
         ".write": false
       }
+    },
+
+    "pickupDeliveries": {
+      ".read": false,
+      ".write": false
     },
 
     "notificationPreferences": {
@@ -158,7 +173,7 @@
 
     "orderEvents": {
       "$orderId": {
-        ".read": "auth != null && (root.child('orders').child($orderId).child('ownerUid').val() === auth.uid || auth.token.staff === true)",
+        ".read": "auth != null && (auth.token.staff === true || auth.token.admin === true)",
         ".write": false
       }
     }

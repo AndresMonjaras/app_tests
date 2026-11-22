@@ -9,6 +9,7 @@ import '../../../app/app_router.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../biometrics/biometric_protection.dart';
+import '../../media/domain/private_avatar_cache.dart';
 import '../domain/avatar_rules.dart';
 import 'profile_controller.dart';
 
@@ -268,7 +269,11 @@ class ProfileScreen extends ConsumerWidget {
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(firebaseAuthServiceProvider).signOut();
+      await signOutWithPrivateAvatarCleanup(
+        avatarUrl: ref.read(authUserProvider).asData?.value?.photoURL,
+        privateAvatarCache: ref.read(privateAvatarCacheProvider),
+        signOut: () => ref.read(firebaseAuthServiceProvider).signOut(),
+      );
     } catch (_) {
       if (context.mounted) {
         _showError(context, 'No se pudo cerrar la sesión. Inténtalo de nuevo.');

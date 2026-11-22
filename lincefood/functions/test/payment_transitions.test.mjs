@@ -10,7 +10,7 @@ test('una transición exitosa marca pagado y la repetición no cambia nada', () 
   const pending = { status: 'pendiente_pago', totalCents: 1200 };
   const paid = transitionOrderForPayment(pending, 'succeeded');
 
-  assert.equal(paid.status, 'pagado');
+  assert.equal(paid.status, 'paid');
   assert.equal(transitionOrderForPayment(paid, 'succeeded'), null);
   assert.equal(transitionOrderForPayment(paid, 'failed'), null);
 });

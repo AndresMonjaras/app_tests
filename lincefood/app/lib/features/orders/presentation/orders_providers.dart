@@ -19,17 +19,23 @@ final uidActivoProvider = Provider<String?>((ref) {
   return ref.watch(orderAuthUserProvider).value?.uid;
 });
 
-final staffPermissionProvider = FutureProvider<bool>((ref) async {
-  final user = await ref.watch(orderAuthUserProvider.future);
-  if (user == null) return false;
+final staffPermissionProvider = _claimPermissionProvider('staff');
 
-  try {
-    final token = await user.getIdTokenResult();
-    return token.claims?['staff'] == true;
-  } catch (_) {
-    return false;
-  }
-});
+final adminPermissionProvider = _claimPermissionProvider('admin');
+
+FutureProvider<bool> _claimPermissionProvider(String claim) {
+  return FutureProvider<bool>((ref) async {
+    final user = await ref.watch(orderAuthUserProvider.future);
+    if (user == null) return false;
+
+    try {
+      final token = await user.getIdTokenResult();
+      return token.claims?[claim] == true;
+    } catch (_) {
+      return false;
+    }
+  });
+}
 
 final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
   if (Firebase.apps.isEmpty) return RealtimeOrdersRepository();

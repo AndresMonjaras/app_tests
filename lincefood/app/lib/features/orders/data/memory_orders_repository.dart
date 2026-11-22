@@ -12,6 +12,7 @@ class MemoryOrdersRepository implements OrdersRepository {
   final Map<String, StreamController<List<OrderRecord>>> _controles = {};
   final StreamController<List<OrderRecord>> _cambiosDePersonal =
       StreamController<List<OrderRecord>>.broadcast();
+  final Set<String> _incidentesResueltas = {};
   bool _dispuesto = false;
   int _siguienteFolio = 1;
 
@@ -90,11 +91,67 @@ class MemoryOrdersRepository implements OrdersRepository {
     OrderStatus status,
   ) async {
     _comprobarDisponible();
+    return _cambiarPedido(orderId, (order) {
+      if (order.status.nextStaffStep != status) {
+        throw const DomainException(
+          'Ese cambio de estado no está permitido para este pedido.',
+        );
+      }
+      return order.transitionTo(status);
+    });
+  }
+
+  @override
+  Future<OrderRecord> reportIncident(String orderId, String reason) async {
+    _comprobarDisponible();
+    if (reason.trim().isEmpty) {
+      throw const DomainException('Indica el motivo de la incidencia.');
+    }
+    return _cambiarPedido(orderId, (order) {
+      if (!order.status.allowsIncident) {
+        throw const DomainException(
+          'Solo un pedido pagado y activo puede pasar a incidencia.',
+        );
+      }
+      return order.transitionTo(OrderStatus.incident);
+    });
+  }
+
+  @override
+  Future<OrderRecord> resolveIncident(String orderId, String resolution) async {
+    _comprobarDisponible();
+    if (resolution.trim().isEmpty) {
+      throw const DomainException('Indica cómo se resolvió la incidencia.');
+    }
+    final order = _buscarPedido(orderId);
+    if (order.status != OrderStatus.incident) {
+      throw const DomainException('El pedido no está en incidencia.');
+    }
+    if (_incidentesResueltas.contains(orderId)) {
+      throw const DomainException('La incidencia ya está resuelta.');
+    }
+    _incidentesResueltas.add(orderId);
+    return _cambiarPedido(orderId, (current) => current);
+  }
+
+  OrderRecord _buscarPedido(String orderId) {
+    for (final orders in _actuales.values) {
+      for (final order in orders) {
+        if (order.id == orderId) return order;
+      }
+    }
+    throw const DomainException('No se encontró el pedido.');
+  }
+
+  Future<OrderRecord> _cambiarPedido(
+    String orderId,
+    OrderRecord Function(OrderRecord order) cambio,
+  ) async {
     for (final entry in _actuales.entries) {
       final index = entry.value.indexWhere((order) => order.id == orderId);
       if (index < 0) continue;
 
-      final updated = entry.value[index].transitionTo(status);
+      final updated = cambio(entry.value[index]);
       final orders = [...entry.value];
       orders[index] = updated;
       _actuales[entry.key] = List.unmodifiable(orders);
@@ -139,7 +196,9 @@ class MemoryOrdersRepository implements OrdersRepository {
                 order.status == OrderStatus.paid ||
                 order.status == OrderStatus.confirmed ||
                 order.status == OrderStatus.preparing ||
-                order.status == OrderStatus.ready,
+                order.status == OrderStatus.ready ||
+                (order.status == OrderStatus.incident &&
+                    !_incidentesResueltas.contains(order.id)),
           ),
     );
   }

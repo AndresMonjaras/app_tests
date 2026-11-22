@@ -5,6 +5,7 @@ import '../../../core/errors/domain_exception.dart';
 import '../../cart/domain/cart.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
+import '../domain/orders_repository.dart';
 import '../domain/pickup_mode.dart';
 import 'orders_providers.dart';
 
@@ -113,6 +114,54 @@ class OrderActionsController extends Notifier<OrderActionsState> {
         () => ref
             .read(ordersRepositoryProvider)
             .updateOrderStatus(orderId, status),
+      );
+      state = state.copyWith(isWorking: false, order: order, clearError: true);
+    } catch (error) {
+      state = state.copyWith(
+        isWorking: false,
+        errorMessage: _friendlyError(error),
+      );
+    }
+  }
+
+  Future<void> reportIncident({
+    required String orderId,
+    required String reason,
+  }) {
+    return _adminWrite(
+      deniedMessage: 'Solo administración puede marcar incidencias.',
+      operation: 'Marcar incidencia',
+      write: (repository) => repository.reportIncident(orderId, reason),
+    );
+  }
+
+  Future<void> resolveIncident({
+    required String orderId,
+    required String resolution,
+  }) {
+    return _adminWrite(
+      deniedMessage: 'Solo administración puede resolver incidencias.',
+      operation: 'Resolver incidencia',
+      write: (repository) => repository.resolveIncident(orderId, resolution),
+    );
+  }
+
+  Future<void> _adminWrite({
+    required String deniedMessage,
+    required String operation,
+    required Future<OrderRecord> Function(OrdersRepository repository) write,
+  }) async {
+    state = const OrderActionsState(isWorking: true);
+    try {
+      final isAdmin = await ref.read(adminPermissionProvider.future);
+      if (!isAdmin) {
+        state = OrderActionsState(errorMessage: deniedMessage);
+        return;
+      }
+
+      final order = await _trackWrite(
+        operation,
+        () => write(ref.read(ordersRepositoryProvider)),
       );
       state = state.copyWith(isWorking: false, order: order, clearError: true);
     } catch (error) {

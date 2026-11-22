@@ -11,7 +11,7 @@ export function transitionOrderForPayment(order, outcome, failureReason) {
 
   if (outcome === 'succeeded') {
     if (!paymentPendingStatuses.has(status)) return null;
-    const updated = { ...order, status: 'pagado' };
+    const updated = { ...order, status: 'paid' };
     delete updated.paymentFailureReason;
     return updated;
   }

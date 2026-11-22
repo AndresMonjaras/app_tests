@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/domain_exception.dart';
 import '../../../core/money/money.dart';
+import '../../../app/app_router.dart';
+import '../../notifications/presentation/notifications_inbox_screen.dart';
 import '../../pickup_qr/presentation/pickup_qr_screen.dart';
 import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_elapsed_time.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
+import 'order_cancellation_providers.dart';
 import 'order_timeline.dart';
 import 'orders_providers.dart';
 
@@ -25,6 +29,10 @@ class OrdersScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Mi ticket'),
         actions: [
+          _AvisosButton(
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRouter.notifications),
+          ),
           if (isStaff)
             IconButton(
               tooltip: 'Escanear QR de entrega',
@@ -87,15 +95,36 @@ class OrdersScreen extends ConsumerWidget {
   }
 }
 
-class _TicketCard extends StatelessWidget {
+class _AvisosButton extends ConsumerWidget {
+  const _AvisosButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadNotificationCountProvider);
+    return IconButton(
+      tooltip: 'Avisos',
+      onPressed: onPressed,
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined),
+      ),
+    );
+  }
+}
+
+class _TicketCard extends ConsumerWidget {
   const _TicketCard({required this.order, required this.now});
 
   final OrderRecord order;
   final DateTime now;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
+    final isCancelling = ref.watch(cancellingOrdersProvider).contains(order.id);
 
     return Card(
       child: Padding(
@@ -148,14 +177,14 @@ class _TicketCard extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             Text(
-              'Estado: ${order.status.label}',
+              'Estado: ${order.isCancelled ? 'Cancelado' : order.status.label}',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: colors.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            OrderTimeline(currentStatus: order.status),
+            if (!order.isCancelled) OrderTimeline(currentStatus: order.status),
             if (order.status == OrderStatus.ready) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
@@ -168,9 +197,68 @@ class _TicketCard extends StatelessWidget {
                 label: const Text('Mostrar QR de recogida'),
               ),
             ],
+            if (!order.isCancelled && canCustomerCancel(order.status)) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: isCancelling
+                    ? null
+                    : () => _confirmarCancelacion(context, ref),
+                icon: const Icon(Icons.cancel_outlined),
+                label: Text(isCancelling ? 'Cancelando...' : 'Cancelar pedido'),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmarCancelacion(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Cancelar el pedido?'),
+        content: const Text(
+          'Si el pedido no ha entrado a cocina, se cancelará y se solicitará '
+          'el reembolso del pago.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+
+    final cancelling = ref.read(cancellingOrdersProvider.notifier);
+    cancelling.start(order.id);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(orderCancellationGatewayProvider).cancel(order.id);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Pedido cancelado.')),
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            error is DomainException
+                ? error.message
+                : 'No se pudo cancelar el pedido.',
+          ),
+        ),
+      );
+    } finally {
+      cancelling.finish(order.id);
+    }
   }
 }

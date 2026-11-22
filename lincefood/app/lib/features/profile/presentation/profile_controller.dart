@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../auth/presentation/auth_controller.dart';
 import '../../media/domain/media_upload_validator.dart';
+import '../../media/domain/private_avatar_cache.dart';
 import '../../media/presentation/media_storage_provider.dart';
 import '../data/firebase_profile_avatar_repository.dart';
 import '../domain/profile_avatar_repository.dart';
@@ -25,6 +26,10 @@ class GalleryAvatarImagePicker implements AvatarImagePicker {
     imageQuality: 85,
   );
 }
+
+final privateAvatarCacheProvider = Provider<PrivateAvatarCache>(
+  (ref) => FlutterPrivateAvatarCache(),
+);
 
 final avatarImagePickerProvider = Provider<AvatarImagePicker>(
   (ref) => GalleryAvatarImagePicker(),

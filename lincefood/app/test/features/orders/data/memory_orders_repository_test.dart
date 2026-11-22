@@ -1,3 +1,4 @@
+import 'package:lincefood_app/core/errors/domain_exception.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lincefood_app/features/orders/data/memory_orders_repository.dart';
 import 'package:lincefood_app/features/orders/domain/order_record.dart';
@@ -79,9 +80,26 @@ void main() {
       await pumpEventQueue();
       expect(emissions.last.map((order) => order.id), ['p1']);
 
-      await repository.updateOrderStatus('p1', OrderStatus.preparing);
+      await repository.updateOrderStatus('p1', OrderStatus.confirmed);
       await pumpEventQueue();
-      expect(emissions.last.single.status, OrderStatus.preparing);
+      expect(emissions.last.single.status, OrderStatus.confirmed);
+    });
+
+    test('no permite saltar pasos en el flujo del personal', () async {
+      final repository = MemoryOrdersRepository();
+      addTearDown(repository.dispose);
+      repository.setOrders('u1', [
+        OrderRecord(id: 'p1', status: OrderStatus.paid, lines: const []),
+      ]);
+
+      await expectLater(
+        repository.updateOrderStatus('p1', OrderStatus.preparing),
+        throwsA(isA<DomainException>()),
+      );
+      expect(
+        (await repository.watchOrdersFor('u1').first).single.status,
+        OrderStatus.paid,
+      );
     });
 
     test('rechaza operaciones después de disponer el repositorio', () {

@@ -28,36 +28,63 @@ class _FakePaymentGateway implements PaymentGateway {
 }
 
 void main() {
-  test('transiciona de inactivo a procesando y después a pagado', () async {
-    final intentCompleter = Completer<String>();
-    final container = ProviderContainer(
-      overrides: [
-        paymentGatewayProvider.overrideWithValue(
-          _FakePaymentGateway(createIntent: (_) => intentCompleter.future),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'transiciona de inactivo a procesando y luego a esperar confirmación',
+    () async {
+      final intentCompleter = Completer<String>();
+      final container = ProviderContainer(
+        overrides: [
+          paymentGatewayProvider.overrideWithValue(
+            _FakePaymentGateway(createIntent: (_) => intentCompleter.future),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final controller = container.read(paymentControllerProvider.notifier);
-    expect(
-      container.read(paymentControllerProvider).status,
-      PaymentStatus.inactivo,
-    );
+      final controller = container.read(paymentControllerProvider.notifier);
+      expect(
+        container.read(paymentControllerProvider).status,
+        PaymentStatus.inactivo,
+      );
 
-    final payment = controller.pay(orderId: 'order-1');
-    expect(
-      container.read(paymentControllerProvider).status,
-      PaymentStatus.procesando,
-    );
+      final payment = controller.pay(orderId: 'order-1');
+      expect(
+        container.read(paymentControllerProvider).status,
+        PaymentStatus.procesando,
+      );
 
-    intentCompleter.complete('simulated-client-secret');
-    await payment;
-    expect(
-      container.read(paymentControllerProvider).status,
-      PaymentStatus.pagado,
-    );
-  });
+      intentCompleter.complete('simulated-client-secret');
+      await payment;
+      expect(
+        container.read(paymentControllerProvider).status,
+        PaymentStatus.esperandoConfirmacion,
+      );
+    },
+  );
+
+  test(
+    'una hoja de pago cerrada sin pagar vuelve a inactivo sin error',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          paymentGatewayProvider.overrideWithValue(
+            _FakePaymentGateway(
+              presentError: const PaymentCancelledException(),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(paymentControllerProvider.notifier)
+          .pay(orderId: 'order-1');
+
+      final state = container.read(paymentControllerProvider);
+      expect(state.status, PaymentStatus.inactivo);
+      expect(state.message, isNull);
+    },
+  );
 
   test('muestra un estado de error si falla el gateway', () async {
     final container = ProviderContainer(
@@ -90,14 +117,14 @@ void main() {
     await controller.pay(orderId: 'order-1');
     expect(
       container.read(paymentControllerProvider).status,
-      PaymentStatus.pagado,
+      PaymentStatus.esperandoConfirmacion,
     );
 
     controller.reset();
     await controller.pay(orderId: 'order-2');
     expect(
       container.read(paymentControllerProvider).status,
-      PaymentStatus.pagado,
+      PaymentStatus.esperandoConfirmacion,
     );
   });
 

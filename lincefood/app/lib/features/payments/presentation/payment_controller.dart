@@ -12,7 +12,7 @@ class PaymentController extends Notifier<PaymentState> {
 
   Future<void> pay({required String orderId}) async {
     if (state.status == PaymentStatus.procesando ||
-        state.status == PaymentStatus.pagado) {
+        state.status == PaymentStatus.esperandoConfirmacion) {
       return;
     }
     state = const PaymentState.processing();
@@ -24,10 +24,14 @@ class PaymentController extends Notifier<PaymentState> {
 
       await gateway.presentPaymentSheet(clientSecret);
       if (!ref.mounted) return;
-      state = const PaymentState.paid();
+      // El retorno local de la hoja no prueba el pago: el webhook lo confirma.
+      state = const PaymentState.awaitingConfirmation();
     } on PaymentConfigurationException {
       if (!ref.mounted) return;
       state = const PaymentState.error('Pagos no configurados');
+    } on PaymentCancelledException {
+      if (!ref.mounted) return;
+      state = const PaymentState.inactive();
     } catch (_) {
       if (!ref.mounted) return;
       state = const PaymentState.error(

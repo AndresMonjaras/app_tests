@@ -105,7 +105,7 @@ class OrderRecord {
   OrderRecord cancel() {
     if (isCancelled || !canCustomerCancel(status)) {
       throw const DomainException(
-        'No se puede cancelar un pedido después del pago.',
+        'No se puede cancelar un pedido que ya está en cocina.',
       );
     }
 

@@ -1,4 +1,6 @@
-enum PaymentStatus { inactivo, procesando, pagado, error }
+// El pedido solo queda pagado cuando el servidor lo confirma por webhook.
+// Tras la hoja de pago únicamente se espera esa confirmación.
+enum PaymentStatus { inactivo, procesando, esperandoConfirmacion, error }
 
 class PaymentState {
   const PaymentState({required this.status, this.message});
@@ -11,7 +13,9 @@ class PaymentState {
     : status = PaymentStatus.procesando,
       message = null;
 
-  const PaymentState.paid() : status = PaymentStatus.pagado, message = null;
+  const PaymentState.awaitingConfirmation()
+    : status = PaymentStatus.esperandoConfirmacion,
+      message = null;
 
   const PaymentState.error(this.message) : status = PaymentStatus.error;
 

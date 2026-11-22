@@ -15,6 +15,20 @@ abstract interface class NotificationPreferencesGateway {
   Future<void> unsubscribe(NotificationTopic topic);
 }
 
+Future<void> applyTopicSubscriptions({
+  required NotificationTopicPreferences preferences,
+  required Future<void> Function(String topic) subscribe,
+  required Future<void> Function(String topic) unsubscribe,
+}) async {
+  for (final topic in NotificationTopic.values) {
+    if (preferences.isEnabled(topic)) {
+      await subscribe(topic.key);
+    } else {
+      await unsubscribe(topic.key);
+    }
+  }
+}
+
 class FirebaseNotificationPreferencesGateway
     implements NotificationPreferencesGateway {
   FirebaseNotificationPreferencesGateway(
@@ -56,7 +70,10 @@ class FirebaseNotificationPreferencesGateway
 
   @override
   Future<void> unsubscribe(NotificationTopic topic) =>
-      _messaging.unsubscribeFromTopic(topic.key);
+      _unsubscribeFromTopic(topic.key);
+
+  Future<void> _unsubscribeFromTopic(String topic) =>
+      _messaging.unsubscribeFromTopic(topic);
 
   DatabaseReference _preferencesReference(String uid) =>
       _database.ref('notificationPreferences/$uid');

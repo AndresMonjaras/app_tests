@@ -26,6 +26,7 @@ class FakeAuthenticator implements BiometricAuthenticator {
 class FakePickupGateway implements PickupQrGateway {
   final issued = <String>[];
   final consumed = <String>[];
+  final consumedFolios = <String>[];
   Completer<void>? consumeGate;
   String? consumeError;
 
@@ -42,6 +43,13 @@ class FakePickupGateway implements PickupQrGateway {
   Future<String> consumeToken(String token) async {
     consumed.add(token);
     if (consumeGate != null) await consumeGate!.future;
+    if (consumeError != null) throw DomainException(consumeError!);
+    return 'ord1';
+  }
+
+  @override
+  Future<String> consumeFolio(String folio) async {
+    consumedFolios.add(folio);
     if (consumeError != null) throw DomainException(consumeError!);
     return 'ord1';
   }
@@ -62,7 +70,10 @@ ProviderContainer _container({
 }
 
 // El provider es autoDispose: se mantiene un listener mientras se espera.
-Future<PickupQrReveal> _requestPickup(ProviderContainer container, String orderId) {
+Future<PickupQrReveal> _requestPickup(
+  ProviderContainer container,
+  String orderId,
+) {
   final subscription = container.listen(pickupQrProvider(orderId), (_, _) {});
   addTearDown(subscription.close);
   return container.read(pickupQrProvider(orderId).future);
@@ -72,7 +83,10 @@ void main() {
   test('cancelar la biometría no pide el QR al servidor', () async {
     final authenticator = FakeAuthenticator(allow: false);
     final gateway = FakePickupGateway();
-    final container = _container(authenticator: authenticator, gateway: gateway);
+    final container = _container(
+      authenticator: authenticator,
+      gateway: gateway,
+    );
     addTearDown(container.dispose);
 
     final reveal = await _requestPickup(container, 'ord1');
@@ -148,9 +162,33 @@ void main() {
     expect(gateway.consumed, hasLength(1));
   });
 
-  test('un error del servidor muestra su mensaje y permite reintentar', () async {
-    final gateway = FakePickupGateway()
-      ..consumeError = 'Este código ya fue usado.';
+  test(
+    'un error del servidor muestra su mensaje y permite reintentar',
+    () async {
+      final gateway = FakePickupGateway()
+        ..consumeError = 'Este código ya fue usado.';
+      final container = _container(
+        authenticator: FakeAuthenticator(),
+        gateway: gateway,
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(pickupScanControllerProvider.notifier);
+
+      await controller.handleCode('token-ord1');
+      final state = container.read(pickupScanControllerProvider);
+      expect(state.busy, isFalse);
+      expect(state.delivered, isFalse);
+      expect(state.message, 'Este código ya fue usado.');
+
+      controller.reset();
+      gateway.consumeError = null;
+      await controller.handleCode('token-ord1');
+      expect(container.read(pickupScanControllerProvider).delivered, isTrue);
+    },
+  );
+
+  test('el folio manual se envía en mayúsculas y entrega una vez', () async {
+    final gateway = FakePickupGateway();
     final container = _container(
       authenticator: FakeAuthenticator(),
       gateway: gateway,
@@ -158,15 +196,46 @@ void main() {
     addTearDown(container.dispose);
     final controller = container.read(pickupScanControllerProvider.notifier);
 
-    await controller.handleCode('token-ord1');
-    final state = container.read(pickupScanControllerProvider);
-    expect(state.busy, isFalse);
-    expect(state.delivered, isFalse);
-    expect(state.message, 'Este código ya fue usado.');
+    await controller.handleFolio('  lf-abcd1234 ');
+    await controller.handleFolio('LF-ABCD1234');
 
-    controller.reset();
-    gateway.consumeError = null;
-    await controller.handleCode('token-ord1');
-    expect(container.read(pickupScanControllerProvider).delivered, isTrue);
+    final state = container.read(pickupScanControllerProvider);
+    expect(state.delivered, isTrue);
+    expect(state.message, 'Pedido ord1 entregado.');
+    expect(gateway.consumedFolios, ['LF-ABCD1234']);
+    expect(gateway.consumed, isEmpty);
+  });
+
+  test('un folio rechazado por el servidor muestra el error', () async {
+    final gateway = FakePickupGateway()
+      ..consumeError = 'No se encontró un pedido con ese folio.';
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(pickupScanControllerProvider.notifier);
+
+    await controller.handleFolio('LF-NOEXISTE');
+
+    final state = container.read(pickupScanControllerProvider);
+    expect(state.delivered, isFalse);
+    expect(state.busy, isFalse);
+    expect(state.message, 'No se encontró un pedido con ese folio.');
+  });
+
+  test('un folio vacío no llama al servidor', () async {
+    final gateway = FakePickupGateway();
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(pickupScanControllerProvider.notifier)
+        .handleFolio('   ');
+
+    expect(gateway.consumedFolios, isEmpty);
   });
 }

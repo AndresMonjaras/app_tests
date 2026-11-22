@@ -6,6 +6,8 @@ abstract interface class NotificationInboxGateway {
   Stream<List<NotificationInboxItem>> watch(String uid);
 
   Future<void> markAsRead(String uid, String notificationId);
+
+  Future<void> markAllAsRead(String uid, Iterable<String> notificationIds);
 }
 
 class FirebaseNotificationInboxGateway implements NotificationInboxGateway {
@@ -38,4 +40,11 @@ class FirebaseNotificationInboxGateway implements NotificationInboxGateway {
   @override
   Future<void> markAsRead(String uid, String notificationId) =>
       _database.ref('notificationInbox/$uid/$notificationId/isRead').set(true);
+
+  @override
+  Future<void> markAllAsRead(String uid, Iterable<String> notificationIds) {
+    final updates = {for (final id in notificationIds) '$id/isRead': true};
+    if (updates.isEmpty) return Future.value();
+    return _database.ref('notificationInbox/$uid').update(updates);
+  }
 }

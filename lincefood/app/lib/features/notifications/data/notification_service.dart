@@ -14,6 +14,8 @@ import '../../../core/config/firebase_bootstrap_provider.dart';
 import 'local_advice_scheduler.dart';
 import '../domain/notification_message_mapper.dart';
 import '../domain/notification_topic_preferences.dart';
+import 'notification_message_listeners.dart';
+import 'notification_preferences_gateway.dart';
 import 'notification_token_registration.dart';
 
 final notificationNavigatorKey = GlobalKey<NavigatorState>();
@@ -85,8 +87,7 @@ class NotificationService implements LocalAdvicePreferenceHandler {
   final NotificationTokenRegistration _tokenRegistration;
   final LocalAdviceScheduler _localAdviceScheduler;
 
-  StreamSubscription<RemoteMessage>? _foregroundSubscription;
-  StreamSubscription<RemoteMessage>? _openedSubscription;
+  NotificationMessageListeners<RemoteMessage>? _messageListeners;
   StreamSubscription<User?>? _authSubscription;
   Future<void> _authQueue = Future<void>.value();
   NotificationMessageMapper? _mapper;
@@ -95,8 +96,7 @@ class NotificationService implements LocalAdvicePreferenceHandler {
   Future<void> start() => _startFuture ??= _startOnce();
 
   void dispose() {
-    unawaited(_foregroundSubscription?.cancel());
-    unawaited(_openedSubscription?.cancel());
+    unawaited(_messageListeners?.dispose());
     unawaited(_authSubscription?.cancel());
   }
 
@@ -126,12 +126,14 @@ class NotificationService implements LocalAdvicePreferenceHandler {
     _mapper = await NotificationMessageMapper.loadSeed();
     await _initializeLocalNotifications();
 
-    _foregroundSubscription = FirebaseMessaging.onMessage.listen(
-      _showForegroundMessage,
+    _messageListeners = NotificationMessageListeners<RemoteMessage>(
+      foregroundMessages: FirebaseMessaging.onMessage,
+      openedMessages: FirebaseMessaging.onMessageOpenedApp,
+      initialMessage: _messaging.getInitialMessage,
+      onForeground: _showForegroundMessage,
+      onOpened: _openMessage,
     );
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-      _openMessage,
-    );
+    await _messageListeners!.start();
     await _tokenRegistration.start();
     _authSubscription = _authentication.authStateChanges().listen(
       _queueTokenSync,
@@ -143,9 +145,6 @@ class NotificationService implements LocalAdvicePreferenceHandler {
       final localPayload = localLaunch?.notificationResponse?.payload;
       if (localPayload != null) _openLocalPayload(localPayload);
     }
-
-    final initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) await _openMessage(initialMessage);
   }
 
   Future<void> _initializeLocalNotifications() async {
@@ -220,13 +219,37 @@ class NotificationService implements LocalAdvicePreferenceHandler {
         }
       } else {
         try {
-          await _tokenRegistration.registerForUser(user.uid);
+          final registered = await _tokenRegistration.registerForUser(user.uid);
+          if (registered) await _syncTopicSubscriptions(user.uid);
         } catch (_) {
           // La app puede seguir funcionando aunque falle el registro del token.
         }
         await _syncLocalAdvice(user.uid);
       }
     });
+  }
+
+  Future<void> _syncTopicSubscriptions(String uid) async {
+    try {
+      final snapshot = await FirebaseDatabase.instance
+          .ref('notificationPreferences/$uid')
+          .get();
+      if (_authentication.currentUser?.uid != uid) return;
+      final preferences = NotificationTopicPreferences.fromMap(snapshot.value);
+      await applyTopicSubscriptions(
+        preferences: preferences,
+        subscribe: (topic) async {
+          if (_authentication.currentUser?.uid != uid) return;
+          await _messaging.subscribeToTopic(topic);
+        },
+        unsubscribe: (topic) async {
+          if (_authentication.currentUser?.uid != uid) return;
+          await _messaging.unsubscribeFromTopic(topic);
+        },
+      );
+    } catch (_) {
+      // La sesión permanece disponible aunque no se puedan restaurar los topics.
+    }
   }
 
   Future<void> _syncLocalAdvice(String uid) async {

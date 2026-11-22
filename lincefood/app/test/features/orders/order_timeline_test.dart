@@ -11,11 +11,14 @@ Widget _app(OrderStatus status, {ThemeData? theme}) {
 }
 
 void main() {
-  test('el cliente solo puede cancelar mientras el pago está pendiente', () {
+  test('el cliente puede cancelar hasta que el pedido entra a cocina', () {
     expect(canCustomerCancel(OrderStatus.paymentPending), isTrue);
-    for (final status in OrderStatus.values.skip(1)) {
-      expect(canCustomerCancel(status), isFalse);
-    }
+    expect(canCustomerCancel(OrderStatus.paid), isTrue);
+    expect(canCustomerCancel(OrderStatus.confirmed), isTrue);
+    expect(canCustomerCancel(OrderStatus.preparing), isFalse);
+    expect(canCustomerCancel(OrderStatus.ready), isFalse);
+    expect(canCustomerCancel(OrderStatus.delivered), isFalse);
+    expect(canCustomerCancel(OrderStatus.incident), isFalse);
   });
 
   testWidgets('muestra los pasos y resalta el actual', (tester) async {

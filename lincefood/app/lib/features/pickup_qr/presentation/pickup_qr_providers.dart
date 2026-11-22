@@ -56,26 +56,37 @@ class PickupScanController extends Notifier<PickupScanState> {
   @override
   PickupScanState build() => const PickupScanState();
 
-  Future<void> handleCode(String code) async {
+  Future<void> handleCode(String code) {
     final trimmed = code.trim();
-    if (trimmed.isEmpty || state.busy || state.delivered) return;
-    if (trimmed == state.lastCode) return;
+    return _deliver(trimmed, (gateway) => gateway.consumeToken(trimmed));
+  }
 
-    state = PickupScanState(busy: true, lastCode: trimmed);
+  // Entrega manual con folio. Sigue requiriendo personal autorizado en el servidor.
+  Future<void> handleFolio(String folio) {
+    final normalized = folio.trim().toUpperCase();
+    return _deliver(normalized, (gateway) => gateway.consumeFolio(normalized));
+  }
+
+  Future<void> _deliver(
+    String input,
+    Future<String> Function(PickupQrGateway gateway) send,
+  ) async {
+    if (input.isEmpty || state.busy || state.delivered) return;
+    if (input == state.lastCode) return;
+
+    state = PickupScanState(busy: true, lastCode: input);
     try {
-      final orderId = await ref
-          .read(pickupQrGatewayProvider)
-          .consumeToken(trimmed);
+      final orderId = await send(ref.read(pickupQrGatewayProvider));
       state = PickupScanState(
-        lastCode: trimmed,
+        lastCode: input,
         delivered: true,
         message: 'Pedido $orderId entregado.',
       );
     } on DomainException catch (error) {
-      state = PickupScanState(lastCode: trimmed, message: error.message);
+      state = PickupScanState(lastCode: input, message: error.message);
     } catch (_) {
       state = PickupScanState(
-        lastCode: trimmed,
+        lastCode: input,
         message: 'No se pudo completar la entrega. Inténtalo de nuevo.',
       );
     }

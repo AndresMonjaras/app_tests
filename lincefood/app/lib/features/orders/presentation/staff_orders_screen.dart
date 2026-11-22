@@ -7,6 +7,20 @@ import '../domain/order_status.dart';
 import 'order_actions_controller.dart';
 import 'orders_providers.dart';
 
+// Motivos fijos: el personal no escribe texto libre en una incidencia.
+const _incidentReasons = [
+  'Problema operativo',
+  'Cobro inconsistente',
+  'Producto agotado',
+  'Cierre de cafetería',
+];
+
+const _resolutionNotes = [
+  'Reembolso manual',
+  'Pedido corregido',
+  'Sin acción necesaria',
+];
+
 class StaffOrdersScreen extends ConsumerWidget {
   const StaffOrdersScreen({super.key});
 
@@ -47,6 +61,8 @@ class _StaffOrderList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orders = ref.watch(staffOrdersStreamProvider);
     final actionState = ref.watch(orderActionsProvider);
+    final isAdmin = ref.watch(adminPermissionProvider).value ?? false;
+    final controller = ref.read(orderActionsProvider.notifier);
 
     return orders.when(
       data: (items) {
@@ -70,9 +86,19 @@ class _StaffOrderList extends ConsumerWidget {
               _StaffOrderCard(
                 order: order,
                 isWorking: actionState.isWorking,
-                onUpdate: (status) => ref
-                    .read(orderActionsProvider.notifier)
-                    .updateOrderStatus(orderId: order.id, status: status),
+                isAdmin: isAdmin,
+                onUpdate: (status) => controller.updateOrderStatus(
+                  orderId: order.id,
+                  status: status,
+                ),
+                onReportIncident: (reason) => controller.reportIncident(
+                  orderId: order.id,
+                  reason: reason,
+                ),
+                onResolveIncident: (resolution) => controller.resolveIncident(
+                  orderId: order.id,
+                  resolution: resolution,
+                ),
               ),
           ],
         );
@@ -96,27 +122,31 @@ class _StaffOrderCard extends StatelessWidget {
   const _StaffOrderCard({
     required this.order,
     required this.isWorking,
+    required this.isAdmin,
     required this.onUpdate,
+    required this.onReportIncident,
+    required this.onResolveIncident,
   });
 
   final OrderRecord order;
   final bool isWorking;
+  final bool isAdmin;
   final ValueChanged<OrderStatus> onUpdate;
+  final ValueChanged<String> onReportIncident;
+  final ValueChanged<String> onResolveIncident;
 
   @override
   Widget build(BuildContext context) {
-    final nextStatus = switch (order.status) {
-      OrderStatus.paid || OrderStatus.confirmed => OrderStatus.preparing,
-      OrderStatus.preparing => OrderStatus.ready,
-      OrderStatus.ready => OrderStatus.delivered,
-      _ => null,
-    };
+    final nextStatus = order.status.nextStaffStep;
     final actionLabel = switch (nextStatus) {
+      OrderStatus.confirmed => 'Confirmar',
       OrderStatus.preparing => 'En cocina',
       OrderStatus.ready => 'Listo',
       OrderStatus.delivered => 'Entregado',
       _ => null,
     };
+    final canReportIncident = isAdmin && order.status.allowsIncident;
+    final canResolveIncident = isAdmin && order.status == OrderStatus.incident;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -138,7 +168,63 @@ class _StaffOrderCard extends StatelessWidget {
                 child: Text(actionLabel),
               ),
             ],
+            if (canReportIncident) ...[
+              const SizedBox(height: 8),
+              _IncidentMenu(
+                label: 'Marcar incidencia',
+                options: _incidentReasons,
+                enabled: !isWorking,
+                onSelected: onReportIncident,
+              ),
+            ],
+            if (canResolveIncident) ...[
+              const SizedBox(height: 8),
+              _IncidentMenu(
+                label: 'Resolver incidencia',
+                options: _resolutionNotes,
+                enabled: !isWorking,
+                onSelected: onResolveIncident,
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IncidentMenu extends StatelessWidget {
+  const _IncidentMenu({
+    required this.label,
+    required this.options,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final String label;
+  final List<String> options;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      enabled: enabled,
+      tooltip: label,
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final option in options)
+          PopupMenuItem<String>(value: option, child: Text(option)),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: enabled
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).disabledColor,
+          ),
         ),
       ),
     );

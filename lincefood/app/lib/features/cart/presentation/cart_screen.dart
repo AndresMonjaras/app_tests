@@ -10,6 +10,7 @@ import '../../payments/presentation/payment_providers.dart';
 import '../../payments/presentation/payment_screen.dart';
 import '../domain/cart.dart';
 import 'cart_controller.dart';
+import 'order_confirmation_dialog.dart';
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -138,6 +139,13 @@ class CartScreen extends ConsumerWidget {
     String uid,
     PickupMode pickupMode,
   ) async {
+    final confirmed = await showOrderConfirmationDialog(
+      context,
+      cart: cart,
+      pickupMode: pickupMode,
+    );
+    if (!confirmed || !context.mounted) return;
+
     final order = await ref
         .read(orderActionsProvider.notifier)
         .submitOrder(ownerUid: uid, cart: cart, pickupMode: pickupMode);

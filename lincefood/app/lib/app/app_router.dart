@@ -7,6 +7,7 @@ import '../features/catalog/presentation/catalog_screen.dart';
 import '../features/location/presentation/cafeteria_location_screen.dart';
 import '../features/navigation/auth_gate_screen.dart';
 import '../features/notifications/presentation/notification_preferences_screen.dart';
+import '../features/notifications/presentation/notifications_inbox_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
 import '../features/orders/presentation/staff_orders_screen.dart';
 import '../features/plans/presentation/plans_screen.dart';
@@ -26,6 +27,7 @@ class AppRouter {
   static const cafeteriaLocation = '/cafeteria/location';
   static const profile = '/profile';
   static const notificationPreferences = '/notification-preferences';
+  static const notifications = '/notifications';
   static const plans = '/plans';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -43,6 +45,7 @@ class AppRouter {
       notificationPreferences => const ProtectedRoute(
         child: NotificationPreferencesScreen(),
       ),
+      notifications => const ProtectedRoute(child: NotificationsInboxScreen()),
       plans => const ProtectedRoute(child: PlansScreen()),
       _ => const _NotFoundScreen(),
     };

@@ -5,6 +5,7 @@ import 'package:lincefood_app/features/cart/presentation/cart_controller.dart';
 import 'package:lincefood_app/features/cart/presentation/cart_screen.dart';
 import 'package:lincefood_app/features/catalog/domain/product.dart';
 import 'package:lincefood_app/features/orders/data/memory_orders_repository.dart';
+import 'package:lincefood_app/features/orders/domain/pickup_mode.dart';
 import 'package:lincefood_app/features/orders/domain/order_status.dart';
 import 'package:lincefood_app/features/orders/presentation/orders_providers.dart'
     show
@@ -83,6 +84,8 @@ void main() {
 
     await tester.tap(find.text('Confirmar pedido'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar y pagar'));
+    await tester.pumpAndSettle();
     expect(find.text('Pago'), findsOneWidget);
     expect(find.text('Total a pagar'), findsOneWidget);
 
@@ -93,6 +96,41 @@ void main() {
     expect(gateway.presented, isTrue);
     expect(find.text('Mi ticket'), findsOneWidget);
     expect(find.text('Folio LF-000001'), findsOneWidget);
+  });
+
+  testWidgets('la modalidad elegida llega al pedido y al resumen', (
+    tester,
+  ) async {
+    final repository = MemoryOrdersRepository();
+    final gateway = _FakePaymentGateway();
+    final container = await openCart(
+      tester,
+      repository: repository,
+      gateway: gateway,
+      paymentsConfigured: true,
+    );
+    addTearDown(container.dispose);
+    addTearDown(repository.dispose);
+
+    await tester.tap(find.text(PickupMode.takeAway.label));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar pedido'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recogida: Para llevar'), findsOneWidget);
+    expect(
+      find.textContaining('no podrás cambiarlo ni cancelarlo'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Confirmar y pagar'));
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(orderActionsProvider).order?.pickupMode,
+      PickupMode.takeAway,
+    );
+    expect(find.text('Pago'), findsOneWidget);
   });
 
   testWidgets('pago cancelado deja el pedido pendiente y no abre el ticket', (
@@ -110,6 +148,8 @@ void main() {
     addTearDown(repository.dispose);
 
     await tester.tap(find.text('Confirmar pedido'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar y pagar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pagar ahora'));
     await tester.pump();
@@ -138,6 +178,8 @@ void main() {
     addTearDown(repository.dispose);
 
     await tester.tap(find.text('Confirmar pedido'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar y pagar'));
     await tester.pumpAndSettle();
 
     expect(find.text('Pagos no configurados'), findsOneWidget);

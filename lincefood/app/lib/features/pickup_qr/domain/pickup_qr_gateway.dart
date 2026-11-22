@@ -10,4 +10,8 @@ abstract interface class PickupQrGateway {
   Future<PickupQrToken> issueToken(String orderId);
 
   Future<String> consumeToken(String token);
+
+  // Alternativa manual cuando la cámara falla. El servidor exige que quien
+  // llama sea personal autorizado.
+  Future<String> consumeFolio(String folio);
 }

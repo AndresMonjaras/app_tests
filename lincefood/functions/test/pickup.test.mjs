@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { AppError } from '../src/app_error.mjs';
 import {
+  createConsumePickupFolioHandler,
   createConsumePickupTokenHandler,
   createIssuePickupTokenHandler,
   hashPickupToken,
@@ -14,6 +15,7 @@ function createFakeDatabase(initial = {}) {
   const tree = {};
   const clone = (value) => (value === undefined ? null : structuredClone(value));
   const segments = (path) => path.split('/').filter(Boolean);
+  let pushCount = 0;
 
   function read(path) {
     let node = tree;
@@ -43,6 +45,11 @@ function createFakeDatabase(initial = {}) {
 
   function ref(path = '') {
     return {
+      key: segments(path).at(-1) ?? null,
+      push() {
+        pushCount += 1;
+        return { key: 'push' + String(pushCount).padStart(4, '0') };
+      },
       async get() {
         const value = clone(read(path));
         return { val: () => value };
@@ -72,6 +79,18 @@ function createFakeDatabase(initial = {}) {
   return { ref, store };
 }
 
+// Un pedido listo se siembra con pago confirmado salvo que la prueba diga otra cosa.
+function seedPaid(initial) {
+  const seeded = { ...initial };
+  for (const key of Object.keys(initial)) {
+    const match = /^orders\/([^/]+)$/.exec(key);
+    if (match && !(`payments/${match[1]}` in initial)) {
+      seeded[`payments/${match[1]}`] = { status: 'succeeded' };
+    }
+  }
+  return seeded;
+}
+
 const staff = { uid: 'staff1', token: { staff: true } };
 const owner = { uid: 'alumno1', token: {} };
 
@@ -80,17 +99,26 @@ function readyOrder(overrides = {}) {
     ownerUid: 'alumno1',
     status: 'ready',
     totalCents: 5000,
+    folio: 'LF-ABCD1234',
     ...overrides,
   };
 }
 
-async function issueToken(database, now = () => 1_000) {
+function createDatabase(initial = {}) {
+  return createFakeDatabase(seedPaid({ 'orders/ord1': readyOrder(), ...initial }));
+}
+
+async function issueToken(database, orderId = 'ord1', now = () => 1_000) {
   const issue = createIssuePickupTokenHandler({ database, now });
-  return issue({ auth: owner, data: { orderId: 'ord1' } });
+  return issue({ auth: owner, data: { orderId } });
+}
+
+function assertAppError(code) {
+  return (error) => error instanceof AppError && error.code === code;
 }
 
 test('el dueño recibe un QR y la base solo guarda su hash', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
 
   const { token, expiresAt } = await issueToken(database);
 
@@ -101,49 +129,77 @@ test('el dueño recibe un QR y la base solo guarda su hash', async () => {
   assert.equal(database.store.get('orders/ord1').activePickupTokenId, tokenId);
 });
 
-test('no se emite QR para un pedido ajeno ni para uno que no está listo', async () => {
-  const database = createFakeDatabase({
-    'orders/ord1': readyOrder({ ownerUid: 'otro' }),
+test('no se emite QR para un pedido ajeno, no listo o no pagado', async () => {
+  const database = createDatabase({
     'orders/ord2': readyOrder({ status: 'preparing' }),
+    'orders/ord3': readyOrder(),
+    'payments/ord3': { status: 'pending' },
+    'orders/ord4': readyOrder({ ownerUid: 'otro' }),
   });
   const issue = createIssuePickupTokenHandler({ database, now: () => 1 });
 
   await assert.rejects(
-    issue({ auth: owner, data: { orderId: 'ord1' } }),
-    (error) => error instanceof AppError && error.code === 'not-found',
+    issue({ auth: owner, data: { orderId: 'ord4' } }),
+    assertAppError('not-found'),
   );
   await assert.rejects(
     issue({ auth: owner, data: { orderId: 'ord2' } }),
-    (error) => error instanceof AppError && error.code === 'failed-precondition',
+    assertAppError('failed-precondition'),
+  );
+  await assert.rejects(
+    issue({ auth: owner, data: { orderId: 'ord3' } }),
+    assertAppError('failed-precondition'),
   );
 });
 
-test('el personal entrega el pedido una sola vez con el QR válido', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+test('un pedido con estado guardado en español también puede emitir QR', async () => {
+  const database = createDatabase({ 'orders/ord1': readyOrder({ status: 'listo' }) });
+
+  const { token } = await issueToken(database);
+
+  assert.equal(typeof token, 'string');
+});
+
+test('el personal entrega el pedido una sola vez y deja auditoría', async () => {
+  const database = createDatabase({ 'staffQueue/ord1': { orderId: 'ord1' } });
   const { token } = await issueToken(database);
   const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
 
   const result = await consume({ auth: staff, data: { token } });
 
   assert.deepEqual(result, { orderId: 'ord1', status: 'delivered' });
-  assert.equal(database.store.get('orders/ord1').status, 'delivered');
-  assert.equal(database.store.get('orders/ord1').deliveredAt, 2_000);
-  const tokenId = hashPickupToken(token);
-  assert.deepEqual(database.store.get('orderEvents/ord1/' + tokenId), {
-    type: 'pickup_delivered',
+  const order = database.store.get('orders/ord1');
+  assert.equal(order.status, 'delivered');
+  assert.equal(order.deliveredAt, 2_000);
+  assert.equal(order.deliveredBy, staff.uid);
+  assert.equal(database.store.has('staffQueue/ord1'), false);
+
+  const events = Object.values(database.store.get('orderEvents/ord1'));
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0], {
+    type: 'status_changed',
+    from: 'ready',
+    to: 'delivered',
     actorUid: staff.uid,
-    tokenId,
-    createdAt: 2_000,
+    actorRole: 'staff',
+    at: 2_000,
+    method: 'qr',
+    tokenId: hashPickupToken(token),
   });
+
+  const customerView = database.store.get('ordersByUser/alumno1/ord1');
+  assert.equal(customerView.status, 'delivered');
+  assert.equal(customerView.deliveredBy, undefined);
 
   await assert.rejects(
     consume({ auth: staff, data: { token } }),
-    (error) => error instanceof AppError && error.code === 'failed-precondition',
+    assertAppError('failed-precondition'),
   );
+  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
 });
 
 test('dos escaneos simultáneos no entregan dos veces', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
   const { token } = await issueToken(database);
   const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
 
@@ -153,10 +209,41 @@ test('dos escaneos simultáneos no entregan dos veces', async () => {
   ]);
 
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const rejected = results.find((r) => r.status === 'rejected');
+  assert.ok(assertAppError('failed-precondition')(rejected.reason));
+  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
+});
+
+test('si otra transacción gana el token, el intento no entrega el pedido', async () => {
+  const base = createDatabase();
+  const { token } = await issueToken(base);
+  // Doble de transacción: el reclamo del token siempre pierde la carrera.
+  const database = {
+    ref(path = '') {
+      const ref = base.ref(path);
+      if (path.startsWith('pickupTokens/')) {
+        return {
+          ...ref,
+          transaction: async () => ({ committed: false, snapshot: { val: () => null } }),
+        };
+      }
+      return ref;
+    },
+  };
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { token } }),
+    (error) =>
+      assertAppError('failed-precondition')(error) &&
+      error.message === 'Este código ya fue usado.',
+  );
+  assert.equal(base.store.get('orders/ord1').status, 'ready');
+  assert.equal(base.store.has('orderEvents/ord1'), false);
 });
 
 test('un QR expirado no entrega el pedido', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
   const { token, expiresAt } = await issueToken(database);
   const consume = createConsumePickupTokenHandler({
     database,
@@ -165,28 +252,59 @@ test('un QR expirado no entrega el pedido', async () => {
 
   await assert.rejects(
     consume({ auth: staff, data: { token } }),
-    (error) => error instanceof AppError && error.code === 'failed-precondition',
+    assertAppError('failed-precondition'),
   );
   assert.equal(database.store.get('orders/ord1').status, 'ready');
+  assert.equal(database.store.has('orderEvents/ord1'), false);
 });
 
-test('un QR reemplazado por uno nuevo deja de servir y no consume el pedido', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+test('regenerar el QR invalida el anterior y no consume el pedido', async () => {
+  const database = createDatabase();
   const first = await issueToken(database);
-  await issueToken(database);
+  const second = await issueToken(database);
   const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
 
   await assert.rejects(
     consume({ auth: staff, data: { token: first.token } }),
-    (error) => error instanceof AppError && error.code === 'failed-precondition',
+    assertAppError('failed-precondition'),
   );
   assert.equal(database.store.get('orders/ord1').status, 'ready');
   const firstId = hashPickupToken(first.token);
   assert.equal(database.store.get('pickupTokens/' + firstId).consumedAt, null);
+
+  const result = await consume({ auth: staff, data: { token: second.token } });
+  assert.equal(result.status, 'delivered');
+});
+
+test('un token de otro pedido no entrega al pedido que se escanea', async () => {
+  const database = createDatabase({ 'orders/ord2': readyOrder() });
+  const tokenForOrd2 = await issueToken(database, 'ord2');
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+
+  const result = await consume({ auth: staff, data: { token: tokenForOrd2.token } });
+
+  assert.equal(result.orderId, 'ord2');
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
+  assert.equal(database.store.get('orders/ord2').status, 'delivered');
+});
+
+test('un token cuyo dueño no coincide con el pedido no entrega nada', async () => {
+  const database = createDatabase();
+  const { token } = await issueToken(database);
+  await database.ref().update({
+    ['pickupTokens/' + hashPickupToken(token) + '/ownerUid']: 'otro',
+  });
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { token } }),
+    assertAppError('not-found'),
+  );
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
 });
 
 test('un pedido que no está listo no registra evento de entrega', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
   const { token } = await issueToken(database);
   await database.ref().update({
     'orders/ord1/status': 'preparing',
@@ -196,31 +314,181 @@ test('un pedido que no está listo no registra evento de entrega', async () => {
 
   await assert.rejects(
     consume({ auth: staff, data: { token } }),
-    (error) => error instanceof AppError && error.code === 'failed-precondition',
+    assertAppError('failed-precondition'),
   );
-  assert.equal(database.store.has('orderEvents/ord1/' + tokenId), false);
+  assert.equal(database.store.has('orderEvents/ord1'), false);
+  assert.equal(database.store.get('pickupTokens/' + tokenId).consumedAt, null);
+});
+
+test('un pedido que dejó de estar pagado no entrega aunque tenga QR', async () => {
+  const database = createDatabase();
+  const { token } = await issueToken(database);
+  await database.ref().update({ 'payments/ord1/status': 'failed' });
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { token } }),
+    (error) =>
+      assertAppError('failed-precondition')(error) &&
+      error.message === 'El pedido todavía no está pagado.',
+  );
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
+});
+
+test('si la escritura de la entrega falla, nada cambia y el QR se puede reintentar', async () => {
+  const base = createDatabase();
+  const { token } = await issueToken(base);
+  let failWrites = true;
+  // La escritura multiubicación es la única que puede fallar; las lecturas siguen.
+  const database = {
+    ref(path = '') {
+      const ref = base.ref(path);
+      if (path !== '') return ref;
+      return {
+        ...ref,
+        update: async (changes) => {
+          if (failWrites) throw new Error('sin conexión');
+          return ref.update(changes);
+        },
+      };
+    },
+  };
+  const consume = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { token } }),
+    assertAppError('internal'),
+  );
+  assert.equal(base.store.get('orders/ord1').status, 'ready');
+  assert.equal(base.store.has('orderEvents/ord1'), false);
+  assert.equal(base.store.has('pickupDeliveries/ord1'), false);
+  assert.equal(base.store.get('pickupTokens/' + hashPickupToken(token)).consumedAt, null);
+
+  failWrites = false;
+  const result = await consume({ auth: staff, data: { token } });
+  assert.equal(result.status, 'delivered');
+  assert.equal(Object.keys(base.store.get('orderEvents/ord1')).length, 1);
 });
 
 test('un token que no existe no entrega nada', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
   const consume = createConsumePickupTokenHandler({ database, now: () => 1 });
 
   await assert.rejects(
     consume({ auth: staff, data: { token: 'a'.repeat(43) } }),
-    (error) => error instanceof AppError && error.code === 'not-found',
+    assertAppError('not-found'),
   );
 });
 
 test('solo el personal puede entregar y el formato del código se valida', async () => {
-  const database = createFakeDatabase({ 'orders/ord1': readyOrder() });
+  const database = createDatabase();
   const consume = createConsumePickupTokenHandler({ database, now: () => 1 });
 
   await assert.rejects(
     consume({ auth: owner, data: { token: 'a'.repeat(43) } }),
-    (error) => error instanceof AppError && error.code === 'permission-denied',
+    assertAppError('permission-denied'),
   );
   await assert.rejects(
     consume({ auth: staff, data: { token: 'corto' } }),
-    (error) => error instanceof AppError && error.code === 'invalid-argument',
+    assertAppError('invalid-argument'),
   );
+});
+
+// Entrega manual por folio cuando la cámara falla.
+
+function folioDatabase(overrides = {}) {
+  return createDatabase({
+    'staffQueue/ord1': { orderId: 'ord1' },
+    ...overrides,
+  });
+}
+
+test('el personal entrega con folio y queda auditado como folio', async () => {
+  const database = folioDatabase();
+  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  const result = await consume({ auth: staff, data: { folio: 'LF-ABCD1234' } });
+
+  assert.deepEqual(result, { orderId: 'ord1', status: 'delivered' });
+  assert.equal(database.store.get('orders/ord1').deliveredBy, staff.uid);
+  const [event] = Object.values(database.store.get('orderEvents/ord1'));
+  assert.equal(event.method, 'folio');
+  assert.equal(event.tokenId, undefined);
+  assert.equal(database.store.has('staffQueue/ord1'), false);
+});
+
+test('el folio solo no basta: sin autorización de personal no entrega', async () => {
+  const database = folioDatabase();
+  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  await assert.rejects(
+    consume({ auth: owner, data: { folio: 'LF-ABCD1234' } }),
+    assertAppError('permission-denied'),
+  );
+  await assert.rejects(
+    consume({ auth: undefined, data: { folio: 'LF-ABCD1234' } }),
+    assertAppError('unauthenticated'),
+  );
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
+});
+
+test('un folio inexistente, mal formado o de pedido no listo no entrega', async () => {
+  const database = folioDatabase({
+    'orders/ord2': readyOrder({ folio: 'LF-ZZZZ9999', status: 'preparing' }),
+    'staffQueue/ord2': { orderId: 'ord2' },
+  });
+  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { folio: 'LF-NOEXISTE' } }),
+    assertAppError('not-found'),
+  );
+  await assert.rejects(
+    consume({ auth: staff, data: { folio: 'ab;drop' } }),
+    assertAppError('invalid-argument'),
+  );
+  await assert.rejects(
+    consume({ auth: staff, data: { folio: 'LF-ZZZZ9999' } }),
+    assertAppError('failed-precondition'),
+  );
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
+  assert.equal(database.store.get('orders/ord2').status, 'preparing');
+});
+
+test('un folio de pedido no pagado no entrega', async () => {
+  const database = folioDatabase({ 'payments/ord1': { status: 'pending' } });
+  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  await assert.rejects(
+    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
+    assertAppError('failed-precondition'),
+  );
+  assert.equal(database.store.get('orders/ord1').status, 'ready');
+});
+
+test('dos entregas simultáneas por folio no duplican la entrega', async () => {
+  const database = folioDatabase();
+  const consume = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  const results = await Promise.allSettled([
+    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
+    consume({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
+  ]);
+
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
+});
+
+test('un pedido ya entregado por QR no se entrega otra vez con folio', async () => {
+  const database = folioDatabase();
+  const { token } = await issueToken(database);
+  const consumeToken = createConsumePickupTokenHandler({ database, now: () => 2_000 });
+  await consumeToken({ auth: staff, data: { token } });
+  const consumeFolio = createConsumePickupFolioHandler({ database, now: () => 3_000 });
+
+  await assert.rejects(
+    consumeFolio({ auth: staff, data: { folio: 'LF-ABCD1234' } }),
+    assertAppError('not-found'),
+  );
+  assert.equal(Object.keys(database.store.get('orderEvents/ord1')).length, 1);
 });

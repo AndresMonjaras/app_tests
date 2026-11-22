@@ -141,14 +141,36 @@ class RealtimeOrdersRepository implements OrdersRepository {
   }
 
   @override
-  Future<OrderRecord> updateOrderStatus(
-    String orderId,
-    OrderStatus status,
-  ) async {
-    final result = await _callableOrThrow('updateOrderStatus', {
+  Future<OrderRecord> updateOrderStatus(String orderId, OrderStatus status) {
+    return _orderFromCallable('updateOrderStatus', orderId, {
       'orderId': orderId,
       'status': status.code,
     });
+  }
+
+  @override
+  Future<OrderRecord> reportIncident(String orderId, String reason) {
+    return _orderFromCallable('updateOrderStatus', orderId, {
+      'orderId': orderId,
+      'status': OrderStatus.incident.code,
+      'reason': reason,
+    });
+  }
+
+  @override
+  Future<OrderRecord> resolveIncident(String orderId, String resolution) {
+    return _orderFromCallable('resolveOrderIncident', orderId, {
+      'orderId': orderId,
+      'resolution': resolution,
+    });
+  }
+
+  Future<OrderRecord> _orderFromCallable(
+    String name,
+    String orderId,
+    Map<String, Object?> data,
+  ) async {
+    final result = await _callableOrThrow(name, data);
     if (result is! Map || result['order'] is! Map) {
       throw const DomainException('No se pudo leer el pedido actualizado.');
     }
@@ -223,7 +245,8 @@ class RealtimeOrdersRepository implements OrdersRepository {
     return order.status == OrderStatus.paid ||
         order.status == OrderStatus.confirmed ||
         order.status == OrderStatus.preparing ||
-        order.status == OrderStatus.ready;
+        order.status == OrderStatus.ready ||
+        order.status == OrderStatus.incident;
   }
 
   static int _newestFirst(OrderRecord first, OrderRecord second) {

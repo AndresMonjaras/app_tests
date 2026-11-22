@@ -10,7 +10,9 @@ import {
   createCreatePaymentIntentHandler,
   createStripeWebhookHandler,
 } from './src/handlers.mjs';
+import { createCancelOrderHandler } from './src/orders/cancel_order_handler.mjs';
 import {
+  createConsumePickupFolioHandler,
   createConsumePickupTokenHandler,
   createIssuePickupTokenHandler,
 } from './src/pickup/pickup_handlers.mjs';
@@ -51,6 +53,17 @@ export const createOrder = onCall(
   ),
 );
 
+export const cancelOrder = onCall(
+  { region, secrets: [stripeSecretKey] },
+  withCallableErrors(async (request) => {
+    const handler = createCancelOrderHandler({
+      database,
+      stripe: new Stripe(stripeSecretKey.value()),
+    });
+    return handler(request);
+  }),
+);
+
 export const createPaymentIntent = onCall(
   { region, secrets: [stripeSecretKey] },
   withCallableErrors(async (request) => {
@@ -88,7 +101,15 @@ export const consumePickupToken = onCall(
   ),
 );
 
+export const consumePickupFolio = onCall(
+  { region },
+  withCallableErrors(
+    createConsumePickupFolioHandler({ database }),
+  ),
+);
+
 export { updateOrderStatus } from './src/orders/update_order_status.mjs';
+export { resolveOrderIncident } from './src/orders/resolve_order_incident.mjs';
 export {
   upsertProduct,
   updateProductPrice,

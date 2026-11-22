@@ -72,6 +72,23 @@ void main() {
     expect(gateway.savedPreferences, isNull);
     expect(gateway.subscribed, isEmpty);
   });
+
+  test('reaplica solo los topics opt-in al restaurar la sesión', () async {
+    final subscribed = <String>[];
+    final unsubscribed = <String>[];
+
+    await applyTopicSubscriptions(
+      preferences: const NotificationTopicPreferences(
+        menu: true,
+        announcements: true,
+      ),
+      subscribe: (topic) async => subscribed.add(topic),
+      unsubscribe: (topic) async => unsubscribed.add(topic),
+    );
+
+    expect(subscribed, ['cafeteria_menu', 'cafeteria_avisos']);
+    expect(unsubscribed, ['cafeteria_ofertas']);
+  });
 }
 
 class _FakeGateway implements NotificationPreferencesGateway {

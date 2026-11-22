@@ -10,3 +10,8 @@ class PaymentConfigurationException implements Exception {
   @override
   String toString() => 'Pagos no configurados';
 }
+
+// El usuario cerró la hoja de pago sin pagar. No es un error del sistema.
+class PaymentCancelledException implements Exception {
+  const PaymentCancelledException();
+}

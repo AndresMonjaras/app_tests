@@ -1,134 +1,130 @@
 import { AppError } from '../app_error.mjs';
+import {
+  activeStatuses,
+  nextStaffStatus,
+  normalizeStoredStatus,
+  queuedStatuses,
+  requireAdmin,
+  requireNote,
+  requireOrderId,
+  requireOrderObject,
+  customerOrderView,
+  requireStaff,
+  stampFieldsByStatus,
+} from './order_status_rules.mjs';
 
-const orderStatusIndex = {
-  payment_pending: 0,
-  paid: 1,
-  confirmed: 2,
-  preparing: 3,
-  ready: 4,
-  delivered: 5,
-  incident: 6,
-};
-
-const storedStatusAliases = {
-  pendiente: 'payment_pending',
-  pendiente_pago: 'payment_pending',
-  pagado: 'paid',
-  confirmado: 'confirmed',
-  preparando: 'preparing',
-  'en preparación': 'preparing',
-  'en preparacion': 'preparing',
-  listo: 'ready',
-  'listo para recoger': 'ready',
-  entregado: 'delivered',
-  incidente: 'incident',
-};
-
-const queuedStatuses = new Set(['paid', 'confirmed', 'preparing', 'ready']);
 const cancellationStatuses = new Set(['cancelled', 'canceled', 'cancelado']);
+const paymentOnlyStatuses = new Set(['paid', 'payment_pending']);
+const staffTargetStatuses = new Set(Object.values(nextStaffStatus));
 
-function requireOrderId(value) {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
-    throw new AppError('invalid-argument', 'El pedido no es válido.');
-  }
-  return value;
-}
 
-function normalizeStoredStatus(value) {
-  const status = String(value ?? '').trim().toLowerCase();
-  if (Object.hasOwn(orderStatusIndex, status)) return status;
-  return storedStatusAliases[status] ?? 'payment_pending';
-}
-
-function requireStaff(request) {
-  if (typeof request.auth?.uid !== 'string' || request.auth.uid.length === 0) {
-    throw new AppError('unauthenticated', 'Inicia sesión para continuar.');
-  }
-  if (
-    request.auth.token?.staff !== true &&
-    request.auth.token?.admin !== true
-  ) {
-    throw new AppError(
-      'permission-denied',
-      'Solo el personal puede actualizar el estado de un pedido.',
-    );
-  }
-}
-
-export function createUpdateOrderStatusHandler({ database }) {
+export function createUpdateOrderStatusHandler({
+  database,
+  now = Date.now,
+}) {
   return async (request) => {
-    requireStaff(request);
+    const actor = requireStaff(request);
     const orderId = requireOrderId(request.data?.orderId);
-    const nextStatus = request.data?.status;
-    const isCancellation =
-      typeof nextStatus === 'string' &&
-      cancellationStatuses.has(nextStatus.toLowerCase());
+    const requested = request.data?.status;
 
-    if (
-      typeof nextStatus !== 'string' ||
-      (!isCancellation && !Object.hasOwn(orderStatusIndex, nextStatus))
-    ) {
+    if (typeof requested !== 'string') {
+      throw new AppError('invalid-argument', 'El estado del pedido no es válido.');
+    }
+    const target = requested.trim().toLowerCase();
+
+    if (cancellationStatuses.has(target)) {
+      throw new AppError(
+        'failed-precondition',
+        'Un pedido pagado no se cancela desde la aplicación.',
+      );
+    }
+    if (paymentOnlyStatuses.has(target)) {
+      throw new AppError(
+        'permission-denied',
+        'Solo el servicio de pagos puede marcar un pedido como pagado.',
+      );
+    }
+
+    const isIncident = target === 'incident';
+    let incidentReason;
+    if (isIncident) {
+      requireAdmin(request);
+      incidentReason = requireNote(
+        request.data?.reason,
+        'Indica el motivo de la incidencia.',
+      );
+    } else if (!staffTargetStatuses.has(target)) {
       throw new AppError('invalid-argument', 'El estado del pedido no es válido.');
     }
 
+    const at = now();
+    let previousStatus;
     let validationError;
     const result = await database.ref('orders/' + orderId).transaction((order) => {
-      if (!order || typeof order !== 'object' || Array.isArray(order)) {
-        validationError = new AppError('not-found', 'No se encontró el pedido.');
-        return undefined;
-      }
-      if (typeof order.ownerUid !== 'string' || order.ownerUid.length === 0) {
-        validationError = new AppError(
-          'failed-precondition',
-          'El pedido no tiene un propietario válido.',
-        );
-        return undefined;
-      }
-      if (order.isCancelled === true) {
-        validationError = new AppError(
-          'failed-precondition',
-          'Un pedido cancelado no puede cambiar.',
-        );
-        return undefined;
-      }
+      try {
+        requireOrderObject(order);
+        const currentStatus = normalizeStoredStatus(order.status);
+        previousStatus = currentStatus;
 
-      const currentStatus = normalizeStoredStatus(order.status);
-      const currentStatusIndex = orderStatusIndex[currentStatus];
-      if (isCancellation) {
-        validationError = new AppError(
-          'failed-precondition',
-          currentStatusIndex >= orderStatusIndex.paid
-            ? 'No se puede cancelar un pedido después del pago.'
-            : 'La cancelación debe realizarse desde la opción correspondiente.',
-        );
-        return undefined;
-      }
-      if (orderStatusIndex[nextStatus] <= currentStatusIndex) {
-        validationError = new AppError(
-          'failed-precondition',
-          'El estado del pedido solo puede avanzar.',
-        );
-        return undefined;
-      }
+        if (isIncident) {
+          if (!activeStatuses.has(currentStatus)) {
+            throw new AppError(
+              'failed-precondition',
+              'Solo un pedido pagado y activo puede pasar a incidencia.',
+            );
+          }
+          validationError = undefined;
+          return {
+            ...order,
+            status: 'incident',
+            incidentAt: at,
+            incidentBy: actor.uid,
+          };
+        }
 
-      validationError = undefined;
-      return { ...order, status: nextStatus };
+        if (nextStaffStatus[currentStatus] !== target) {
+          throw new AppError(
+            'failed-precondition',
+            'Ese cambio de estado no está permitido para este pedido.',
+          );
+        }
+        const stamp = stampFieldsByStatus[target];
+        validationError = undefined;
+        return {
+          ...order,
+          status: target,
+          [stamp.at]: at,
+          [stamp.by]: actor.uid,
+        };
+      } catch (error) {
+        validationError = error;
+        return undefined;
+      }
     });
 
     if (!result.committed) {
       throw (
         validationError ??
-        new AppError(
-          'failed-precondition',
-          'No se pudo actualizar el estado del pedido.',
-        )
+        new AppError('failed-precondition', 'No se pudo actualizar el estado del pedido.')
       );
     }
 
     const updatedOrder = result.snapshot.val();
+    const eventRef = database.ref('orderEvents/' + orderId).push();
+    const event = {
+      type: isIncident ? 'incident_reported' : 'status_changed',
+      from: previousStatus,
+      to: isIncident ? 'incident' : target,
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      at,
+    };
+    if (isIncident) event.reason = incidentReason;
+
     const updates = {
-      ['ordersByUser/' + updatedOrder.ownerUid + '/' + orderId]: updatedOrder,
-      ['staffQueue/' + orderId]: queuedStatuses.has(nextStatus)
+      ['orderEvents/' + orderId + '/' + eventRef.key]: event,
+      ['ordersByUser/' + updatedOrder.ownerUid + '/' + orderId]: customerOrderView(updatedOrder),
+      ['staffQueue/' + orderId]: queuedStatuses.has(updatedOrder.status)
         ? { orderId }
         : null,
     };

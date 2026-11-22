@@ -24,4 +24,21 @@ void main() {
     );
     expect(functionsRequested, isFalse);
   });
+
+  test('una clave que no es de prueba no inicia el pago', () async {
+    var functionsRequested = false;
+    final gateway = StripePaymentGateway(
+      publishableKey: 'clave-no-de-prueba',
+      functionsFactory: () {
+        functionsRequested = true;
+        throw StateError('No debe inicializar Functions.');
+      },
+    );
+
+    await expectLater(
+      gateway.createPaymentIntent('order-1'),
+      throwsA(isA<Exception>()),
+    );
+    expect(functionsRequested, isFalse);
+  });
 }

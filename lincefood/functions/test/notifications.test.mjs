@@ -228,6 +228,14 @@ test('el texto propio solo admite hasta 120 caracteres y no admite emojis', asyn
     request('Escribe a persona@example.com'),
     (error) => error instanceof AppError && error.code === 'invalid-argument',
   );
+  await assert.rejects(
+    request('Tu folio: LF-1234'),
+    (error) => error instanceof AppError && error.code === 'invalid-argument',
+  );
+  await assert.rejects(
+    request('Promoción de $120'),
+    (error) => error instanceof AppError && error.code === 'invalid-argument',
+  );
   assert.deepEqual(sent, []);
 });
 
@@ -278,6 +286,8 @@ test('la recomendación rechaza texto largo, emojis, datos personales y usuarios
     'x'.repeat(121),
     'Oferta 🙂',
     'Escribe a persona@example.com',
+    'Pedido #1234',
+    'Oferta a $99 MXN',
   ]) {
     await assert.rejects(
       send(text),
@@ -346,3 +356,34 @@ class FakeDatabase {
     };
   }
 }
+
+test('cambio a confirmed y a delivered disparan su aviso al dueño del pedido', async () => {
+  const { handler, sent } = createOrderHandler();
+  await handler(orderEvent(
+    { status: 'paid', ownerUid: 'usuario-1' },
+    { status: 'confirmed', ownerUid: 'usuario-1' },
+  ));
+  await handler(orderEvent(
+    { status: 'ready', ownerUid: 'usuario-1' },
+    { status: 'delivered', ownerUid: 'usuario-1' },
+  ));
+
+  assert.deepEqual(sent.map((message) => message.data.type), [
+    'pedido_confirmado',
+    'pedido_entregado',
+  ]);
+});
+
+test('un cambio de estado sin aviso asociado no envía nada', async () => {
+  const { handler, sent } = createOrderHandler();
+  await handler(orderEvent(
+    { status: 'preparing', ownerUid: 'usuario-1' },
+    { status: 'ready', ownerUid: 'usuario-1', readyAt: 5 },
+  ));
+  await handler(orderEvent(
+    { status: 'ready', ownerUid: 'usuario-1' },
+    { status: 'incident', ownerUid: 'usuario-1' },
+  ));
+
+  assert.deepEqual(sent.map((message) => message.data.type), ['pedido_listo']);
+});

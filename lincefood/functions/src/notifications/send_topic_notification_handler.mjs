@@ -8,6 +8,8 @@ import {
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const phonePattern = /\+?\d[\d\s().-]{8,}\d/u;
 const identifierPattern = /\b[A-Z]{4}\d{6}[A-Z0-9]{8,10}\b|\b[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}\b/i;
+const folioPattern = /\b(?:folio|pedido)\s*(?:n(?:ú|u)m(?:ero)?\.?\s*)?(?:#|:)?\s*[A-Z0-9-]*\d[A-Z0-9-]*/i;
+const amountPattern = /(?:\$\s?\d|\b\d+(?:[.,]\d{1,2})?\s?(?:MXN|pesos)\b)/i;
 const emojiPattern = /[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u;
 
 function requireStaff(request) {
@@ -54,7 +56,9 @@ function validateCustomText(topic, customText, isAdmin) {
   if (
     emailPattern.test(text) ||
     phonePattern.test(text) ||
-    identifierPattern.test(text)
+    identifierPattern.test(text) ||
+    folioPattern.test(text) ||
+    amountPattern.test(text)
   ) {
     throw new AppError(
       'invalid-argument',

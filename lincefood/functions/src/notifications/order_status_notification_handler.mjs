@@ -9,18 +9,24 @@ import {
 const statusAliases = new Map([
   ['pagado', 'paid'],
   ['paid', 'paid'],
+  ['confirmado', 'confirmed'],
+  ['confirmed', 'confirmed'],
   ['preparando', 'preparing'],
   ['en cocina', 'preparing'],
   ['preparing', 'preparing'],
   ['listo', 'ready'],
   ['listo para recoger', 'ready'],
   ['ready', 'ready'],
+  ['entregado', 'delivered'],
+  ['delivered', 'delivered'],
 ]);
 
 const noticeForStatus = new Map([
   ['paid', 'pedido_registrado'],
+  ['confirmed', 'pedido_confirmado'],
   ['preparing', 'pedido_en_cocina'],
   ['ready', 'pedido_listo'],
+  ['delivered', 'pedido_entregado'],
 ]);
 
 function normalizeStatus(order) {

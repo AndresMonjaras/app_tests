@@ -8,6 +8,8 @@ const emojiPattern = /[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const phonePattern = /\+?\d[\d\s().-]{8,}\d/u;
 const identifierPattern = /\b[A-Z]{4}\d{6}[A-Z0-9]{8,10}\b|\b[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}\b/i;
+const folioPattern = /\b(?:folio|pedido)\s*(?:n(?:ú|u)m(?:ero)?\.?\s*)?(?:#|:)?\s*[A-Z0-9-]*\d[A-Z0-9-]*/i;
+const amountPattern = /(?:\$\s?\d|\b\d+(?:[.,]\d{1,2})?\s?(?:MXN|pesos)\b)/i;
 
 function validateRecommendation(request) {
   if (typeof request.auth?.uid !== 'string' || request.auth.uid.length === 0) {
@@ -43,7 +45,9 @@ function validateRecommendation(request) {
   if (
     emailPattern.test(recommendation) ||
     phonePattern.test(recommendation) ||
-    identifierPattern.test(recommendation)
+    identifierPattern.test(recommendation) ||
+    folioPattern.test(recommendation) ||
+    amountPattern.test(recommendation)
   ) {
     throw new AppError(
       'invalid-argument',

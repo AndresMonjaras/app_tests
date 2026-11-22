@@ -24,15 +24,16 @@ Proyecto Firebase: `lincefood-app` (plan Spark, sin facturación).
 ## Reglas de seguridad (resumen)
 
 - Denegar por defecto en la raíz.
-- Los clientes leen catálogo y solo escriben sus preferencias y perfil.
-- Los pedidos no se escriben desde el cliente; el servidor los crea y cambia su estado.
-- `payments`, `pickupTokens` y `staffQueue` nunca son legibles por el cliente.
+- Cliente autenticado: lee cafetería, categorías, productos y planes; lee únicamente sus pedidos, su perfil, preferencias, registros de dispositivo e inbox. Solo escribe su perfil, preferencias, registro de dispositivo y la marca `isRead` de sus notificaciones.
+- Personal (claim `staff`): lee la cola operativa y los perfiles según la regla; no cambia pedidos, estados ni importes desde el cliente.
+- Administrador (claim `admin`): escribe catálogo (`products`, `categories`) y configuración de cafetería. Las reglas validan `available`, `priceCents`, `prepMinutes` y coordenadas.
+- El servidor es el único escritor de pedidos, índices, pagos, tokens de recogida, entregas, membresías, cupos e historial de eventos. `payments`, `pickupTokens`, `staffQueue`, `pickupDeliveries`, `memberships` y `pickupSlots` no son legibles por clientes. `orderEvents` solo es legible por personal o administrador.
 - Roles de personal y administrador mediante custom claims (`staff`, `admin`), nunca por campos editables por el usuario.
 
 ## Validación local
 
-- Los cuatro archivos JSON (`firebase.json` y los tres archivos de reglas y semillas) se validan con `node -e`.
-- Emulador Firebase: no configurado; la validación de las reglas en el emulador queda pendiente.
+- `firebase.json`, reglas RTDB y semillas JSON se validan localmente con Node.js.
+- Las pruebas automatizadas de reglas viven en `storage-tests/database.rules.test.js`; requieren Firebase Database Emulator en `127.0.0.1:9000`.
 
 ## Comandos
 
