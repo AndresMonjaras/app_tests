@@ -18,6 +18,13 @@ test('el punto de entrada inicializa Firebase y exporta los módulos existentes'
     'deleteProduct',
     'setStaffRole',
     'setAdminRole',
+    'setUserRole',
+    'listUsers',
+    'setUserDisabled',
+    'upsertPromotion',
+    'deactivatePromotion',
+    'upsertScholarship',
+    'revokeScholarship',
   ]) {
     assert.ok(functions[name], `Falta exportar ${name}.`);
   }

@@ -5,7 +5,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { get, ref, set } from 'firebase/database';
+import { equalTo, get, orderByChild, query, ref, set } from 'firebase/database';
 
 const projectId = 'lincefood-app';
 let testEnvironment;
@@ -217,5 +217,53 @@ describe('rutas privadas y catálogo', () => {
     await assertFails(set(ref(adminDatabase, 'cafeteria/location/latitude'), 91));
     await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/longitude'), -100.8));
     await assertFails(set(ref(adminDatabase, 'cafeteria/location/longitude'), -181));
+  });
+});
+
+describe('reglas del panel de administración', () => {
+  it('expone solo promociones activas al público incluso mediante consulta', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'promotions'), {
+        pub: { title: 'Pública', active: true },
+        draft: { title: 'Borrador', active: false },
+      });
+    });
+    const guest = testEnvironment.unauthenticatedContext().database();
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+
+    await assertFails(get(ref(guest, 'promotions')));
+    await assertFails(get(ref(guest, 'promotions/draft')));
+    await assertSucceeds(get(ref(guest, 'promotions/pub')));
+    const active = query(ref(guest, 'promotions'), orderByChild('active'), equalTo(true));
+    const snapshot = await assertSucceeds(get(active));
+    if (snapshot.hasChild('draft') || !snapshot.hasChild('pub')) {
+      throw new Error('La consulta pública debe devolver solo la promoción activa.');
+    }
+    await assertFails(get(query(ref(guest, 'promotions'), orderByChild('active'), equalTo(false))));
+    await assertSucceeds(get(ref(admin, 'promotions')));
+    await assertFails(set(ref(admin, 'promotions/draft/active'), true));
+  });
+
+  it('permite leer las becas a su dueño y admin, y auditoría solo a admin', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      const db = context.database();
+      await set(ref(db, 'scholarships/owner'), { type: 'meal', remainingUses: 2 });
+      await set(ref(db, 'adminAudit/event'), { actorUid: 'admin', action: 'upsertScholarship' });
+    });
+    const owner = testEnvironment.authenticatedContext('owner').database();
+    const staff = testEnvironment.authenticatedContext('staff', { staff: true }).database();
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+
+    await assertSucceeds(get(ref(owner, 'scholarships/owner')));
+    await assertFails(get(ref(owner, 'scholarships')));
+    await assertFails(get(ref(staff, 'scholarships/owner')));
+    await assertSucceeds(get(ref(admin, 'scholarships')));
+    await assertFails(set(ref(owner, 'scholarships/owner/remainingUses'), 9));
+    await assertFails(set(ref(admin, 'scholarships/owner/remainingUses'), 9));
+    await assertFails(get(ref(owner, 'adminAudit/event')));
+    await assertFails(get(ref(staff, 'adminAudit')));
+    await assertSucceeds(get(ref(admin, 'adminAudit')));
+    await assertFails(set(ref(admin, 'adminAudit/event'), null));
+    await assertFails(set(ref(admin, 'adminWriteLock/initialized'), true));
   });
 });
