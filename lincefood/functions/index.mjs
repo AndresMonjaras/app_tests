@@ -132,3 +132,7 @@ export {
   sendRecommendation,
   sendTopicNotification,
 } from './src/notifications/index.mjs';
+export {
+  setCafeteriaLocation,
+  validateDeliveryLocation,
+} from './src/location/index.mjs';

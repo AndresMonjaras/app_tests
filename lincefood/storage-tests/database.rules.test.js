@@ -209,13 +209,55 @@ describe('rutas privadas y catálogo', () => {
     await assertFails(set(ref(adminDatabase, 'products/test'), { ...product, priceCents: -1 }));
   });
 
-  it('restringe cafeteria al administrador y valida coordenadas', async () => {
+  it('restringe la configuración general de la cafetería al administrador', async () => {
     const staffDatabase = testEnvironment.authenticatedContext('staff', { staff: true }).database();
     const adminDatabase = testEnvironment.authenticatedContext('admin', { admin: true }).database();
     await assertFails(set(ref(staffDatabase, 'cafeteria/name'), 'Otra'));
-    await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/latitude'), 20.5));
-    await assertFails(set(ref(adminDatabase, 'cafeteria/location/latitude'), 91));
-    await assertSucceeds(set(ref(adminDatabase, 'cafeteria/location/longitude'), -100.8));
-    await assertFails(set(ref(adminDatabase, 'cafeteria/location/longitude'), -181));
+    await assertSucceeds(set(ref(adminDatabase, 'cafeteria/name'), 'Otra'));
+  });
+});
+
+describe('ubicación y cobertura de la cafetería', () => {
+  const location = {
+    lat: 20.54146,
+    lng: -100.81192,
+    label: 'Cafetería · Campus II',
+    address: 'TecNM Celaya Campus II',
+    hours: 'Lunes a viernes, 7:30–19:00',
+    approximate: true,
+  };
+  const coverage = {
+    centerLat: location.lat,
+    centerLng: location.lng,
+    radiusMeters: 350,
+    approximate: true,
+    note: 'Radio provisional',
+  };
+
+  it('permite leer con sesión y reserva la escritura al claim admin', async () => {
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    const student = testEnvironment.authenticatedContext('student').database();
+    const staff = testEnvironment.authenticatedContext('staff', { staff: true }).database();
+    const anonymous = testEnvironment.unauthenticatedContext().database();
+
+    for (const [path, value] of [
+      ['cafeteria/location', location],
+      ['deliveryCoverage', coverage],
+    ]) {
+      await assertSucceeds(set(ref(admin, path), value));
+      await assertSucceeds(get(ref(student, path)));
+      await assertFails(get(ref(anonymous, path)));
+      await assertFails(set(ref(student, path), value));
+      await assertFails(set(ref(staff, path), value));
+    }
+  });
+
+  it('rechaza configuración inválida incluso de un admin', async () => {
+    const admin = testEnvironment.authenticatedContext('admin', { admin: true }).database();
+    await assertFails(set(ref(admin, 'cafeteria/location'), { ...location, lat: 91 }));
+    await assertFails(set(ref(admin, 'cafeteria/location'), { ...location, lng: -181 }));
+    await assertFails(set(ref(admin, 'cafeteria/location'), { ...location, hours: null }));
+    await assertFails(set(ref(admin, 'deliveryCoverage'), { ...coverage, radiusMeters: 0 }));
+    await assertFails(set(ref(admin, 'deliveryCoverage'), { ...coverage, approximate: 'true' }));
   });
 });

@@ -9,8 +9,12 @@ import '../profile/presentation/profile_screen.dart';
 enum AppSection { home, orders, map, profile }
 
 class NavigationController extends Notifier<AppSection> {
+  NavigationController([this.initialSection = AppSection.home]);
+
+  final AppSection initialSection;
+
   @override
-  AppSection build() => AppSection.home;
+  AppSection build() => initialSection;
 
   void select(AppSection section) => state = section;
 }
@@ -22,6 +26,17 @@ final navigationControllerProvider =
 
 class AppNavigationShell extends ConsumerWidget {
   const AppNavigationShell({super.key});
+
+  static Widget openMap() {
+    return ProviderScope(
+      overrides: [
+        navigationControllerProvider.overrideWith(
+          () => NavigationController(AppSection.map),
+        ),
+      ],
+      child: const AppNavigationShell(),
+    );
+  }
 
   static const _sections = AppSection.values;
   static const _railBreakpoint = 768.0;

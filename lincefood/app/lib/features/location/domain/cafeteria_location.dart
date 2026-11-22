@@ -4,17 +4,21 @@ class CafeteriaLocation {
     required this.longitude,
     required this.label,
     this.address = '',
+    this.hours = '',
+    this.approximate = true,
   });
 
   final double latitude;
   final double longitude;
   final String label;
   final String address;
+  final String hours;
+  final bool approximate;
 
   static CafeteriaLocation? tryFrom(Object? value) {
     if (value is! Map) return null;
-    final latitude = _coordinate(value['latitude']);
-    final longitude = _coordinate(value['longitude']);
+    final latitude = parseCoordinate(value['lat'] ?? value['latitude']);
+    final longitude = parseCoordinate(value['lng'] ?? value['longitude']);
     final label = (value['label'] ?? '').toString().trim();
     if (latitude == null ||
         longitude == null ||
@@ -30,12 +34,14 @@ class CafeteriaLocation {
       longitude: longitude,
       label: label,
       address: (value['address'] ?? '').toString().trim(),
+      hours: (value['hours'] ?? '').toString().trim(),
+      approximate: value['approximate'] != false,
     );
   }
+}
 
-  static double? _coordinate(Object? value) {
-    if (value is! num) return null;
-    final result = value.toDouble();
-    return result.isFinite ? result : null;
-  }
+double? parseCoordinate(Object? value) {
+  if (value is! num) return null;
+  final result = value.toDouble();
+  return result.isFinite ? result : null;
 }
