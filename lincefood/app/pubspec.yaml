@@ -42,3 +42,7 @@ flutter:
   assets:
     - ../firebase/seeds/notificaciones.seed.json
     - assets/images/
+  fonts:
+    - family: Jakarta
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans.ttf
