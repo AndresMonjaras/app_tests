@@ -1,6 +1,6 @@
+import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +25,12 @@ Widget _app({
     overrides: [
       menuImagesEnabledProvider.overrideWithValue(imagesEnabled),
       mediaStorageProvider.overrideWithValue(storage),
+      // Evita tocar disco/sqflite: resuelve el archivo según el storage de prueba.
+      menuImageFileProvider.overrideWith((ref, path) async {
+        if (path.isEmpty || !imagesEnabled) return null;
+        await ref.watch(mediaStorageProvider).productImageUrl(path);
+        return File('/tmp/menu_image_test.png');
+      }),
     ],
     child: MaterialApp(
       home: Scaffold(
@@ -70,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.restaurant_outlined), findsOneWidget);
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byType(Image), findsNothing);
   });
 
   testWidgets('sin ruta de imagen muestra el icono', (tester) async {
@@ -80,10 +86,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.restaurant_outlined), findsOneWidget);
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byType(Image), findsNothing);
   });
 
-  testWidgets('con flag activo y URL usa la imagen en caché', (tester) async {
+  testWidgets('con flag activo muestra la imagen desde archivo local', (tester) async {
     final storage = InMemoryMediaStorage();
     final path = await storage.uploadProductImage(
       'torta',
@@ -97,10 +103,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final image = tester.widget<CachedNetworkImage>(
-      find.byType(CachedNetworkImage),
-    );
-    expect(image.imageUrl, 'memory://$path');
+    expect(find.byType(Image), findsOneWidget);
   });
 
   testWidgets('si falla la URL muestra el icono sin romper la pantalla', (

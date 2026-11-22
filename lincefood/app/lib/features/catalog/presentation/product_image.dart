@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,29 +33,24 @@ class ProductImage extends ConsumerWidget {
       return fallback;
     }
 
-    final url = ref.watch(menuImageUrlProvider(imagePath));
-    return url.when(
+    final file = ref.watch(menuImageFileProvider(imagePath));
+    return file.when(
       loading: () => _Placeholder(
         width: width,
         height: height,
         borderRadius: borderRadius,
       ),
       error: (_, _) => fallback,
-      data: (imageUrl) {
-        if (imageUrl == null) return fallback;
+      data: (imageFile) {
+        if (imageFile == null) return fallback;
         return ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
+          child: Image.file(
+            imageFile,
             width: width,
             height: height,
             fit: BoxFit.cover,
-            placeholder: (_, _) => _Placeholder(
-              width: width,
-              height: height,
-              borderRadius: borderRadius,
-            ),
-            errorWidget: (_, _, _) => fallback,
+            errorBuilder: (_, _, _) => fallback,
           ),
         );
       },
