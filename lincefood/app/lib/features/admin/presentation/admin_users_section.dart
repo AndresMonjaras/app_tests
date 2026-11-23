@@ -1,3 +1,5 @@
+import '../../../app/app_theme.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -207,6 +209,7 @@ class _AdminUsersSectionState extends ConsumerState<AdminUsersSection> {
       title: Text(name),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: PopupMenuButton<String>(
+        popUpAnimationStyle: AppTheme.popupAnimationStyle,
         tooltip: 'Acciones de $name',
         enabled: !busy,
         itemBuilder: (_) => [

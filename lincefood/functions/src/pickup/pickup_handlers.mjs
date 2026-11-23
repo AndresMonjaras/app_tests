@@ -6,7 +6,7 @@ import {
   normalizeStoredStatus,
 } from '../orders/order_status_rules.mjs';
 
-const pickupTokenTtlMs = 10 * 60 * 1000;
+const pickupTokenTtlMs = 20 * 60 * 1000;
 const orderIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
 const usedTokenMessage = 'Este código ya fue usado.';

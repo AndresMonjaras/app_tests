@@ -447,31 +447,51 @@ class _TicketCard extends ConsumerWidget {
                 style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
             ],
-            if (!order.isCancelled && order.status == OrderStatus.ready) ...[
+            if (!order.isCancelled &&
+                (_canShowPickupQr(order.status) ||
+                    canCustomerCancel(order.status))) ...[
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed(
-                  AppRouter.pickupQr,
-                  arguments: {'orderId': order.id},
-                ),
-                icon: const Icon(Icons.qr_code_2),
-                label: const Text('Mostrar QR de recogida'),
-              ),
-            ],
-            if (!order.isCancelled && canCustomerCancel(order.status)) ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                  side: isCancelling
-                      ? null
-                      : BorderSide(color: Theme.of(context).colorScheme.error),
-                ),
-                onPressed: isCancelling
-                    ? null
-                    : () => _confirmarCancelacion(context, ref),
-                icon: const Icon(Icons.cancel_outlined),
-                label: Text(isCancelling ? 'Cancelando...' : 'Cancelar pedido'),
+              // Los dos botones comparten fila para ocupar menos alto.
+              Row(
+                children: [
+                  if (_canShowPickupQr(order.status))
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.of(context).pushNamed(
+                          AppRouter.pickupQr,
+                          arguments: {
+                            'orderId': order.id,
+                            'requireBiometrics': true,
+                          },
+                        ),
+                        icon: const Icon(Icons.qr_code_2),
+                        label: const Text('Ver QR'),
+                      ),
+                    ),
+                  if (_canShowPickupQr(order.status) &&
+                      canCustomerCancel(order.status))
+                    const SizedBox(width: 8),
+                  if (canCustomerCancel(order.status))
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          side: isCancelling
+                              ? null
+                              : BorderSide(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                        ),
+                        onPressed: isCancelling
+                            ? null
+                            : () => _confirmarCancelacion(context, ref),
+                        icon: const Icon(Icons.cancel_outlined),
+                        label: Text(
+                          isCancelling ? 'Cancelando...' : 'Cancelar pedido',
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ],
@@ -479,6 +499,14 @@ class _TicketCard extends ConsumerWidget {
       ),
     );
   }
+
+  bool _canShowPickupQr(OrderStatus status) => switch (status) {
+    OrderStatus.paid ||
+    OrderStatus.confirmed ||
+    OrderStatus.preparing ||
+    OrderStatus.ready => true,
+    _ => false,
+  };
 
   String _orderTime(BuildContext context, DateTime createdAt) {
     final time = MaterialLocalizations.of(context).formatTimeOfDay(

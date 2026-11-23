@@ -125,7 +125,7 @@ test('el dueño recibe un QR y la base solo guarda su hash', async () => {
 
   const { token, expiresAt } = await issueToken(database);
 
-  assert.equal(expiresAt, 1_000 + 10 * 60 * 1000);
+  assert.equal(expiresAt, 1_000 + 20 * 60 * 1000);
   const tokenId = hashPickupToken(token);
   assert.equal(database.store.has('pickupTokens/' + tokenId), true);
   assert.equal(database.store.has('pickupTokens/' + token), false);

@@ -1,3 +1,5 @@
+import '../../../app/app_theme.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -280,6 +282,7 @@ class _IncidentMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
+      popUpAnimationStyle: AppTheme.popupAnimationStyle,
       enabled: enabled,
       tooltip: label,
       onSelected: onSelected,

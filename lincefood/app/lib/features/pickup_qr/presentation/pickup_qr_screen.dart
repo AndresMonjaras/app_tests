@@ -3,36 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/errors/domain_exception.dart';
-import '../../orders/domain/order_status.dart';
-import '../../orders/presentation/orders_providers.dart';
 import '../domain/pickup_qr_gateway.dart';
 import 'pickup_qr_providers.dart';
 
 class PickupQrScreen extends ConsumerWidget {
-  const PickupQrScreen({super.key, required this.orderId});
+  const PickupQrScreen({
+    super.key,
+    required this.orderId,
+    this.requireBiometrics = false,
+  });
 
   final String orderId;
+  final bool requireBiometrics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orders = ref.watch(ordersStreamProvider);
-    final isDelivered =
-        orders.value?.any(
-          (order) =>
-              order.id == orderId && order.status == OrderStatus.delivered,
-        ) ??
-        false;
-    final canShow =
-        orders.value?.any(
-          (order) =>
-              order.id == orderId &&
-              !order.isCancelled &&
-              order.status == OrderStatus.ready,
-        ) ??
-        false;
-    final qr = canShow ? ref.watch(pickupQrProvider(orderId)) : null;
+    final request = (orderId: orderId, requireBiometrics: requireBiometrics);
+    final qr = ref.watch(pickupQrProvider(request));
 
-    void retry() => ref.invalidate(pickupQrProvider(orderId));
+    void retry() => ref.invalidate(pickupQrProvider(request));
 
     return Scaffold(
       appBar: AppBar(title: const Text('QR de recogida')),
@@ -40,39 +29,28 @@ class PickupQrScreen extends ConsumerWidget {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: orders.hasError
-                ? _QrMessage(
-                    message: 'No se pudo verificar el estado del pedido.',
-                    onRetry: () => ref.invalidate(ordersStreamProvider),
-                  )
-                : qr?.when(
-                        loading: () => const CircularProgressIndicator(
-                          semanticsLabel: 'Generando QR de recogida',
-                        ),
-                        error: (error, _) => _QrMessage(
-                          message: error is DomainException
-                              ? error.message
-                              : 'No se pudo generar el QR. Inténtalo de nuevo.',
-                          onRetry: retry,
-                        ),
-                        data: (reveal) {
-                          final token = reveal.token;
-                          if (token == null) {
-                            return _QrMessage(
-                              message:
-                                  reveal.blockedReason ??
-                                  'El QR no está disponible.',
-                              onRetry: retry,
-                            );
-                          }
-                          return _QrCode(pickup: token, onRefresh: retry);
-                        },
-                      ) ??
-                      (orders.isLoading
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              isDelivered ? 'El pedido ya fue entregado.' : 'El QR solo está disponible para pedidos listos.',
-                            )),
+            child: qr.when(
+              loading: () => const CircularProgressIndicator(
+                semanticsLabel: 'Generando QR de recogida',
+              ),
+              error: (error, _) => _QrMessage(
+                message: error is DomainException
+                    ? error.message
+                    : 'No se pudo generar el QR. Inténtalo de nuevo.',
+                onRetry: retry,
+              ),
+              data: (reveal) {
+                final token = reveal.token;
+                if (token == null) {
+                  return _QrMessage(
+                    message:
+                        reveal.blockedReason ?? 'El QR no está disponible.',
+                    onRetry: retry,
+                  );
+                }
+                return _QrCode(pickup: token, onRefresh: retry);
+              },
+            ),
           ),
         ),
       ),
@@ -106,7 +84,7 @@ class _QrCode extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           'Válido hasta ${_formatTime(pickup.expiresAt)}. '
-          'Muéstralo al personal para recoger tu pedido.',
+          'El personal podrá registrar la entrega cuando el pedido esté listo.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),

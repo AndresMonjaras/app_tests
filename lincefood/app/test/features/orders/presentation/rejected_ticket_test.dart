@@ -57,7 +57,7 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('paso actual')), findsNothing);
       expect(find.text('Pago confirmado'), findsNothing);
       expect(find.text('Cancelar pedido'), findsNothing);
-      expect(find.text('Mostrar QR de recogida'), findsNothing);
+      expect(find.text('Ver QR'), findsNothing);
 
       await tester.pump(const Duration(seconds: 61));
       await tester.pump();

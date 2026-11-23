@@ -206,7 +206,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final qr = find.text('Mostrar QR de recogida');
+        final qr = find.text('Ver QR');
         expect(qr, findsNothing);
         expect(find.text('Pago confirmado'), findsNothing);
         expect(
@@ -225,10 +225,9 @@ void main() {
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           expect(find.text('Pago confirmado'), findsOneWidget);
-          expect(
-            qr,
-            status == OrderStatus.ready ? findsOneWidget : findsNothing,
-          );
+          // El QR se ve desde que el pedido esta pagado hasta que esta listo.
+          final muestraQr = status != OrderStatus.delivered;
+          expect(qr, muestraQr ? findsOneWidget : findsNothing);
 
           if (status == OrderStatus.ready) {
             await tester.ensureVisible(qr);
@@ -236,7 +235,10 @@ void main() {
             await tester.tap(qr);
             await tester.pumpAndSettle();
             expect(qrRoute?.name, AppRouter.pickupQr);
-            expect(qrRoute?.arguments, {'orderId': orderId});
+            expect(qrRoute?.arguments, {
+              'orderId': orderId,
+              'requireBiometrics': true,
+            });
             Navigator.of(tester.element(find.text('QR de prueba'))).pop();
             await tester.pumpAndSettle();
           }

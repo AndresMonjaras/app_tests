@@ -8,14 +8,13 @@ import 'package:lincefood_app/features/pickup_qr/domain/pickup_qr_gateway.dart';
 import 'package:lincefood_app/features/pickup_qr/presentation/pickup_qr_providers.dart';
 
 class FakeAuthenticator implements BiometricAuthenticator {
-  FakeAuthenticator({this.allow = true, this.available = true});
+  FakeAuthenticator({this.allow = true});
 
   bool allow;
-  final bool available;
   int calls = 0;
 
   @override
-  Future<bool> get isBiometricAvailable async => available;
+  Future<bool> get isBiometricAvailable async => true;
 
   @override
   Future<bool> authenticateForPickupQr() async {
@@ -27,6 +26,7 @@ class FakeAuthenticator implements BiometricAuthenticator {
 class FakePickupGateway implements PickupQrGateway {
   final issued = <String>[];
   final consumed = <String>[];
+  final consumedFolios = <String>[];
   Completer<void>? consumeGate;
   String? consumeError;
 
@@ -43,6 +43,13 @@ class FakePickupGateway implements PickupQrGateway {
   Future<String> consumeToken(String token) async {
     consumed.add(token);
     if (consumeGate != null) await consumeGate!.future;
+    if (consumeError != null) throw DomainException(consumeError!);
+    return 'ord1';
+  }
+
+  @override
+  Future<String> consumeFolio(String folio) async {
+    consumedFolios.add(folio);
     if (consumeError != null) throw DomainException(consumeError!);
     return 'ord1';
   }
@@ -65,11 +72,13 @@ ProviderContainer _container({
 // El provider es autoDispose: se mantiene un listener mientras se espera.
 Future<PickupQrReveal> _requestPickup(
   ProviderContainer container,
-  String orderId,
-) {
-  final subscription = container.listen(pickupQrProvider(orderId), (_, _) {});
+  String orderId, {
+  bool requireBiometrics = false,
+}) {
+  final request = (orderId: orderId, requireBiometrics: requireBiometrics);
+  final subscription = container.listen(pickupQrProvider(request), (_, _) {});
   addTearDown(subscription.close);
-  return container.read(pickupQrProvider(orderId).future);
+  return container.read(pickupQrProvider(request).future);
 }
 
 void main() {
@@ -88,6 +97,30 @@ void main() {
     expect(reveal.blockedReason, isNotNull);
     expect(gateway.issued, isEmpty);
     expect(authenticator.calls, 1);
+  });
+
+  test('el QR temporal se marca entregado sin llamar a Firebase', () async {
+    final gateway = FakePickupGateway();
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      pickupScanControllerProvider,
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+
+    await container
+        .read(pickupScanControllerProvider.notifier)
+        .handleCode(pickupQrTestCode);
+
+    final state = container.read(pickupScanControllerProvider);
+    expect(state.delivered, isTrue);
+    expect(state.message, contains('solo en este dispositivo'));
+    expect(gateway.issued, isEmpty);
+    expect(gateway.consumed, isEmpty);
   });
 
   test('con biometría aprobada se emite el QR del pedido', () async {
@@ -119,6 +152,30 @@ void main() {
     expect(authenticator.calls, 0);
     expect(gateway.issued, ['ord1']);
   });
+
+  test(
+    'recoger pedido exige huella aunque la preferencia esté apagada',
+    () async {
+      final authenticator = FakeAuthenticator();
+      final gateway = FakePickupGateway();
+      final container = _container(
+        authenticator: authenticator,
+        gateway: gateway,
+        protect: false,
+      );
+      addTearDown(container.dispose);
+
+      final reveal = await _requestPickup(
+        container,
+        'ord1',
+        requireBiometrics: true,
+      );
+
+      expect(reveal.token?.token, 'token-ord1');
+      expect(authenticator.calls, 1);
+      expect(gateway.issued, ['ord1']);
+    },
+  );
 
   test('escanear un código entrega el pedido una vez', () async {
     final gateway = FakePickupGateway();
@@ -180,38 +237,55 @@ void main() {
     },
   );
 
-  test(
-    'sin biometría disponible se emite el QR con la sesión activa',
-    () async {
-      final authenticator = FakeAuthenticator(available: false);
-      final gateway = FakePickupGateway();
-      final container = _container(
-        authenticator: authenticator,
-        gateway: gateway,
-      );
-      addTearDown(container.dispose);
+  test('el folio manual se envía en mayúsculas y entrega una vez', () async {
+    final gateway = FakePickupGateway();
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(pickupScanControllerProvider.notifier);
 
-      expect((await _requestPickup(container, 'ord1')).token, isNotNull);
-      expect(authenticator.calls, 0);
-      expect(gateway.issued, ['ord1']);
-    },
-  );
+    await controller.handleFolio('  lf-abcd1234 ');
+    await controller.handleFolio('LF-ABCD1234');
 
-  for (final message in [
-    'El pedido todavía no está listo para recoger.',
-    'Solo el personal puede entregar pedidos.',
-  ]) {
-    test('el escáner muestra el error: $message', () async {
-      final gateway = FakePickupGateway()..consumeError = message;
-      final container = _container(
-        authenticator: FakeAuthenticator(),
-        gateway: gateway,
-      );
-      addTearDown(container.dispose);
-      final controller = container.read(pickupScanControllerProvider.notifier);
-      await controller.handleCode('token-ord1');
-      expect(container.read(pickupScanControllerProvider).message, message);
-      expect(container.read(pickupScanControllerProvider).delivered, isFalse);
-    });
-  }
+    final state = container.read(pickupScanControllerProvider);
+    expect(state.delivered, isTrue);
+    expect(state.message, 'Pedido ord1 entregado.');
+    expect(gateway.consumedFolios, ['LF-ABCD1234']);
+    expect(gateway.consumed, isEmpty);
+  });
+
+  test('un folio rechazado por el servidor muestra el error', () async {
+    final gateway = FakePickupGateway()
+      ..consumeError = 'No se encontró un pedido con ese folio.';
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(pickupScanControllerProvider.notifier);
+
+    await controller.handleFolio('LF-NOEXISTE');
+
+    final state = container.read(pickupScanControllerProvider);
+    expect(state.delivered, isFalse);
+    expect(state.busy, isFalse);
+    expect(state.message, 'No se encontró un pedido con ese folio.');
+  });
+
+  test('un folio vacío no llama al servidor', () async {
+    final gateway = FakePickupGateway();
+    final container = _container(
+      authenticator: FakeAuthenticator(),
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(pickupScanControllerProvider.notifier)
+        .handleFolio('   ');
+
+    expect(gateway.consumedFolios, isEmpty);
+  });
 }

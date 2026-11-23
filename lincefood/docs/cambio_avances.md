@@ -35,7 +35,7 @@ Todos aparecen con autor Git `AndyMonjaras`. Git no permite concluir quién ejec
 
 1. **Etiqueta de estado:** `OrderStatus` y `OrderTimeline` usan “En cocina”; el acuerdo vigente es **“En preparación”**.
 2. **Expiración y cancelación:** no se encontró `cancelOrder` ni expiración de pedidos `payment_pending` a los 30 minutos. El QR sí vence, pero es un TTL distinto.
-3. **Duración del QR:** `pickup_handlers.mjs` configura 10 minutos; el plan acordado requiere 5 minutos.
+3. **Duración del QR:** `pickup_handlers.mjs` configura ahora 20 minutos por decisión del usuario.
 4. **Fallback biométrico:** QR requiere `biometricOnly`; si falla o no está disponible queda oculto, pero no implementa reautenticación Firebase acordada.
 5. **Horario de pedidos:** la semilla tiene `acceptingOrders: false`, y la búsqueda en app/functions solo encuentra ese campo en la semilla. `createOrder` no valida el estado de apertura. El flujo necesita un estado visible en UI y enforcement en servidor.
 6. **Verificación de correo en backend:** las funciones de creación de pedido y PaymentIntent exigen sesión, pero no verifican `email_verified`, aunque la app exige correo verificado.
