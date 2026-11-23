@@ -33,6 +33,13 @@ service firebase.storage {
         && (request.resource == null || isSupportedImage(request.resource));
     }
 
+    match /menu/{fileName} {
+      allow read: if resource != null
+        && resource.contentType.matches('^image/(jpeg|png|webp)$');
+      allow write: if canManageMenu()
+        && (request.resource == null || isSupportedImage(request.resource));
+    }
+
     match /profiles/{uid}/avatar/{fileName} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if canEditAvatar(uid)
