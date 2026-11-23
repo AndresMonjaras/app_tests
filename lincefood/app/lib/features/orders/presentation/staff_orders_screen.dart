@@ -33,7 +33,14 @@ class StaffOrdersScreen extends ConsumerWidget {
     final staffPermission = ref.watch(staffPermissionProvider);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? null
+          : const Color(0xFFFBF5EC),
       appBar: AppBar(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? null
+            : const Color(0xFFFBF5EC),
+        scrolledUnderElevation: 0,
         title: const Text('Pedidos de cafetería'),
         actions: [
           if (staffPermission.value == true)
@@ -97,41 +104,54 @@ class _StaffOrderList extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (actionState.errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  actionState.errorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  children: [
+                    if (actionState.errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          actionState.errorMessage!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    for (final order in items)
+                      _StaffOrderCard(
+                        order: order,
+                        isWorking: actionState.isWorking,
+                        isAdmin: isAdmin,
+                        now: now,
+                        onUpdate: (status) => controller.updateOrderStatus(
+                          orderId: order.id,
+                          status: status,
+                        ),
+                        onReject: () {
+                          controller.clearError();
+                          showDialog<void>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) =>
+                                RejectOrderDialog(orderId: order.id),
+                          );
+                        },
+                        onReportIncident: (reason) => controller.reportIncident(
+                          orderId: order.id,
+                          reason: reason,
+                        ),
+                        onResolveIncident: (resolution) =>
+                            controller.resolveIncident(
+                              orderId: order.id,
+                              resolution: resolution,
+                            ),
+                      ),
+                  ],
                 ),
               ),
-            for (final order in items)
-              _StaffOrderCard(
-                order: order,
-                isWorking: actionState.isWorking,
-                isAdmin: isAdmin,
-                now: now,
-                onUpdate: (status) => controller.updateOrderStatus(
-                  orderId: order.id,
-                  status: status,
-                ),
-                onReject: () {
-                  controller.clearError();
-                  showDialog<void>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => RejectOrderDialog(orderId: order.id),
-                  );
-                },
-                onReportIncident: (reason) => controller.reportIncident(
-                  orderId: order.id,
-                  reason: reason,
-                ),
-                onResolveIncident: (resolution) => controller.resolveIncident(
-                  orderId: order.id,
-                  resolution: resolution,
-                ),
-              ),
+            ),
           ],
         );
       },
@@ -183,87 +203,228 @@ class _StaffOrderCard extends StatelessWidget {
     final canReportIncident = isAdmin && order.status.allowsIncident;
     final canResolveIncident = isAdmin && order.status == OrderStatus.incident;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Folio ${order.displayFolio}',
-              style: Theme.of(context).textTheme.titleMedium,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final accent = _terracotta(context);
+    final isReady = order.status == OrderStatus.ready;
+    final isIncident = order.status == OrderStatus.incident;
+    final badgeColor = isIncident
+        ? scheme.error
+        : isReady
+        ? theme.brightness == Brightness.dark
+              ? const Color(0xFF8FD0A6)
+              : const Color(0xFF3F7D58)
+        : accent;
+    final cardColor = scheme.brightness == Brightness.dark
+        ? scheme.surfaceContainerHigh
+        : Colors.white;
+    final muted = scheme.onSurfaceVariant;
+
+    final actions = <Widget>[
+      if (nextStatus != null && actionLabel != null)
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: theme.brightness == Brightness.dark
+                ? scheme.surface
+                : Colors.white,
+            minimumSize: const Size(0, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 4),
-            Text('${order.status.label} · ${formatMoney(order.totalCents)}'),
-            if (order.status == OrderStatus.ready) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Pide al estudiante que muestre su QR y escanéalo para confirmar la entrega.',
-                style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          onPressed: isWorking ? null : () => onUpdate(nextStatus),
+          child: Text(actionLabel),
+        ),
+      if (order.status.allowsRejection && !order.isCancelled)
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: scheme.error,
+            minimumSize: const Size(0, 48),
+            side: isWorking ? null : BorderSide(color: scheme.error),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: isWorking ? null : onReject,
+          child: const Text('Rechazar'),
+        ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.4),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Folio ${order.displayFolio}',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (order.createdAt != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          formatElapsedTime(order.createdAt!, now: now),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ],
-            if (order.createdAt != null) ...[
-              const SizedBox(height: 4),
-              Text(formatElapsedTime(order.createdAt!, now: now)),
-            ],
-            const SizedBox(height: 4),
-            Text('Modalidad: ${order.pickupMode.label}'),
-            if (order.lines.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              for (final line in order.lines)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    '${line.quantity} × ${line.product.name}'
-                    '${line.variant == null ? '' : ' · ${line.variant!.label}'}',
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  order.status.label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-            ],
-            if (nextStatus != null && actionLabel != null) ...[
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: isWorking ? null : () => onUpdate(nextStatus),
-                child: Text(actionLabel),
               ),
             ],
-            if (order.status.allowsRejection && !order.isCancelled) ...[
-              const SizedBox(height: 8),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                  side: isWorking
-                      ? null
-                      : BorderSide(color: Theme.of(context).colorScheme.error),
-                ),
-                onPressed: isWorking ? null : onReject,
-                child: const Text('Rechazar'),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Icon(Icons.storefront_outlined, size: 18, color: accent),
+              Text(
+                'Modalidad: ${order.pickupMode.label}',
+                style: theme.textTheme.bodyMedium?.copyWith(color: muted),
               ),
             ],
-            if (canReportIncident) ...[
-              const SizedBox(height: 8),
-              _IncidentMenu(
-                label: 'Marcar incidencia',
-                options: _incidentReasons,
-                enabled: !isWorking,
-                onSelected: onReportIncident,
+          ),
+          if (isReady) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(14),
               ),
-            ],
-            if (canResolveIncident) ...[
-              const SizedBox(height: 8),
-              _IncidentMenu(
-                label: 'Resolver incidencia',
-                options: _resolutionNotes,
-                enabled: !isWorking,
-                onSelected: onResolveIncident,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.qr_code_scanner, color: badgeColor),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Pide al estudiante que muestre su QR y escanéalo para confirmar la entrega.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
-        ),
+          if (order.lines.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Divider(height: 1, color: accent.withValues(alpha: 0.25)),
+            const SizedBox(height: 10),
+            for (final line in order.lines)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '${line.quantity} × ${line.product.name}'
+                  '${line.variant == null ? '' : ' · ${line.variant!.label}'}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total', style: theme.textTheme.bodyMedium),
+              Text(
+                formatMoney(order.totalCents),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (actions.length == 2 && constraints.maxWidth >= 300) {
+                  return Row(
+                    children: [
+                      Expanded(child: actions[0]),
+                      const SizedBox(width: 10),
+                      Expanded(child: actions[1]),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      actions[i],
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+          if (canReportIncident) ...[
+            const SizedBox(height: 8),
+            _IncidentMenu(
+              label: 'Marcar incidencia',
+              options: _incidentReasons,
+              enabled: !isWorking,
+              onSelected: onReportIncident,
+            ),
+          ],
+          if (canResolveIncident) ...[
+            const SizedBox(height: 8),
+            _IncidentMenu(
+              label: 'Resolver incidencia',
+              options: _resolutionNotes,
+              enabled: !isWorking,
+              onSelected: onResolveIncident,
+            ),
+          ],
+        ],
       ),
     );
   }
 }
+
+Color _terracotta(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? const Color(0xFFE59A78)
+    : const Color(0xFFB4532F);
 
 class _IncidentMenu extends StatelessWidget {
   const _IncidentMenu({
@@ -289,14 +450,18 @@ class _IncidentMenu extends StatelessWidget {
         for (final option in options)
           PopupMenuItem<String>(value: option, child: Text(option)),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: enabled
-                ? Theme.of(context).colorScheme.error
-                : Theme.of(context).disabledColor,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: enabled
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).disabledColor,
+            ),
           ),
         ),
       ),
