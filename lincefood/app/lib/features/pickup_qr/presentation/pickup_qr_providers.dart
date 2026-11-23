@@ -1,12 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/domain_exception.dart';
 import '../../biometrics/biometric_protection.dart';
 import '../data/callable_pickup_qr_gateway.dart';
 import '../domain/pickup_qr_gateway.dart';
-
-const pickupQrTestCode = 'lincefood://pickup-test/receipt';
 
 final pickupQrGatewayProvider = Provider<PickupQrGateway>((ref) {
   return CallablePickupQrGateway();
@@ -67,17 +64,6 @@ class PickupScanController extends Notifier<PickupScanState> {
 
   Future<void> handleCode(String code) {
     final trimmed = code.trim();
-    if (kDebugMode && trimmed == pickupQrTestCode) {
-      if (state.busy || state.delivered || state.lastCode == trimmed) {
-        return Future<void>.value();
-      }
-      state = PickupScanState(
-        lastCode: trimmed,
-        delivered: true,
-        message: 'Pedido de prueba entregado (solo en este dispositivo).',
-      );
-      return Future<void>.value();
-    }
     return _deliver(trimmed, (gateway) => gateway.consumeToken(trimmed));
   }
 

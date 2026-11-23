@@ -17,8 +17,7 @@ void main() {
         ProviderScope(
           overrides: [
             staffPermissionProvider.overrideWith(
-              (ref) async =>
-                  claims['staff'] == true || claims['admin'] == true,
+              (ref) async => claims['staff'] == true || claims['admin'] == true,
             ),
             ordersRepositoryProvider.overrideWithValue(repository),
           ],

@@ -7,6 +7,7 @@ import '../../../core/money/money.dart';
 import '../../../shared/widgets/fixed_bottom_bar.dart';
 import '../../catalog/domain/product.dart';
 import '../../catalog/presentation/catalog_providers.dart';
+import '../../catalog/presentation/product_image.dart';
 import '../../orders/domain/pickup_mode.dart';
 import '../../orders/presentation/order_actions_controller.dart';
 import '../../orders/presentation/orders_providers.dart';
@@ -316,6 +317,17 @@ class _CartLineTile extends StatelessWidget {
             icon: const Icon(Icons.delete_outline),
           ),
           const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, right: 10),
+            child: ProductImage(
+              imagePath: line.product.imagePath,
+              productId: line.product.id,
+              fallbackIcon: Icons.restaurant,
+              width: 56,
+              height: 56,
+              borderRadius: 12,
+            ),
+          ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(top: 12),

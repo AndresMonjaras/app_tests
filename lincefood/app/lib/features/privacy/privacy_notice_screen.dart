@@ -107,11 +107,7 @@ class _DraftNoticeBanner extends StatelessWidget {
           children: [
             Icon(Icons.info_outline),
             SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Aviso de Privacidad',
-              ),
-            ),
+            Expanded(child: Text('Aviso de Privacidad')),
           ],
         ),
       ),

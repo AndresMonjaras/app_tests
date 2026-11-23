@@ -99,30 +99,6 @@ void main() {
     expect(authenticator.calls, 1);
   });
 
-  test('el QR temporal se marca entregado sin llamar a Firebase', () async {
-    final gateway = FakePickupGateway();
-    final container = _container(
-      authenticator: FakeAuthenticator(),
-      gateway: gateway,
-    );
-    addTearDown(container.dispose);
-    final subscription = container.listen(
-      pickupScanControllerProvider,
-      (_, _) {},
-    );
-    addTearDown(subscription.close);
-
-    await container
-        .read(pickupScanControllerProvider.notifier)
-        .handleCode(pickupQrTestCode);
-
-    final state = container.read(pickupScanControllerProvider);
-    expect(state.delivered, isTrue);
-    expect(state.message, contains('solo en este dispositivo'));
-    expect(gateway.issued, isEmpty);
-    expect(gateway.consumed, isEmpty);
-  });
-
   test('con biometría aprobada se emite el QR del pedido', () async {
     final gateway = FakePickupGateway();
     final container = _container(

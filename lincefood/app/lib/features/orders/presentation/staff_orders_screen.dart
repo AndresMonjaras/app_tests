@@ -1,3 +1,4 @@
+import '../../catalog/presentation/product_image.dart';
 import '../../../app/app_theme.dart';
 
 import 'package:flutter/material.dart';
@@ -214,10 +215,25 @@ class _StaffOrderCard extends StatelessWidget {
               const SizedBox(height: 8),
               for (final line in order.lines)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    '${line.quantity} × ${line.product.name}'
-                    '${line.variant == null ? '' : ' · ${line.variant!.label}'}',
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      ProductImage(
+                        imagePath: line.product.imagePath,
+                        productId: line.product.id,
+                        fallbackIcon: Icons.restaurant,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${line.quantity} × ${line.product.name}'
+                          '${line.variant == null ? '' : ' · ${line.variant!.label}'}',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],

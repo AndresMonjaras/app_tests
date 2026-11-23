@@ -150,6 +150,44 @@ void main() {
     expect(find.text('Hace 12 min'), findsOneWidget);
   });
 
+  testWidgets('el ticket muestra detalle y mojarritas decorativas', (
+    tester,
+  ) async {
+    final repository = MemoryOrdersRepository();
+    addTearDown(repository.dispose);
+    repository.setOrders('uid-1', [
+      OrderRecord(
+        id: 'pedido-1',
+        status: OrderStatus.confirmed,
+        folio: '#0058',
+        createdAt: DateTime.utc(2026, 11, 22, 12),
+        lines: [
+          CartLine(
+            product: Product(id: 'torta', name: 'Torta', priceCents: 6500),
+            quantity: 2,
+          ),
+        ],
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ordersRepositoryProvider.overrideWithValue(repository),
+          uidActivoProvider.overrideWithValue('uid-1'),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const OrdersScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Artículos'), findsOneWidget);
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('Pago'), findsOneWidget);
+    expect(find.text('¡Gracias por comer con Lincefood!'), findsOneWidget);
+    expect(find.byType(Image), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [360.0, 768.0, 1280.0]) {
     for (final brightness in Brightness.values) {
       testWidgets('ticket a ${width.toInt()} px en ${brightness.name}', (

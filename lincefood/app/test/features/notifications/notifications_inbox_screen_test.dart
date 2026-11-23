@@ -38,7 +38,10 @@ Future<void> _montar(
         ),
         dismissedTipIdsProvider.overrideWith((ref) => Stream.value(dismissed)),
       ],
-      child: MaterialApp(home: const NotificationsInboxScreen(), routes: routes),
+      child: MaterialApp(
+        home: const NotificationsInboxScreen(),
+        routes: routes,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -85,9 +88,14 @@ void main() {
       orderId: 'pedido-17',
     );
     final gateway = _FakeInboxGateway();
-    await _montar(tester, gateway, [notice], routes: {
-      '/orders': (_) => const Scaffold(body: Text('Ticket del pedido')),
-    });
+    await _montar(
+      tester,
+      gateway,
+      [notice],
+      routes: {
+        '/orders': (_) => const Scaffold(body: Text('Ticket del pedido')),
+      },
+    );
 
     final title = find.text('Pedido rechazado');
     await tester.scrollUntilVisible(title, 180);

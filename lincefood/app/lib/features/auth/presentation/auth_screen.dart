@@ -219,10 +219,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       child: state.isBusy
                           ? const SizedBox.square(
                               dimension: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                semanticsLabel: 'Procesando',
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(_actionLabelFor(mode)),
                     ),
@@ -237,7 +234,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    OutlinedButton(
+                    TextButton(
                       onPressed: state.isBusy
                           ? null
                           : () => controller.selectMode(_switchTargetFor(mode)),

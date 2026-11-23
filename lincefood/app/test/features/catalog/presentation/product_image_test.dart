@@ -89,7 +89,9 @@ void main() {
     expect(find.byType(Image), findsNothing);
   });
 
-  testWidgets('con flag activo muestra la imagen desde archivo local', (tester) async {
+  testWidgets('con flag activo muestra la imagen desde archivo local', (
+    tester,
+  ) async {
     final storage = InMemoryMediaStorage();
     final path = await storage.uploadProductImage(
       'torta',

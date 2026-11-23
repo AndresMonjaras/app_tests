@@ -73,6 +73,23 @@ void main() {
     expect(find.text('Centrar en mi ubicación'), findsNothing);
   });
 
+  testWidgets('sin Maps lista las 3 cafeterías con sus datos', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(home: CafeteriaLocationScreen(mapsEnabled: false)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cafetería 1 ITC'), findsOneWidget);
+    expect(find.text('Cafetería 2 ITC'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Cafetería 3 ITC'), 200);
+    expect(find.text('Cafetería 3 ITC'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('lee el formato actual y conserva ubicaciones anteriores', () {
     final location = CafeteriaLocation.tryFrom({
       'lat': 20.54146,
