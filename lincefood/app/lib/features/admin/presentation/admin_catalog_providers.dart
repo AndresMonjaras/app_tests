@@ -5,7 +5,9 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../catalog/domain/product.dart';
+import '../../catalog/presentation/catalog_providers.dart';
 import '../data/admin_catalog_repository.dart';
+import 'admin_catalog_controller.dart';
 
 final adminAuthUserProvider = StreamProvider<User?>((ref) {
   if (Firebase.apps.isEmpty) return Stream<User?>.value(null);
@@ -48,6 +50,17 @@ final adminCatalogRepositoryProvider = Provider<AdminCatalogRepository>((ref) {
   return CallableAdminCatalogRepository(
     FirebaseFunctions.instanceFor(region: 'us-central1'),
     FirebaseDatabase.instance,
+  );
+});
+
+final adminCatalogControllerProvider = Provider<AdminCatalogController>((ref) {
+  return AdminCatalogController(
+    ref.watch(adminCatalogRepositoryProvider),
+    onChanged: () {
+      if (!ref.mounted) return;
+      ref.invalidate(catalogProductsProvider);
+      ref.invalidate(adminProductsProvider);
+    },
   );
 });
 

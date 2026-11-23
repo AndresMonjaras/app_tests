@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
+import '../../admin/presentation/admin_catalog_providers.dart';
 import '../../cart/presentation/cart_controller.dart';
 import '../../profile/domain/avatar_preset.dart';
 import '../domain/product.dart';
+import 'catalog_product_actions.dart';
 import 'catalog_providers.dart';
 import 'product_image.dart';
 
@@ -22,6 +24,16 @@ class CatalogScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final products = ref.watch(catalogProductsProvider);
+    final actions = ref.watch(catalogEditorAccessProvider).asData?.value == true
+        ? CatalogProductActions(ref)
+        : null;
+    final addButton = actions == null
+        ? null
+        : FilledButton.tonalIcon(
+            onPressed: () => actions.edit(),
+            icon: const Icon(Icons.add),
+            label: const Text('Agregar producto'),
+          );
     final filter = ref.watch(catalogFilterProvider);
     final query = filter.query;
     final category = filter.category;
@@ -64,8 +76,14 @@ class CatalogScreen extends ConsumerWidget {
         ),
         data: (items) {
           if (items.isEmpty) {
-            return const Center(
-              child: Text('No hay productos disponibles por ahora.'),
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('No hay productos disponibles por ahora.'),
+                  ?addButton,
+                ],
+              ),
             );
           }
           final categories = items.map((p) => p.categoryId).toSet().toList()
@@ -155,6 +173,7 @@ class CatalogScreen extends ConsumerWidget {
                               ),
                             ],
                           ),
+                          ?addButton,
                           const SizedBox(height: 8),
                           LayoutBuilder(
                             builder: (context, constraints) => _CategoryGrid(
@@ -201,26 +220,69 @@ class CatalogScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                     sliver: SliverList.builder(
                       itemCount: filtered.length,
-                      itemBuilder: (context, index) => _ProductTile(
-                        product: filtered[index],
-                        catalog: items,
-                        onAdd: (product, variant, complements) {
-                          ref
-                              .read(cartControllerProvider.notifier)
-                              .addProduct(
-                                product: product,
-                                variant: variant,
-                                complements: complements,
-                              );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '${product.name} se agregó al carrito.',
+                      itemBuilder: (context, index) {
+                        final product = filtered[index];
+                        final tile = _ProductTile(
+                          product: product,
+                          onEdit: actions == null
+                              ? null
+                              : () => actions.edit(product),
+                          catalog: items,
+                          onAdd: (product, variant, complements) {
+                            ref
+                                .read(cartControllerProvider.notifier)
+                                .addProduct(
+                                  product: product,
+                                  variant: variant,
+                                  complements: complements,
+                                );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${product.name} se agregó al carrito.',
+                                ),
                               ),
+                            );
+                          },
+                        );
+                        if (actions == null) return tile;
+                        return Dismissible(
+                          key: ValueKey(product.id),
+                          direction: DismissDirection.endToStart,
+                          confirmDismiss: (_) async {
+                            await actions.confirmDelete(product);
+                            // El stream retira la tarjeta al confirmarse la escritura.
+                            return false;
+                          },
+                          background: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(right: 24),
+                            alignment: Alignment.centerRight,
+                            decoration: BoxDecoration(
+                              color: colors.errorContainer,
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        },
-                      ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Quitar del menú',
+                                  style: TextStyle(
+                                    color: colors.onErrorContainer,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.delete_outline,
+                                  color: colors.onErrorContainer,
+                                ),
+                              ],
+                            ),
+                          ),
+                          child: tile,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -397,81 +459,107 @@ class _ProductTile extends StatelessWidget {
     required this.product,
     required this.catalog,
     required this.onAdd,
+    this.onEdit,
   });
   final Product product;
   final List<Product> catalog;
+  final VoidCallback? onEdit;
   final void Function(Product, ProductVariant?, List<ProductVariant>) onAdd;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final content = InkWell(
+      onTap: () => _showDetails(context, product),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            ProductImage(
+              imagePath: product.imagePath,
+              productId: product.id,
+              fallbackIcon: _categoryIcon(product.categoryId),
+              width: 88,
+              height: 88,
+              borderRadius: 16,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (product.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      product.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    '${product.variants.isEmpty ? '' : 'Desde '}${formatMoney(product.displayPriceCents)}${product.canOrder ? '' : ' · Agotado'}',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (onEdit != null) const SizedBox(height: 40),
+                IconButton.filled(
+                  tooltip: !product.canOrder
+                      ? 'Producto no disponible'
+                      : product.variants.isEmpty
+                      ? 'Agregar al carrito'
+                      : 'Elegir variante',
+                  onPressed: product.canOrder
+                      ? () => _chooseVariant(context, product)
+                      : null,
+                  icon: const Icon(Icons.add_shopping_cart),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _showDetails(context, product),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              ProductImage(
-                imagePath: product.imagePath,
-                productId: product.id,
-                fallbackIcon: _categoryIcon(product.categoryId),
-                width: 88,
-                height: 88,
-                borderRadius: 16,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (product.description.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        product.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    Text(
-                      '${product.variants.isEmpty ? '' : 'Desde '}${formatMoney(product.displayPriceCents)}${product.canOrder ? '' : ' · Agotado'}',
-                      style: TextStyle(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+      child: onEdit == null
+          ? content
+          : Stack(
+              children: [
+                content,
+                Positioned(
+                  top: 8,
+                  right: 12,
+                  child: IconButton.filledTonal(
+                    tooltip: 'Editar producto',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: onEdit,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: !product.canOrder
-                    ? 'Producto no disponible'
-                    : product.variants.isEmpty
-                    ? 'Agregar al carrito'
-                    : 'Elegir variante',
-                onPressed: product.canOrder
-                    ? () => _chooseVariant(context, product)
-                    : null,
-                icon: const Icon(Icons.add_shopping_cart),
-              ),
-            ],
-          ),
-        ),
-      ),
+              ],
+            ),
     );
   }
 
