@@ -181,48 +181,61 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                           ? 'Selecciona una categoría.'
                           : null,
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: portionAmount,
-                          decoration: const InputDecoration(
-                            labelText: 'Porción (opcional)',
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty)
-                              return null;
-                            final amount = int.tryParse(value.trim());
-                            return amount == null || amount <= 0
-                                ? 'Usa una cantidad entera mayor a cero.'
-                                : null;
-                          },
+                  const SizedBox(height: 8),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final amountField = TextFormField(
+                        controller: portionAmount,
+                        decoration: const InputDecoration(
+                          labelText: 'Porción (opcional)',
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: portionUnit,
-                          decoration: const InputDecoration(
-                            labelText: 'Unidad',
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'g', child: Text('g')),
-                            DropdownMenuItem(value: 'ml', child: Text('ml')),
-                            DropdownMenuItem(value: 'pz', child: Text('pzas.')),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return null;
+                          }
+                          final amount = int.tryParse(value.trim());
+                          return amount == null || amount <= 0
+                              ? 'Usa una cantidad entera mayor a cero.'
+                              : null;
+                        },
+                      );
+                      final unitField = DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: portionUnit,
+                        decoration: const InputDecoration(labelText: 'Unidad'),
+                        items: const [
+                          DropdownMenuItem(value: 'g', child: Text('g')),
+                          DropdownMenuItem(value: 'ml', child: Text('ml')),
+                          DropdownMenuItem(value: 'pz', child: Text('pzas.')),
+                        ],
+                        onChanged: (value) {
+                          portionUnit = value ?? 'pz';
+                          ref
+                              .read(_formRefreshProvider(productId).notifier)
+                              .refresh();
+                        },
+                      );
+                      if (constraints.maxWidth < 360) {
+                        return Column(
+                          children: [
+                            amountField,
+                            const SizedBox(height: 12),
+                            unitField,
                           ],
-                          onChanged: (value) {
-                            portionUnit = value ?? 'pz';
-                            ref
-                                .read(_formRefreshProvider(productId).notifier)
-                                .refresh();
-                          },
-                        ),
-                      ),
-                    ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 3, child: amountField),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 2, child: unitField),
+                        ],
+                      );
+                    },
                   ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: prep,
                     decoration: const InputDecoration(
@@ -280,6 +293,7 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
           ),
         ),
       ),
+      actionsOverflowButtonSpacing: 4,
       actions: [
         if (!widget.priceOnly && !archived && widget.onArchive != null)
           TextButton(
@@ -357,7 +371,9 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                     imagePath.isEmpty
                         ? 'Sin foto de producto'
                         : 'Foto guardada',
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -409,8 +425,9 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
         'webp' => 'image/webp',
         _ => null,
       };
-      if (contentType == null)
+      if (contentType == null) {
         throw const FormatException('Usa una imagen JPEG, PNG o WebP.');
+      }
       final Uint8List bytes = await file.readAsBytes();
       final path = await ref
           .read(mediaStorageProvider)
@@ -456,50 +473,61 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
       for (final field in fields)
         Padding(
           key: ObjectKey(field),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            children: [
-              TextFormField(
-                controller: field.label,
-                readOnly: widget.priceOnly,
-                decoration: InputDecoration(labelText: 'Nombre de $name'),
-                maxLength: 40,
-                validator: (value) {
-                  final label = value?.trim().toLowerCase() ?? '';
-                  if (label.isEmpty) return 'Escribe un nombre.';
-                  if (fields
-                          .where(
-                            (other) =>
-                                other.label.text.trim().toLowerCase() == label,
-                          )
-                          .length >
-                      1) {
-                    return 'Usa un nombre diferente.';
-                  }
-                  return null;
-                },
-              ),
-              _priceField(field.price, 'Precio de $name en MXN'),
-              if (!widget.priceOnly) ...[
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Disponible · $name'),
-                  value: field.available,
-                  onChanged: (value) =>
-                      controller.setAvailability(field, value),
-                ),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: field.label,
+                    readOnly: widget.priceOnly,
+                    decoration: InputDecoration(labelText: 'Nombre de $name'),
+                    maxLength: 40,
+                    validator: (value) {
+                      final label = value?.trim().toLowerCase() ?? '';
+                      if (label.isEmpty) return 'Escribe un nombre.';
+                      if (fields
+                              .where(
+                                (other) =>
+                                    other.label.text.trim().toLowerCase() ==
+                                    label,
+                              )
+                              .length >
+                          1) {
+                        return 'Usa un nombre diferente.';
+                      }
+                      return null;
+                    },
                   ),
-                  onPressed: () => controller.remove(field),
-                  child: Text('Quitar $name'),
-                ),
-              ],
-            ],
+                  _priceField(field.price, 'Precio de $name en MXN'),
+                  if (!widget.priceOnly) ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Disponible · $name'),
+                      value: field.available,
+                      onChanged: (value) =>
+                          controller.setAvailability(field, value),
+                    ),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                      onPressed: () => controller.remove(field),
+                      child: Text('Quitar $name'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       if (!widget.priceOnly && fields.length < 6)

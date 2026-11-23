@@ -82,10 +82,11 @@ class CartScreen extends ConsumerWidget {
                                   variantLabel: line.variant?.label,
                                 ),
                     ),
-                  const Divider(),
+                  const SizedBox(height: 8),
                   Text(
                     'Modalidad de recogida',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
                   SegmentedButton<PickupMode>(
@@ -107,7 +108,10 @@ class CartScreen extends ConsumerWidget {
                     const SizedBox(height: 12),
                     const Text('Inicia sesión para pagar tu pedido.'),
                   ],
-                  if (!configured) const Text('Pagos no configurados'),
+                  if (!configured) ...[
+                    const SizedBox(height: 8),
+                    const Text('Pagos no configurados'),
+                  ],
                   if (error != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -238,59 +242,95 @@ class _CartLineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final variant = line.variant == null ? '' : ' (${line.variant!.label})';
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final nombre = '${line.product.name}$variant';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            tooltip: 'Quitar $nombre',
-            onPressed: onRemove,
-            icon: const Icon(Icons.delete_outline),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(nombre, style: theme.textTheme.bodyLarge),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${formatMoney(line.unitPriceCents)} c/u',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  Text(
-                    'Subtotal ${formatMoney(line.totalCents)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      nombre,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ],
+                ),
+                IconButton(
+                  tooltip: 'Quitar $nombre',
+                  onPressed: onRemove,
+                  color: scheme.onSurfaceVariant,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+            Text(
+              '${formatMoney(line.unitPriceCents)} c/u',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
               ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Reducir cantidad de $nombre',
-            onPressed: onDecrease,
-            icon: const Icon(Icons.remove_circle_outline),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: Semantics(
-              label: 'Cantidad: ${line.quantity}',
-              excludeSemantics: true,
-              child: Text('${line.quantity}'),
+            const SizedBox(height: 8),
+            Divider(
+              height: 1,
+              color: scheme.outlineVariant.withValues(alpha: 0.5),
             ),
-          ),
-          IconButton(
-            tooltip: 'Aumentar cantidad de $nombre',
-            onPressed: onIncrease,
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 4,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Reducir cantidad de $nombre',
+                      onPressed: onDecrease,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 28),
+                      child: Semantics(
+                        label: 'Cantidad: ${line.quantity}',
+                        excludeSemantics: true,
+                        child: Text(
+                          '${line.quantity}',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Aumentar cantidad de $nombre',
+                      onPressed: onIncrease,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    'Subtotal ${formatMoney(line.totalCents)}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
