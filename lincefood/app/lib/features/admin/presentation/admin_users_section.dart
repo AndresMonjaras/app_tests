@@ -209,7 +209,7 @@ class _AdminUsersSectionState extends ConsumerState<AdminUsersSection> {
       title: Text(name),
       subtitle: subtitle.isEmpty ? null : Text(subtitle),
       trailing: PopupMenuButton<String>(
-        popUpAnimationStyle: AppTheme.popupAnimationStyle,
+        popUpAnimationStyle: AppTheme.popupMenuAnimationStyle,
         tooltip: 'Acciones de $name',
         enabled: !busy,
         itemBuilder: (_) => [

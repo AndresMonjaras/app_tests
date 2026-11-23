@@ -67,11 +67,12 @@ class CartScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 if (cart.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: Text('Tu carrito está vacío.')),
-                  )
+                  const _EmptyCart()
                 else ...[
+                  _CartHeader(
+                    items: lines.fold<int>(0, (sum, l) => sum + l.quantity),
+                  ),
+                  const SizedBox(height: 12),
                   if (!catalogReady) ...[
                     Text(
                       catalog.hasError
@@ -142,26 +143,57 @@ class CartScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  const Divider(),
-                  Text(
-                    'Modalidad de recogida',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<PickupMode>(
-                    segments: [
-                      for (final mode in PickupMode.values)
-                        ButtonSegment<PickupMode>(
-                          value: mode,
-                          label: Text(mode.label),
-                        ),
-                    ],
-                    selected: {pickupMode},
-                    onSelectionChanged: busy
-                        ? null
-                        : (selection) => ref
-                              .read(pickupModeProvider.notifier)
-                              .select(selection.first),
+                  const SizedBox(height: 4),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.storefront_outlined,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Modalidad de recogida',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<PickupMode>(
+                              showSelectedIcon: false,
+                              segments: [
+                                for (final mode in PickupMode.values)
+                                  ButtonSegment<PickupMode>(
+                                    value: mode,
+                                    label: Text(
+                                      mode.label,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                    ),
+                                  ),
+                              ],
+                              selected: {pickupMode},
+                              onSelectionChanged: busy
+                                  ? null
+                                  : (selection) => ref
+                                        .read(pickupModeProvider.notifier)
+                                        .select(selection.first),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   if (uid == null || uid.isEmpty) ...[
                     const SizedBox(height: 12),
@@ -217,6 +249,13 @@ class CartScreen extends ConsumerWidget {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(54),
+                              textStyle: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             onPressed:
                                 uid == null ||
                                     uid.isEmpty ||
@@ -283,6 +322,81 @@ class CartScreen extends ConsumerWidget {
   }
 }
 
+/// Encabezado con el conteo de articulos del pedido.
+class _CartHeader extends StatelessWidget {
+  const _CartHeader({required this.items});
+
+  final int items;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(Icons.shopping_bag_outlined, color: colors.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Tu pedido',
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            items == 1 ? '1 artículo' : '$items artículos',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colors.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyCart extends StatelessWidget {
+  const _EmptyCart();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          ExcludeSemantics(
+            child: Image.asset(
+              'assets/images/mojarra/mojarra_sola.png',
+              height: 120,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.shopping_bag_outlined, size: 72),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Tu carrito está vacío.',
+            style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Agrega algo del menú para empezar tu pedido.',
+            textAlign: TextAlign.center,
+            style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CartLineTile extends StatelessWidget {
   const _CartLineTile({
     required this.line,
@@ -302,86 +416,145 @@ class _CartLineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final variant = line.variant == null ? '' : ' (${line.variant!.label})';
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final nombre = '${line.product.name}$variant';
     final complementLabels = line.complements
         .map((item) => item.label)
         .toList();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            tooltip: 'Quitar $nombre',
-            onPressed: onRemove,
-            icon: const Icon(Icons.delete_outline),
-          ),
-          const SizedBox(width: 4),
-          Padding(
-            padding: const EdgeInsets.only(top: 6, right: 10),
-            child: ProductImage(
-              imagePath: line.product.imagePath,
-              productId: line.product.id,
-              fallbackIcon: Icons.restaurant,
-              width: 56,
-              height: 56,
-              borderRadius: 12,
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(nombre, style: theme.textTheme.bodyLarge),
-                  if (complementLabels.isNotEmpty)
-                    Text(
-                      'Complementos: ${complementLabels.join(', ')}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${formatMoney(line.unitPriceCents)} c/u',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  Text(
-                    'Subtotal ${formatMoney(line.totalCents)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (catalogIssue != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        catalogIssue!,
-                        style: TextStyle(color: theme.colorScheme.error),
+    final hasIssue = catalogIssue != null;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: hasIssue ? colors.error : colors.outlineVariant,
+          width: hasIssue ? 1.5 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ProductImage(
+                  imagePath: line.product.imagePath,
+                  productId: line.product.id,
+                  fallbackIcon: Icons.restaurant,
+                  width: 76,
+                  height: 76,
+                  borderRadius: 16,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nombre,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                ],
+                      if (complementLabels.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Complementos: ${complementLabels.join(', ')}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${formatMoney(line.unitPriceCents)} c/u',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Quitar $nombre',
+                  onPressed: onRemove,
+                  color: colors.error,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Reducir cantidad de $nombre',
+                        onPressed: onDecrease,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
+                      SizedBox(
+                        width: 28,
+                        child: Semantics(
+                          label: 'Cantidad: ${line.quantity}',
+                          excludeSemantics: true,
+                          child: Text(
+                            '${line.quantity}',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Aumentar cantidad de $nombre',
+                        onPressed: onIncrease,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  'Subtotal ${formatMoney(line.totalCents)}',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            if (hasIssue)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  catalogIssue!,
+                  style: TextStyle(color: colors.onErrorContainer),
+                ),
               ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Reducir cantidad de $nombre',
-            onPressed: onDecrease,
-            icon: const Icon(Icons.remove_circle_outline),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: Semantics(
-              label: 'Cantidad: ${line.quantity}',
-              excludeSemantics: true,
-              child: Text('${line.quantity}'),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Aumentar cantidad de $nombre',
-            onPressed: onIncrease,
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

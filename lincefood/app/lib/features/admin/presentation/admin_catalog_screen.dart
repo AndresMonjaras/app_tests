@@ -253,60 +253,113 @@ class _ProductAdminTile extends StatelessWidget {
   final VoidCallback onRestore;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Column(
-      children: [
-        ListTile(
-          title: Text(product.name),
-          leading: product.demo
-              ? const Chip(label: Text('Demo'))
-              : ProductImage(
-                  imagePath: product.imagePath,
-                  productId: product.id,
-                  fallbackIcon: Icons.restaurant_outlined,
-                  width: 48,
-                  height: 48,
-                  borderRadius: 10,
-                ),
-          subtitle: Text(
-            '${product.categoryId.isEmpty ? 'Sin categoría' : product.categoryId} · ${formatMoney(product.displayPriceCents)}'
-            '${product.portionAmount == null ? '' : ' · ${product.portionAmount} ${product.portionUnit}'}'
-            '${product.archived
-                ? ' · Archivado'
-                : product.isAvailable
-                ? ' · Disponible'
-                : ' · Agotado'}',
-          ),
-          onTap: onEdit,
-          trailing: IconButton(
-            tooltip: 'Editar precio',
-            onPressed: onPrice,
-            icon: const Icon(Icons.edit_outlined),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: onEdit,
-          icon: const Icon(Icons.tune),
-          label: const Text('Editar producto'),
-        ),
-        SwitchListTile(
-          title: Text(product.archived ? 'Archivado' : 'Disponible'),
-          value: product.isAvailable && !product.archived,
-          onChanged: product.archived ? null : onAvailability,
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: OutlinedButton.icon(
-            onPressed: product.archived ? onRestore : onArchive,
-            icon: Icon(
-              product.archived
-                  ? Icons.unarchive_outlined
-                  : Icons.archive_outlined,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final category = product.categoryId.isEmpty
+        ? 'Sin categoría'
+        : product.categoryId;
+    final portion = product.portionAmount == null
+        ? ''
+        : ' · ${product.portionAmount} ${product.portionUnit}';
+    final status = product.archived
+        ? 'Archivado'
+        : product.isAvailable
+        ? 'Disponible'
+        : 'Agotado';
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onEdit,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  product.demo
+                      ? const Chip(label: Text('Demo'))
+                      : ProductImage(
+                          imagePath: product.imagePath,
+                          productId: product.id,
+                          fallbackIcon: Icons.restaurant_outlined,
+                          width: 56,
+                          height: 56,
+                          borderRadius: 12,
+                        ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '$category$portion',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${formatMoney(product.displayPriceCents)} · $status',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: product.archived || !product.isAvailable
+                                ? scheme.onSurfaceVariant
+                                : scheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Editar precio',
+                    onPressed: onPrice,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ],
+              ),
             ),
-            label: Text(product.archived ? 'Restaurar' : 'Archivar'),
-          ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.tune),
+                  label: const Text('Editar producto'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: product.archived ? onRestore : onArchive,
+                  icon: Icon(
+                    product.archived
+                        ? Icons.unarchive_outlined
+                        : Icons.archive_outlined,
+                  ),
+                  label: Text(product.archived ? 'Restaurar' : 'Archivar'),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(product.archived ? 'Archivado' : 'Disponible'),
+              value: product.isAvailable && !product.archived,
+              onChanged: product.archived ? null : onAvailability,
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }

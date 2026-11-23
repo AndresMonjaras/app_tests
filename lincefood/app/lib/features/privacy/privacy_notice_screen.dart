@@ -20,7 +20,7 @@ class PrivacyNoticeScreen extends StatelessWidget {
                 'Domicilio: Antonio García '
                 'Cubas Pte. #600, esquina con Av. Tecnológico, Celaya, '
                 'Guanajuato, México. Canal de contacto: '
-                'direccion@itcelaya.edu.mx.',
+                '22030873@itcelaya.edu.mx.',
           ),
           _NoticeSection(
             title: 'Datos que utiliza la aplicación',

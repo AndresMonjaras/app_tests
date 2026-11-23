@@ -11,6 +11,8 @@ import '../../admin/presentation/admin_catalog_providers.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../biometrics/biometric_protection.dart';
 import '../../media/domain/private_avatar_cache.dart';
+import '../../orders/presentation/orders_providers.dart';
+import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../data/firebase_profile_repository.dart';
 import '../domain/avatar_rules.dart';
 import '../domain/avatar_preset.dart';
@@ -49,12 +51,22 @@ class ProfileScreen extends ConsumerWidget {
         final themeMode =
             preferences.asData?.value.themeMode ?? ThemeMode.system;
         final profile = ref.watch(customerProfileProvider).asData?.value;
+        final roleClaims = ref.watch(orderClaimsProvider);
+        final fallbackName = roleClaims.when(
+          data: (claims) => claims['admin'] == true
+              ? 'Administrador'
+              : claims['staff'] == true
+              ? 'Personal de cafetería'
+              : 'Estudiante',
+          loading: () => 'Cuenta Lincefood',
+          error: (_, _) => 'Cuenta Lincefood',
+        );
         final syncedName = profile?.name.trim();
         final displayName = syncedName?.isNotEmpty == true
             ? syncedName!
             : user.displayName?.trim().isNotEmpty == true
             ? user.displayName!.trim()
-            : 'Estudiante';
+            : fallbackName;
         final providerId = user.providerData.length == 1
             ? user.providerData.single.providerId
             : '';
@@ -262,6 +274,26 @@ class ProfileScreen extends ConsumerWidget {
                   _SettingsGroup(
                     title: 'Mi cuenta',
                     children: [
+                      if (ref.watch(staffPermissionProvider).value == true) ...[
+                        _SettingsTile(
+                          icon: Icons.storefront_outlined,
+                          title: 'Panel de cafetería',
+                          subtitle: 'Pedidos en cola y cambios de estado.',
+                          onTap: () =>
+                              Navigator.of(context)
+                                  .pushNamed(AppRouter.staffOrders),
+                        ),
+                        _SettingsTile(
+                          icon: Icons.qr_code_scanner,
+                          title: 'Escanear QR de entrega',
+                          subtitle: 'Valida el código del cliente al entregar.',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const PickupScannerScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (ref.watch(catalogEditorAccessProvider).value == true)
                         _SettingsTile(
                           icon: Icons.admin_panel_settings_outlined,

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 // Identidad cálida de cafetería: rojo-naranja de marca, amarillo de acento y
 // superficies crema (claro) o marrón oscuro (oscuro).
 class AppTheme {
-  /// Animacion de los menus emergentes (PopupMenuButton la recibe por widget).
-  static const popupAnimationStyle = AnimationStyle(
+  static const popupMenuAnimationStyle = AnimationStyle(
     duration: Duration(milliseconds: 180),
     reverseDuration: Duration(milliseconds: 120),
     curve: Curves.easeOutCubic,

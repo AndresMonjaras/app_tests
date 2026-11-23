@@ -150,7 +150,7 @@ class AdminRecordsSection extends ConsumerWidget {
             : '${data['remainingUses']} usos de comida · ${adminDate(context, data['updatedAt'])}',
       ),
       trailing: PopupMenuButton<bool>(
-        popUpAnimationStyle: AppTheme.popupAnimationStyle,
+        popUpAnimationStyle: AppTheme.popupMenuAnimationStyle,
         tooltip: 'Acciones de $title',
         enabled: !busy,
         itemBuilder: (_) => [

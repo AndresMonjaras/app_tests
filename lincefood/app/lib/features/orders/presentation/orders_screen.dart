@@ -328,216 +328,210 @@ class _TicketCard extends ConsumerWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _TicketAccentBar(),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const _TicketAccentBar(),
+          const _FishLane(seed: 0),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        if (order.status == OrderStatus.rejected) ...[
-                          Icon(Icons.error_outline, color: colors.error),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: Text(
-                            _title,
-                            style: text.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          order.displayFolio,
-                          semanticsLabel: 'Folio ${order.displayFolio}',
-                          style: text.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        if (_paymentConfirmed)
-                          Chip(
-                            avatar: Icon(
-                              Icons.check_circle_outline,
-                              color: success,
-                            ),
-                            label: const Text('Pago confirmado'),
-                            backgroundColor: success.withValues(alpha: 0.12),
-                            side: BorderSide.none,
-                            labelStyle: text.labelLarge?.copyWith(
-                              color: success,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const _DashedDivider(),
-                    if (order.status == OrderStatus.rejected)
-                      OrderRejectionNotice(order: order),
-                    if (!order.isCancelled) ...[
-                      OrderTimeline(currentStatus: order.status),
-                      const SizedBox(height: 16),
+                    if (order.status == OrderStatus.rejected) ...[
+                      Icon(Icons.error_outline, color: colors.error),
+                      const SizedBox(width: 8),
                     ],
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 8,
-                        children: [
-                          for (final line in order.lines)
-                            _TicketProduct(
-                              line: line,
-                              imagePath: line.product.imagePath.isNotEmpty
-                                  ? line.product.imagePath
-                                  : catalogImages[line.product.id] ?? '',
-                            ),
-                          if (order.lines.isEmpty)
-                            const Text(
-                              'No hay detalle de productos disponible.',
-                            ),
-                          if (_productStatus case final status?)
-                            Text(
-                              status,
-                              style: text.bodyMedium?.copyWith(
-                                color: success,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        const Text('Total'),
-                        Text(
-                          formatMoney(order.totalCents),
-                          style: text.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    DefaultTextStyle.merge(
-                      style: TextStyle(color: colors.onSurfaceVariant),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 4,
-                        children: [
-                          Text(order.pickupMode.label),
-                          if (order.createdAt case final createdAt?) ...[
-                            Text(_orderTime(context, createdAt)),
-                            Text(formatElapsedTime(createdAt, now: now)),
-                          ],
-                        ],
-                      ),
-                    ),
-                    if (!order.isCancelled &&
-                        (order.status == OrderStatus.confirmed ||
-                            order.status == OrderStatus.preparing)) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Te avisaremos cuando tu comida esté lista.',
-                        style: text.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
+                    Expanded(
+                      child: Text(
+                        _title,
+                        style: text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ],
-                    if (!order.isCancelled &&
-                        order.status == OrderStatus.delivered) ...[
-                      const SizedBox(height: 12),
-                      FilledButton.tonalIcon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => OrderReceiptScreen(order: order),
-                          ),
-                        ),
-                        icon: const Icon(Icons.receipt_long_outlined),
-                        label: const Text('Ticket'),
-                      ),
-                    ],
-                    if (!order.isCancelled &&
-                        (_canShowPickupQr(order.status) ||
-                            canCustomerCancel(order.status))) ...[
-                      const SizedBox(height: 12),
-                      // Los dos botones comparten fila para ocupar menos alto.
-                      Row(
-                        children: [
-                          if (_canShowPickupQr(order.status))
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => Navigator.of(context)
-                                    .pushNamed(
-                                      AppRouter.pickupQr,
-                                      arguments: {
-                                        'orderId': order.id,
-                                        'requireBiometrics': true,
-                                      },
-                                    ),
-                                icon: const Icon(Icons.qr_code_2),
-                                label: const Text('Ver QR'),
-                              ),
-                            ),
-                          if (_canShowPickupQr(order.status) &&
-                              canCustomerCancel(order.status))
-                            const SizedBox(width: 8),
-                          if (canCustomerCancel(order.status))
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .error,
-                                  side: isCancelling
-                                      ? null
-                                      : BorderSide(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error,
-                                        ),
-                                ),
-                                onPressed: isCancelling
-                                    ? null
-                                    : () => _confirmarCancelacion(context, ref),
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: Text(
-                                  isCancelling
-                                      ? 'Cancelando...'
-                                      : 'Cancelar pedido',
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                    _TicketFooter(order: order),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      order.displayFolio,
+                      semanticsLabel: 'Folio ${order.displayFolio}',
+                      style: text.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (_paymentConfirmed)
+                      Chip(
+                        avatar: Icon(
+                          Icons.check_circle_outline,
+                          color: success,
+                        ),
+                        label: const Text('Pago confirmado'),
+                        backgroundColor: success.withValues(alpha: 0.12),
+                        side: BorderSide.none,
+                        labelStyle: text.labelLarge?.copyWith(
+                          color: success,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+                const _DashedDivider(),
+                if (order.status == OrderStatus.rejected)
+                  OrderRejectionNotice(order: order),
+                if (!order.isCancelled) ...[
+                  OrderTimeline(currentStatus: order.status),
+                  const SizedBox(height: 16),
+                ],
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      for (final line in order.lines)
+                        _TicketProduct(
+                          line: line,
+                          imagePath: line.product.imagePath.isNotEmpty
+                              ? line.product.imagePath
+                              : catalogImages[line.product.id] ?? '',
+                        ),
+                      if (order.lines.isEmpty)
+                        const Text('No hay detalle de productos disponible.'),
+                      if (_productStatus case final status?)
+                        Text(
+                          status,
+                          style: text.bodyMedium?.copyWith(
+                            color: success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    const Text('Total'),
+                    Text(
+                      formatMoney(order.totalCents),
+                      style: text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                DefaultTextStyle.merge(
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      Text(order.pickupMode.label),
+                      if (order.createdAt case final createdAt?) ...[
+                        Text(_orderTime(context, createdAt)),
+                        Text(formatElapsedTime(createdAt, now: now)),
+                      ],
+                    ],
+                  ),
+                ),
+                if (!order.isCancelled &&
+                    (order.status == OrderStatus.confirmed ||
+                        order.status == OrderStatus.preparing)) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Te avisaremos cuando tu comida esté lista.',
+                    style: text.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (!order.isCancelled &&
+                    order.status == OrderStatus.delivered) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => OrderReceiptScreen(order: order),
+                      ),
+                    ),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('Ticket'),
+                  ),
+                ],
+                if (!order.isCancelled &&
+                    (_canShowPickupQr(order.status) ||
+                        canCustomerCancel(order.status))) ...[
+                  const SizedBox(height: 12),
+                  // Los dos botones comparten fila para ocupar menos alto.
+                  Row(
+                    children: [
+                      if (_canShowPickupQr(order.status))
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.of(context).pushNamed(
+                              AppRouter.pickupQr,
+                              arguments: {
+                                'orderId': order.id,
+                                'requireBiometrics': true,
+                              },
+                            ),
+                            icon: const Icon(Icons.qr_code_2),
+                            label: const Text('Ver QR'),
+                          ),
+                        ),
+                      if (_canShowPickupQr(order.status) &&
+                          canCustomerCancel(order.status))
+                        const SizedBox(width: 8),
+                      if (canCustomerCancel(order.status))
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .error,
+                              side: isCancelling
+                                  ? null
+                                  : BorderSide(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error,
+                                    ),
+                            ),
+                            onPressed: isCancelling
+                                ? null
+                                : () => _confirmarCancelacion(context, ref),
+                            icon: const Icon(Icons.cancel_outlined),
+                            label: Text(
+                              isCancelling
+                                  ? 'Cancelando...'
+                                  : 'Cancelar pedido',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                _TicketFooter(order: order),
+              ],
+            ),
           ),
-          const Positioned.fill(child: _SwimmingFish()),
+          const _FishLane(seed: 1),
         ],
       ),
     );
@@ -711,28 +705,44 @@ class _DashedDivider extends StatelessWidget {
   }
 }
 
-/// Mojarritas que nadan por encima del ticket sin bloquear los toques.
-/// La animacion es finita para no dejar frames pendientes y se apaga si el
-/// usuario pidio reducir movimiento.
-class _SwimmingFish extends StatefulWidget {
-  const _SwimmingFish();
+/// Reloj compartido: todas las mojarritas leen la misma hora de arranque, asi
+/// que al reconstruir la tarjeta o volver a la pantalla siguen donde iban en
+/// lugar de empezar de cero.
+final DateTime _fishEpoch = DateTime.now();
+
+/// Franja libre (sin datos) arriba o abajo del ticket donde nadan mojarritas.
+/// Nunca cruza texto importante y no recibe toques. La animacion es finita para
+/// no dejar frames pendientes y se apaga si se pidio reducir movimiento.
+class _FishLane extends StatefulWidget {
+  const _FishLane({required this.seed});
+
+  /// 0 = franja superior, 1 = franja inferior (distinto tamano y ritmo).
+  final int seed;
 
   @override
-  State<_SwimmingFish> createState() => _SwimmingFishState();
+  State<_FishLane> createState() => _FishLaneState();
 }
 
-class _SwimmingFishState extends State<_SwimmingFish>
+class _FishLaneState extends State<_FishLane>
     with SingleTickerProviderStateMixin {
-  // Altura relativa, tamano, fase y vueltas completas de cada mojarrita.
-  static const _fish = [
-    (top: 0.10, size: 34.0, phase: 0.00, laps: 2.0),
-    (top: 0.42, size: 42.0, phase: 0.35, laps: 1.0),
-    (top: 0.72, size: 30.0, phase: 0.70, laps: 3.0),
+  static const _periodMs = 9000;
+  static const _laneHeight = 38.0;
+
+  // Tamano, fase inicial y vueltas por ciclo de cada mojarrita.
+  static const _lanes = [
+    [
+      (size: 30.0, phase: 0.00, laps: 1.0),
+      (size: 22.0, phase: 0.55, laps: 2.0),
+    ],
+    [
+      (size: 24.0, phase: 0.30, laps: 2.0),
+      (size: 28.0, phase: 0.80, laps: 1.0),
+    ],
   ];
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 9),
+    duration: const Duration(milliseconds: _periodMs),
   );
   bool _started = false;
 
@@ -741,38 +751,44 @@ class _SwimmingFishState extends State<_SwimmingFish>
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
-    if (!MediaQuery.disableAnimationsOf(context)) {
-      _controller.repeat(count: 2);
+    final elapsed = DateTime.now().difference(_fishEpoch).inMilliseconds;
+    final resume = (elapsed % _periodMs) / _periodMs;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = resume;
     } else {
-      _controller.value = 0.2;
+      // Retoma desde donde iba el reloj global y completa dos ciclos mas.
+      _controller.forward(from: resume).then((_) {
+        if (mounted) _controller.repeat(count: 1);
+      });
     }
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    return super.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final fish = _lanes[widget.seed % _lanes.length];
     return IgnorePointer(
       child: ExcludeSemantics(
-        child: ClipRect(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  return Stack(
+        child: SizedBox(
+          height: _laneHeight,
+          child: ClipRect(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                return AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) => Stack(
                     children: [
-                      for (final fish in _fish)
-                        _positionedFish(constraints, fish),
+                      for (final f in fish) _positionedFish(box.maxWidth, f),
                     ],
-                  );
-                },
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -780,22 +796,22 @@ class _SwimmingFishState extends State<_SwimmingFish>
   }
 
   Widget _positionedFish(
-    BoxConstraints box,
-    ({double top, double size, double phase, double laps}) fish,
+    double width,
+    ({double size, double phase, double laps}) fish,
   ) {
     final angle = 2 * math.pi * (_controller.value * fish.laps + fish.phase);
-    // Va y viene a lo ancho; mira hacia donde nada.
-    final x = (math.sin(angle) * 0.5 + 0.5) * (box.maxWidth - fish.size * 1.5);
+    final imageWidth = fish.size * 1.5;
+    final x = (math.sin(angle) * 0.5 + 0.5) * (width - imageWidth);
     final goingRight = math.cos(angle) >= 0;
-    final bob = math.sin(angle * 3) * 5;
+    final bob = math.sin(angle * 3) * 3;
     return Positioned(
       left: x,
-      top: box.maxHeight * fish.top + bob,
+      top: (_laneHeight - fish.size) / 2 + bob,
       child: Transform.flip(
         flipX: !goingRight,
         child: Image.asset(
           'assets/images/mojarra/mojarra_sola.png',
-          width: fish.size * 1.5,
+          width: imageWidth,
           errorBuilder: (_, _, _) => const SizedBox.shrink(),
         ),
       ),
