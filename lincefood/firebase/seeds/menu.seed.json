@@ -39,9 +39,9 @@
   },
   "products": {
     "torta-jamon": {
-      "name": "Jamón",
+      "name": "Torta de jamón",
       "categoryId": "tortas",
-      "description": "Torta de jamón con verduras frescas.",
+      "description": "Torta de jamón con queso, jitomate y lechuga en bolillo. Producto de demostración.",
       "ingredients": [
         "Bolillo",
         "Jamón",
@@ -65,12 +65,13 @@
           "priceCents": 2500,
           "available": true
         }
-      ]
+      ],
+      "imagePath": "menu/torta-jamon.jpg"
     },
     "torta-milanesa": {
-      "name": "Milanesa",
+      "name": "Torta de milanesa",
       "categoryId": "tortas",
-      "description": "Torta de milanesa de res crujiente.",
+      "description": "Torta de milanesa de res con frijoles, aguacate y jitomate en bolillo. Producto de demostración.",
       "ingredients": [
         "Bolillo",
         "Milanesa de res",
@@ -94,12 +95,13 @@
           "priceCents": 2500,
           "available": true
         }
-      ]
+      ],
+      "imagePath": "menu/torta-milanesa.jpg"
     },
     "torta-pierna": {
-      "name": "Pierna",
+      "name": "Torta de pierna",
       "categoryId": "tortas",
-      "description": "Torta de pierna de cerdo adobada.",
+      "description": "Torta de pierna de cerdo adobada con cebolla y jitomate en bolillo. Producto de demostración.",
       "ingredients": [
         "Bolillo",
         "Pierna de cerdo",
@@ -122,12 +124,13 @@
           "priceCents": 2500,
           "available": true
         }
-      ]
+      ],
+      "imagePath": "menu/torta-pierna.jpg"
     },
     "torta-pollo": {
-      "name": "Pollo",
+      "name": "Torta de pollo",
       "categoryId": "tortas",
-      "description": "Torta de pollo con lechuga y mayonesa.",
+      "description": "Torta de pollo con lechuga y mayonesa en bolillo. Producto de demostración.",
       "ingredients": [
         "Bolillo",
         "Pollo",
@@ -150,12 +153,13 @@
           "priceCents": 2500,
           "available": true
         }
-      ]
+      ],
+      "imagePath": "menu/torta-pollo.jpg"
     },
     "desayuno-dia": {
       "name": "Desayuno del día",
       "categoryId": "breakfast",
-      "description": "Desayuno con huevo, pan tostado y fruta.",
+      "description": "Desayuno con huevo, pan tostado y fruta de temporada. Producto de demostración.",
       "ingredients": [
         "Huevo",
         "Pan tostado",
@@ -165,12 +169,13 @@
       "prepMinutes": 12,
       "available": true,
       "archived": false,
-      "demo": true
+      "demo": true,
+      "imagePath": "menu/desayuno-dia.jpg"
     },
     "chilaquiles": {
       "name": "Chilaquiles",
       "categoryId": "breakfast",
-      "description": "Totopos bañados en salsa con crema y queso.",
+      "description": "Totopos con salsa, crema, queso y cebolla. Producto de demostración.",
       "ingredients": [
         "Totopos",
         "Salsa",
@@ -194,12 +199,13 @@
           "priceCents": 5800,
           "available": false
         }
-      ]
+      ],
+      "imagePath": "menu/chilaquiles.jpg"
     },
     "huevos": {
       "name": "Huevos al gusto",
       "categoryId": "breakfast",
-      "description": "Dos huevos con frijoles y tortillas.",
+      "description": "Huevos con frijoles y tortillas. Producto de demostración.",
       "ingredients": [
         "Huevo",
         "Frijoles",
@@ -209,12 +215,13 @@
       "prepMinutes": 10,
       "available": true,
       "archived": false,
-      "demo": true
+      "demo": true,
+      "imagePath": "menu/huevos.jpg"
     },
     "agua": {
       "name": "Agua",
       "categoryId": "drinks",
-      "description": "Agua natural fría.",
+      "description": "Agua natural fría. Producto de demostración.",
       "ingredients": [
         "Agua"
       ],
@@ -222,12 +229,13 @@
       "prepMinutes": 1,
       "available": true,
       "archived": false,
-      "demo": true
+      "demo": true,
+      "imagePath": "menu/agua.jpg"
     },
     "refresco": {
       "name": "Refresco",
       "categoryId": "drinks",
-      "description": "Refresco de cola servido frío.",
+      "description": "Refresco de cola servido frío. Producto de demostración.",
       "ingredients": [
         "Agua carbonatada",
         "Jarabe de cola"
@@ -236,12 +244,13 @@
       "prepMinutes": 1,
       "available": true,
       "archived": false,
-      "demo": true
+      "demo": true,
+      "imagePath": "menu/refresco.jpg"
     },
     "jugo": {
       "name": "Jugo",
       "categoryId": "drinks",
-      "description": "Jugo de naranja recién exprimido.",
+      "description": "Jugo de naranja. Producto de demostración.",
       "ingredients": [
         "Naranja"
       ],
@@ -249,12 +258,13 @@
       "prepMinutes": 3,
       "available": true,
       "archived": false,
-      "demo": true
+      "demo": true,
+      "imagePath": "menu/jugo.jpg"
     },
     "cafe": {
       "name": "Café",
       "categoryId": "drinks",
-      "description": "Café americano recién preparado.",
+      "description": "Café americano. Producto de demostración.",
       "ingredients": [
         "Café",
         "Agua"
@@ -275,7 +285,8 @@
           "priceCents": 2900,
           "available": true
         }
-      ]
+      ],
+      "imagePath": "menu/cafe.jpg"
     }
   }
 }

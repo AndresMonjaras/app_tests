@@ -30,7 +30,7 @@ class ProductImage extends ConsumerWidget {
       height: height,
       borderRadius: borderRadius,
     );
-    if (!ref.watch(menuImagesEnabledProvider)) return fallback;
+    final remoteEnabled = ref.watch(menuImagesEnabledProvider);
     final localPath = menuImageAssetPath(productId);
     final local = localPath == null
         ? fallback
@@ -44,7 +44,7 @@ class ProductImage extends ConsumerWidget {
               errorBuilder: (_, _, _) => fallback,
             ),
           );
-    if (imagePath.isEmpty) return local;
+    if (!remoteEnabled || imagePath.isEmpty) return local;
 
     final file = ref.watch(menuImageFileProvider(imagePath));
     return file.when(

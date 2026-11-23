@@ -432,6 +432,15 @@ class _ProductTile extends StatelessWidget {
                         fontSize: 16,
                       ),
                     ),
+                    if (product.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        product.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Text(
                       '${product.variants.isEmpty ? '' : 'Desde '}${formatMoney(product.displayPriceCents)}${product.canOrder ? '' : ' · Agotado'}',

@@ -13,7 +13,7 @@ Proyecto Firebase: `lincefood-app` (plan Blaze, sujeto al control de costos del 
 | Storage | El código de avatar y reglas están listos; el owner debe confirmar las reglas activas y desplegar las reglas locales para habilitar avatares propios. |
 | Reglas RTDB | Versionadas en `firebase/database.rules.json`; no forman parte del despliegue de avatar pendiente. |
 | Functions | `synchronizeAvatarEligibility` está implementada y cubierta por pruebas locales. Su despliegue está pendiente del owner por falta de `iam.serviceAccounts.ActAs`. |
-| Semilla del menú | Datos ficticios, con variantes de prueba en `firebase/seeds/menu.seed.json`, sin importar |
+| Semilla del menú | 11 productos de demostración en `firebase/seeds/menu.seed.json`, con descripciones e `imagePath`; fotos locales en `app/assets/images/menu/`. No se importan automáticamente a Firebase. |
 | Semilla de notificaciones | Textos de ejemplo en español en `firebase/seeds/notificaciones.seed.json`, sin enviar |
 
 ## Pendiente del responsable del Plan A

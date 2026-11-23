@@ -28,8 +28,15 @@ final orderClaimsProvider = StreamProvider<Map<String, dynamic>>((ref) {
 });
 
 final staffPermissionProvider = FutureProvider<bool>((ref) async {
-  final claims = await ref.watch(orderClaimsProvider.future);
-  return claims['staff'] == true || claims['admin'] == true;
+  final user = await ref.watch(orderAuthUserProvider.future);
+  if (user == null) return false;
+  try {
+    final token = await user.getIdTokenResult(true);
+    final claims = token.claims ?? const <String, dynamic>{};
+    return claims['staff'] == true || claims['admin'] == true;
+  } catch (_) {
+    return false;
+  }
 });
 
 final adminPermissionProvider = FutureProvider<bool>((ref) async {

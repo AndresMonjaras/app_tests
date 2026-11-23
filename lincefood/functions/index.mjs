@@ -130,6 +130,7 @@ export {
 } from './src/catalog/index.mjs';
 export { setStaffRole, setAdminRole } from './src/roles/index.mjs';
 export { synchronizeAvatarEligibility } from './src/profile/index.mjs';
+export { synchronizeProfileRole } from './src/profile/role_sync.mjs';
 export {
   notifyOrderStatus,
   sendRecommendation,

@@ -43,6 +43,7 @@ flutter:
     - assets/avatars/
     - assets/notifications/notificaciones.seed.json
     - assets/images/
+    - assets/images/menu/
   fonts:
     - family: Jakarta
       fonts:

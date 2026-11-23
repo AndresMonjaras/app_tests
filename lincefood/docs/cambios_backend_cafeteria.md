@@ -18,6 +18,8 @@
 - Las operaciones del catálogo generan registros en `adminAudit` con actor, acción, producto y valores antes/después.
 - La interfaz presenta los errores devueltos por Cloud Functions, en vez de ocultarlos tras un mensaje genérico.
 - El catálogo del estudiante escucha cambios en tiempo real y excluye productos archivados.
+- La semilla contiene 11 productos de demostración con descripciones en español e `imagePath` para `menu/{productId}.jpg`. Se añadieron fotos locales para torta de milanesa y torta de pierna; las demás fotos ya estaban en el repositorio. Las dos nuevas imágenes se optimizaron a 512 × 512 y pesan cerca de 50 KB cada una.
+- La app usa las fotos locales como fallback y muestra la descripción en las tarjetas del catálogo. La subida de las fotos a Cloud Storage se realiza con `functions/scripts/upload_menu_images.mjs` después de que existan los productos en RTDB.
 
 ## Flujo de pedidos y atención en cocina
 
@@ -29,20 +31,21 @@
 - El flujo de webhook de Stripe incorpora registro de eventos para evitar procesar dos veces un evento ya completado.
 - La cancelación del estudiante se limita a pedidos cuyo pago todavía está pendiente, según la regla acordada. Flutter interpreta el estado `cancelled` del backend.
 
-## Roles en Firebase: configuración pendiente
+## Roles en Firebase
 
-El código contempla dos tipos de usuario funcionales:
+El rol operativo se establece en `profiles/{uid}/role` con dos valores:
 
-- **Estudiante:** acceso normal de cliente; no requiere `staff: true`.
-- **Personal:** necesita el custom claim Firebase `staff: true` para acceder a operaciones de cafetería.
+- **`estudiante`:** acceso de cliente.
+- **`personal`:** acceso a operaciones de cafetería.
 
-La rama **no asigna claims a cuentas en Firebase ni despliega configuración**. Por lo tanto, el acceso del personal no quedará habilitado en el proyecto Firebase hasta que una persona administradora asigne `staff: true` a las cuentas correspondientes. No se añadió un rol `superadmin`.
+La rama añade una función que refleja `personal` como custom claim `staff` para que las reglas de Storage y RTDB puedan autorizar con seguridad. Las reglas impiden que cada usuario cambie su propio rol. El cambio del perfil en Firebase Console es la fuente administrativa; el claim se sincroniza cuando la función está desplegada. No se añadió un rol `superadmin`.
 
 ## Pendientes y límites de este cambio
 
 - Los complementos pueden administrarse en el producto y se muestran en su ficha, pero el flujo actual no permite seleccionarlos para una línea del carrito ni los incluye como selecciones del pedido.
 - Las categorías existentes se pueden seleccionar; la creación de categorías continúa reservada a administración.
-- No se desplegaron Cloud Functions ni reglas a Firebase; tampoco se creó o modificó la configuración de claims en el proyecto remoto.
+- No se importó `menu.seed.json` ni se subieron las imágenes a Firebase Storage. Las fotos y los datos están preparados localmente para ese paso.
+- No se desplegaron Cloud Functions ni reglas a Firebase. Por eso, la sincronización automática del perfil al claim aún no está activa en el proyecto remoto.
 - No se ejecutaron suites de pruebas, `flutter analyze`, builds ni pruebas en dispositivo. Se comprobó formato de Dart, sintaxis de los archivos Node.js modificados y `git diff --check`.
 
 ## Control de versiones
