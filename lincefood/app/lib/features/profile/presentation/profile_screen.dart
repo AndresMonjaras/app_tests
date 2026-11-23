@@ -206,51 +206,43 @@ class ProfileScreen extends ConsumerWidget {
                         ],
                         const SizedBox(height: 12),
                         if (canPickPreset)
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: DropdownButtonFormField<AvatarPreset>(
-                                key: ValueKey((
-                                  selectedPreset,
-                                  avatarState.errorMessage,
-                                )),
-                                initialValue: selectedPreset,
-                                decoration: const InputDecoration(
-                                  labelText: 'Avatar del perfil',
-                                  border: InputBorder.none,
-                                ),
-                                items: [
-                                  for (final preset in AvatarPreset.values)
-                                    DropdownMenuItem(
-                                      value: preset,
-                                      enabled: preset.available,
-                                      child: Text(
-                                        preset.available
-                                            ? preset.label
-                                            : '${preset.label} · Próximamente',
-                                      ),
-                                    ),
-                                ],
-                                onChanged: avatarState.isBusy
-                                    ? null
-                                    : (preset) {
-                                        if (preset == null) return;
-                                        unawaited(
-                                          ref
-                                              .read(
-                                                profileControllerProvider
-                                                    .notifier,
-                                              )
-                                              .seleccionarPreset(
-                                                user.uid,
-                                                preset,
-                                              ),
-                                        );
-                                      },
-                              ),
+                          DropdownButtonFormField<AvatarPreset>(
+                            key: ValueKey((
+                              selectedPreset,
+                              avatarState.errorMessage,
+                            )),
+                            initialValue: selectedPreset,
+                            isExpanded: true,
+                            borderRadius: BorderRadius.circular(16),
+                            menuMaxHeight: 320,
+                            decoration: const InputDecoration(
+                              labelText: 'Avatar del perfil',
                             ),
+                            items: [
+                              for (final preset in AvatarPreset.values)
+                                DropdownMenuItem(
+                                  value: preset,
+                                  enabled: preset.available,
+                                  child: Text(
+                                    preset.available
+                                        ? preset.label
+                                        : '${preset.label} · Próximamente',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: avatarState.isBusy
+                                ? null
+                                : (preset) {
+                                    if (preset == null) return;
+                                    unawaited(
+                                      ref
+                                          .read(
+                                            profileControllerProvider.notifier,
+                                          )
+                                          .seleccionarPreset(user.uid, preset),
+                                    );
+                                  },
                           ),
                         if (presetState.hasError) ...[
                           const SizedBox(height: 8),
@@ -325,6 +317,8 @@ class ProfileScreen extends ConsumerWidget {
                         label: 'Apariencia',
                         child: DropdownButton<ThemeMode>(
                           value: themeMode,
+                          borderRadius: BorderRadius.circular(16),
+                          menuMaxHeight: 320,
                           onChanged: preferences.isLoading
                               ? null
                               : (mode) {

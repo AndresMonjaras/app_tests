@@ -180,6 +180,15 @@ class AppTheme {
           borderSide: BorderSide(color: scheme.error, width: 2),
         ),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        shape: RoundedRectangleBorder(borderRadius: radioControl),
+        popUpAnimationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 180),
+          reverseDuration: Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeIn,
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: radioControl),

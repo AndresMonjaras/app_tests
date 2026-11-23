@@ -12,6 +12,8 @@ class CampusMap extends StatelessWidget {
     this.coverage,
     this.onTap,
     this.onMapCreated,
+    this.height = 360,
+    this.interactive = true,
     super.key,
   });
 
@@ -20,6 +22,8 @@ class CampusMap extends StatelessWidget {
   final DeliveryCoverage? coverage;
   final ValueChanged<LatLng>? onTap;
   final ValueChanged<GoogleMapController>? onMapCreated;
+  final double height;
+  final bool interactive;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +32,7 @@ class CampusMap extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: SizedBox(
-        height: 360,
+        height: height,
         child: GoogleMap(
           initialCameraPosition: CameraPosition(target: center, zoom: 16),
           markers: markers,
@@ -45,6 +49,12 @@ class CampusMap extends StatelessWidget {
           },
           myLocationButtonEnabled: false,
           mapToolbarEnabled: false,
+          zoomControlsEnabled: interactive,
+          zoomGesturesEnabled: interactive,
+          scrollGesturesEnabled: interactive,
+          rotateGesturesEnabled: interactive,
+          tiltGesturesEnabled: interactive,
+          liteModeEnabled: !interactive,
           onTap: onTap,
           onMapCreated: onMapCreated,
         ),

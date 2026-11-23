@@ -71,6 +71,18 @@ class _LocationContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final position = LatLng(location.latitude, location.longitude);
     final area = coverage;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final details = [
+      if (location.address.isNotEmpty) (Icons.place_outlined, location.address),
+      if (location.hours.isNotEmpty) (Icons.schedule_outlined, location.hours),
+      if (area != null)
+        (
+          Icons.delivery_dining_outlined,
+          'Entrega hasta ${area.radiusMeters.toStringAsFixed(0)} m'
+              '${area.approximate ? ' (provisional)' : ''}',
+        ),
+    ];
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -78,46 +90,75 @@ class _LocationContent extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (mapsEnabled)
-              CampusMap(
-                key: ValueKey(position),
-                center: position,
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('cafeteria'),
-                    position: position,
-                    infoWindow: InfoWindow(title: location.label),
-                  ),
-                },
-                coverage: area,
-              ),
-            if (area != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(coverageDescription(area)),
-              ),
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      location.label,
-                      style: Theme.of(context).textTheme.titleLarge,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ExcludeSemantics(
+                    child: mapsEnabled
+                        ? CampusMap(
+                            key: ValueKey(position),
+                            center: position,
+                            height: 150,
+                            interactive: false,
+                            markers: {
+                              Marker(
+                                markerId: const MarkerId('cafeteria'),
+                                position: position,
+                              ),
+                            },
+                            coverage: area,
+                          )
+                        : Container(
+                            height: 110,
+                            color: scheme.primaryContainer,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.storefront_outlined,
+                              size: 44,
+                              color: scheme.onPrimaryContainer,
+                            ),
+                          ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(location.label, style: theme.textTheme.titleLarge),
+                        if (location.approximate)
+                          Text(
+                            'Ubicación aproximada',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        const SizedBox(height: 8),
+                        for (final (icon, text) in details)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(icon, size: 20, color: scheme.primary),
+                                const SizedBox(width: 10),
+                                Expanded(child: Text(text)),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                openMapDirections(context, location),
+                            icon: const Icon(Icons.directions_outlined),
+                            label: const Text('Cómo llegar'),
+                          ),
+                        ),
+                      ],
                     ),
-                    if (location.approximate)
-                      const Text('Ubicación aproximada'),
-                    if (location.address.isNotEmpty) Text(location.address),
-                    if (location.hours.isNotEmpty) Text(location.hours),
-                    const SizedBox(height: 8),
-                    FilledButton.tonalIcon(
-                      onPressed: () => openMapDirections(context, location),
-                      icon: const Icon(Icons.directions_outlined),
-                      label: const Text('Cómo llegar'),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
