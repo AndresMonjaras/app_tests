@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/memory_orders_repository.dart';
 import '../data/realtime_orders_repository.dart';
 import '../domain/order_record.dart';
 import '../domain/orders_repository.dart';
@@ -45,11 +46,17 @@ final adminPermissionProvider = FutureProvider<bool>((ref) async {
 });
 
 final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
-  if (Firebase.apps.isEmpty) return RealtimeOrdersRepository();
+  MemoryOrdersRepository memoryRepository() {
+    final repository = MemoryOrdersRepository();
+    ref.onDispose(repository.dispose);
+    return repository;
+  }
+
+  if (Firebase.apps.isEmpty) return memoryRepository();
   try {
     return RealtimeOrdersRepository(database: FirebaseDatabase.instance);
   } on FirebaseException {
-    return RealtimeOrdersRepository();
+    return memoryRepository();
   }
 });
 

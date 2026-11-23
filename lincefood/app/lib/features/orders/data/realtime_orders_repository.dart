@@ -107,6 +107,10 @@ class RealtimeOrdersRepository implements OrdersRepository {
         {
           'productId': line.product.id,
           if (line.variant != null) 'variantLabel': line.variant!.label,
+          if (line.complements.isNotEmpty)
+            'complementLabels': line.complements
+                .map((item) => item.label)
+                .toList(),
           'quantity': line.quantity,
         },
     ];
@@ -126,18 +130,35 @@ class RealtimeOrdersRepository implements OrdersRepository {
     }
     final rawFolio = result['folio'];
 
-    final order = OrderRecord(
-      id: id,
-      ownerUid: ownerUid,
-      folio: rawFolio is String && rawFolio.isNotEmpty
-          ? rawFolio
-          : _folioFor(id),
-      status: OrderStatus.paymentPending,
-      lines: cart.lines,
-      pickupMode: pickupMode,
-      createdAt: createdAt ?? DateTime.now(),
-      totalCents: cart.totalCents,
-    );
+    final rawServerLines = result['lines'];
+    final rawServerTotal = result['totalCents'];
+    final order =
+        rawServerLines is List &&
+            rawServerTotal is num &&
+            rawServerTotal.isFinite &&
+            rawServerTotal >= 0 &&
+            rawServerTotal % 1 == 0
+        ? OrderRecord.fromMap(id, {
+            'ownerUid': ownerUid,
+            'folio': rawFolio,
+            'status': OrderStatus.paymentPending.code,
+            'lines': rawServerLines,
+            'totalCents': rawServerTotal,
+            'pickupMode': pickupMode.code,
+            'createdAt': createdAt?.millisecondsSinceEpoch,
+          })
+        : OrderRecord(
+            id: id,
+            ownerUid: ownerUid,
+            folio: rawFolio is String && rawFolio.isNotEmpty
+                ? rawFolio
+                : _folioFor(id),
+            status: OrderStatus.paymentPending,
+            lines: cart.lines,
+            pickupMode: pickupMode,
+            createdAt: createdAt ?? DateTime.now(),
+            totalCents: cart.totalCents,
+          );
 
     return order;
   }

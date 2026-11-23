@@ -7,6 +7,15 @@ function asVariants(product) {
   return [];
 }
 
+function asComplements(product) {
+  const complements = product?.complements;
+  if (Array.isArray(complements)) return complements;
+  if (complements && typeof complements === 'object') {
+    return Object.values(complements);
+  }
+  return [];
+}
+
 function getPrice(product, variantLabel, lineNumber) {
   const variants = asVariants(product);
 
@@ -66,6 +75,7 @@ export function validateAndPriceOrderLines(rawLines, products) {
     }
 
     const { productId, quantity, variantLabel } = rawLine;
+    const complementLabels = rawLine.complementLabels ?? [];
     if (typeof productId !== 'string' || productId.trim().length === 0) {
       throw new AppError(
         'invalid-argument',
@@ -95,7 +105,51 @@ export function validateAndPriceOrderLines(rawLines, products) {
       );
     }
 
-    const totalCents = selected.priceCents * quantity;
+    if (
+      !Array.isArray(complementLabels) ||
+      complementLabels.length > 6 ||
+      complementLabels.some(
+        (label) =>
+          typeof label !== 'string' || label.length === 0 || label.length > 40,
+      ) ||
+      new Set(complementLabels).size !== complementLabels.length
+    ) {
+      throw new AppError(
+        'invalid-argument',
+        'Los complementos de la línea ' + lineNumber + ' no son válidos.',
+      );
+    }
+    const productComplements = asComplements(product);
+    const complements = complementLabels.map((label) => {
+      const complement = productComplements.find(
+        (item) => item && item.label === label,
+      );
+      if (!complement) {
+        throw new AppError(
+          'invalid-argument',
+          'Un complemento de la línea ' + lineNumber + ' no existe.',
+        );
+      }
+      if (complement.available === false) {
+        throw new AppError(
+          'failed-precondition',
+          'Un complemento de la línea ' + lineNumber + ' está agotado.',
+        );
+      }
+      if (!Number.isSafeInteger(complement.priceCents) || complement.priceCents < 0) {
+        throw new AppError(
+          'failed-precondition',
+          'El precio de un complemento de la línea ' + lineNumber + ' no es válido.',
+        );
+      }
+      return { label: complement.label, priceCents: complement.priceCents };
+    });
+    const unitPriceCents = selected.priceCents +
+      complements.reduce((sum, item) => sum + item.priceCents, 0);
+    if (!Number.isSafeInteger(unitPriceCents)) {
+      throw new AppError('invalid-argument', 'El total excede el límite válido.');
+    }
+    const totalCents = unitPriceCents * quantity;
     if (!Number.isSafeInteger(totalCents)) {
       throw new AppError('invalid-argument', 'El total excede el límite válido.');
     }
@@ -104,8 +158,9 @@ export function validateAndPriceOrderLines(rawLines, products) {
       productId,
       productName: String(product.name || productId),
       variantLabel: selected.variantLabel,
+      complements,
       quantity,
-      unitPriceCents: selected.priceCents,
+      unitPriceCents,
       totalCents,
     };
   });

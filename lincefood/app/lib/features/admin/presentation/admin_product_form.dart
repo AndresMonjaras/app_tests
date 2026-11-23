@@ -192,8 +192,9 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                           ),
                           keyboardType: TextInputType.number,
                           validator: (value) {
-                            if (value == null || value.trim().isEmpty)
+                            if (value == null || value.trim().isEmpty) {
                               return null;
+                            }
                             final amount = int.tryParse(value.trim());
                             return amount == null || amount <= 0
                                 ? 'Usa una cantidad entera mayor a cero.'
@@ -409,8 +410,9 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
         'webp' => 'image/webp',
         _ => null,
       };
-      if (contentType == null)
+      if (contentType == null) {
         throw const FormatException('Usa una imagen JPEG, PNG o WebP.');
+      }
       final Uint8List bytes = await file.readAsBytes();
       final path = await ref
           .read(mediaStorageProvider)

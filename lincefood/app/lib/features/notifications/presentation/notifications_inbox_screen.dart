@@ -47,8 +47,21 @@ class NotificationsInboxScreen extends ConsumerWidget {
       ),
       body: inbox.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('No se pudieron cargar los avisos.')),
+        error: (_, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('No se pudieron cargar los avisos.'),
+                TextButton(
+                  onPressed: () => ref.invalidate(notificationInboxProvider),
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
         data: (items) {
           if (items.isEmpty && tips.isEmpty) {
             return const Center(child: Text('Todavía no tienes avisos.'));

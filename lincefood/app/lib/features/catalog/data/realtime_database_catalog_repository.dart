@@ -9,6 +9,23 @@ class RealtimeDatabaseCatalogRepository implements CatalogRepository {
   final FirebaseDatabase _database;
 
   @override
+  Stream<List<Product>> watchProducts() {
+    return _database.ref('products').onValue.map((event) {
+      final products = event.snapshot.children
+          .map((child) {
+            final key = child.key;
+            final value = child.value;
+            if (key == null || value is! Map) return null;
+            return Product.fromMap(key, value);
+          })
+          .whereType<Product>()
+          .toList(growable: false);
+
+      return List.unmodifiable(products);
+    });
+  }
+
+  @override
   Future<List<Product>> fetchProducts() async {
     final snapshot = await _database.ref('products').get();
     final data = snapshot.value;
@@ -23,18 +40,4 @@ class RealtimeDatabaseCatalogRepository implements CatalogRepository {
 
     return List.unmodifiable(products);
   }
-
-  @override
-  Stream<List<Product>> watchProducts() =>
-      _database.ref('products').onValue.map((event) {
-        final data = event.snapshot.value;
-        if (data is! Map) return const <Product>[];
-        final products = <Product>[];
-        data.forEach((key, value) {
-          if (key is String && value is Map) {
-            products.add(Product.fromMap(key, value));
-          }
-        });
-        return List.unmodifiable(products);
-      });
 }

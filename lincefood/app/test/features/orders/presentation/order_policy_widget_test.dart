@@ -69,8 +69,20 @@ void main() {
     });
   }
 
+  testWidgets('el cliente puede cancelar mientras el pago está pendiente', (
+    tester,
+  ) async {
+    final repository = MemoryOrdersRepository();
+    addTearDown(repository.dispose);
+    repository.setOrders('uid-1', [_pedido('1', OrderStatus.paymentPending)]);
+
+    await _montarTicket(tester, repository);
+
+    expect(find.text('Cancelar pedido'), findsOneWidget);
+  });
+
   for (final status in [OrderStatus.paid, OrderStatus.confirmed]) {
-    testWidgets('el cliente puede cancelar en ${status.code} tras confirmar', (
+    testWidgets('el cliente no puede cancelar en ${status.code}', (
       tester,
     ) async {
       final repository = MemoryOrdersRepository();
@@ -79,7 +91,7 @@ void main() {
 
       await _montarTicket(tester, repository);
 
-      expect(find.text('Cancelar pedido'), findsOneWidget);
+      expect(find.text('Cancelar pedido'), findsNothing);
     });
   }
 
@@ -149,7 +161,9 @@ void main() {
   ) async {
     final repository = MemoryOrdersRepository();
     addTearDown(repository.dispose);
-    repository.setOrders('uid-1', [_pedido('1', OrderStatus.paid).cancel()]);
+    repository.setOrders('uid-1', [
+      _pedido('1', OrderStatus.paymentPending).cancel(),
+    ]);
 
     await _montarTicket(tester, repository);
 

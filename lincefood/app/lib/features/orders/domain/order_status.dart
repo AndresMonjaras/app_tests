@@ -48,7 +48,7 @@ OrderStatus orderStatusFromCode(Object? value) {
   }
 
   return switch (code) {
-    'pendiente' => OrderStatus.paymentPending,
+    'pendiente' || 'pendiente_pago' => OrderStatus.paymentPending,
     'pagado' => OrderStatus.paid,
     'confirmado' => OrderStatus.confirmed,
     'preparando' ||
