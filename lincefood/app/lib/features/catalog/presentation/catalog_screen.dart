@@ -727,61 +727,79 @@ class _ProductTile extends StatelessWidget {
     if (product.complements.isNotEmpty) {
       final chosen = await showDialog<List<ProductVariant>>(
         context: context,
-        builder: (dialogContext) {
-          final choices = <String>{};
-          return StatefulBuilder(
-            builder: (context, setDialogState) => AlertDialog(
-              title: Text('Complementos para ${product.name}'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final option in product.complements)
-                      CheckboxListTile(
-                        value: choices.contains(option.label),
-                        onChanged: option.isAvailable
-                            ? (checked) => setDialogState(() {
-                                if (checked == true) {
-                                  choices.add(option.label);
-                                } else {
-                                  choices.remove(option.label);
-                                }
-                              })
-                            : null,
-                        title: Text(option.label),
-                        subtitle: Text(
-                          option.isAvailable
-                              ? formatMoney(option.priceCents)
-                              : 'Agotado',
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(
-                    dialogContext,
-                    product.complements
-                        .where((item) => choices.contains(item.label))
-                        .toList(),
-                  ),
-                  child: const Text('Continuar'),
-                ),
-              ],
-            ),
-          );
-        },
+        builder: (dialogContext) => _ComplementsDialog(product: product),
       );
       if (chosen == null || !context.mounted) return;
       selectedComplements = chosen;
     }
     if (context.mounted) onAdd(product, selected, selectedComplements);
+  }
+}
+
+/// Complementos elegidos en el dialogo (por etiqueta). Se reinicia al cerrarlo.
+class _ComplementChoices extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  void toggle(String label, bool checked) {
+    state = checked ? {...state, label} : ({...state}..remove(label));
+  }
+}
+
+final _complementChoicesProvider =
+    NotifierProvider.autoDispose<_ComplementChoices, Set<String>>(
+      _ComplementChoices.new,
+    );
+
+class _ComplementsDialog extends ConsumerWidget {
+  const _ComplementsDialog({required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final choices = ref.watch(_complementChoicesProvider);
+    return AlertDialog(
+      title: Text('Complementos para ${product.name}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in product.complements)
+              CheckboxListTile(
+                value: choices.contains(option.label),
+                onChanged: option.isAvailable
+                    ? (checked) => ref
+                          .read(_complementChoicesProvider.notifier)
+                          .toggle(option.label, checked == true)
+                    : null,
+                title: Text(option.label),
+                subtitle: Text(
+                  option.isAvailable
+                      ? formatMoney(option.priceCents)
+                      : 'Agotado',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            product.complements
+                .where((item) => choices.contains(item.label))
+                .toList(),
+          ),
+          child: const Text('Continuar'),
+        ),
+      ],
+    );
   }
 }

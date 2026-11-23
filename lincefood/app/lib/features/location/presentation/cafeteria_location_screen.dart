@@ -2,29 +2,43 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../domain/cafeteria_map_place.dart';
 
 const _mapsEnabled = bool.fromEnvironment('GOOGLE_MAPS_ENABLED');
 
+/// Cafeteria seleccionada en el carrusel y en el mapa (indice en la lista).
+class SelectedCafeteriaNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void select(int index) => state = index;
+}
+
+final selectedCafeteriaProvider =
+    NotifierProvider.autoDispose<SelectedCafeteriaNotifier, int>(
+      SelectedCafeteriaNotifier.new,
+    );
+
 // Evita que el mapa y las tarjetas se estiren en escritorio.
 const _anchoMaximo = 720.0;
 
-class CafeteriaLocationScreen extends StatefulWidget {
+class CafeteriaLocationScreen extends ConsumerStatefulWidget {
   const CafeteriaLocationScreen({super.key, this.mapsEnabled = _mapsEnabled});
 
   final bool mapsEnabled;
 
   @override
-  State<CafeteriaLocationScreen> createState() =>
+  ConsumerState<CafeteriaLocationScreen> createState() =>
       _CafeteriaLocationScreenState();
 }
 
-class _CafeteriaLocationScreenState extends State<CafeteriaLocationScreen> {
+class _CafeteriaLocationScreenState
+    extends ConsumerState<CafeteriaLocationScreen> {
   final _pages = PageController(viewportFraction: 0.88);
   GoogleMapController? _map;
-  int _selected = 0;
 
   @override
   void dispose() {
@@ -60,6 +74,7 @@ class _CafeteriaLocationScreenState extends State<CafeteriaLocationScreen> {
   // Con Maps activo: mapa a todo lo ancho y tarjetas flotando abajo.
   Widget _mapWithCarousel() {
     final colors = Theme.of(context).colorScheme;
+    final selected = ref.watch(selectedCafeteriaProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       child: ClipRRect(
@@ -81,7 +96,7 @@ class _CafeteriaLocationScreenState extends State<CafeteriaLocationScreen> {
                         cafeteriaMapPlaces[i].longitude,
                       ),
                       icon: BitmapDescriptor.defaultMarkerWithHue(
-                        i == _selected
+                        i == selected
                             ? BitmapDescriptor.hueOrange
                             : BitmapDescriptor.hueRose,
                       ),
@@ -128,7 +143,7 @@ class _CafeteriaLocationScreenState extends State<CafeteriaLocationScreen> {
                   child: _CafeteriaCard(
                     place: cafeteriaMapPlaces[index],
                     number: index + 1,
-                    selected: index == _selected,
+                    selected: index == selected,
                     onShowOnMap: () => _select(index, moveCards: true),
                   ),
                 ),
@@ -161,7 +176,7 @@ class _CafeteriaLocationScreenState extends State<CafeteriaLocationScreen> {
 
   void _select(int index, {bool moveCards = false}) {
     if (!mounted) return;
-    setState(() => _selected = index);
+    ref.read(selectedCafeteriaProvider.notifier).select(index);
     final place = cafeteriaMapPlaces[index];
     unawaited(_moveCamera(place));
     if (moveCards && _pages.hasClients) {
