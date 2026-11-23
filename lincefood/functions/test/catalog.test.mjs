@@ -25,6 +25,19 @@ function createDatabase({ coldCache = false } = {}) {
             const initial = update(null);
             if (initial === undefined) return { committed: false };
           }
+          if (path === '/') {
+            const root = {};
+            for (const [entry, value] of values) {
+              const [collection, key] = entry.split('/');
+              if (key) (root[collection] ??= {})[key] = value;
+              else root[collection] = value;
+            }
+            const next = update(root);
+            for (const [key, value] of Object.entries(next.products ?? {})) {
+              values.set('products/' + key, value);
+            }
+            return { committed: true, snapshot: { exists: () => true, val: () => next } };
+          }
           const value = update(values.get(path) ?? null);
           if (value === undefined) return { committed: false };
           if (value !== null) {
@@ -215,4 +228,16 @@ test('precio actualiza un producto existente aunque la caché inicial esté vac�
   database.values.set('products/coffee', { name: 'Café', available: true, priceCents: 100 });
   await createUpdateProductPriceHandler({ database })(adminRequest({ productId: 'coffee', priceCents: 200 }));
   assert.deepEqual(database.values.get('products/coffee'), { name: 'Café', available: true, priceCents: 200 });
+});
+
+test('las unidades del catálogo sustituyen las semillas cuando existe units', async () => {
+  const database = createDatabase({ coldCache: true });
+  const save = createUpsertProductHandler({ database });
+  const product = { name: 'Pan', categoryId: 'pan', available: true, priceCents: 10, portionAmount: 1 };
+  const request = (portionUnit) => adminRequest({ productId: 'pan', product: { ...product, portionUnit } });
+  for (const code of ['g', 'ml', 'pz']) await save(request(code));
+  await assert.rejects(save(request('kg')), { code: 'invalid-argument' });
+  database.values.set('units', { kg: { label: 'Kilogramos', symbol: 'kg' } });
+  await save(request('kg'));
+  await assert.rejects(save(request('g')), { code: 'invalid-argument' });
 });

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../core/money/money.dart';
+import '../../../shared/responsive/breakpoints.dart';
 import '../../catalog/presentation/product_image.dart';
 import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
 import '../domain/order_elapsed_time.dart';
 import 'order_actions_controller.dart';
+import 'desktop_orders_grid.dart';
 import 'orders_providers.dart';
 import 'reject_order_dialog.dart';
 
@@ -102,6 +104,44 @@ class _StaffOrderList extends ConsumerWidget {
             child: Text('No hay pedidos pagados por atender.'),
           );
         }
+        final error = actionState.errorMessage == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  actionState.errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              );
+        Widget buildCard(OrderRecord order) => _StaffOrderCard(
+          order: order,
+          isWorking: actionState.isWorking,
+          isAdmin: isAdmin,
+          now: now,
+          onUpdate: (status) =>
+              controller.updateOrderStatus(orderId: order.id, status: status),
+          onReject: () {
+            controller.clearError();
+            showDialog<void>(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => RejectOrderDialog(orderId: order.id),
+            );
+          },
+          onReportIncident: (reason) =>
+              controller.reportIncident(orderId: order.id, reason: reason),
+          onResolveIncident: (resolution) => controller.resolveIncident(
+            orderId: order.id,
+            resolution: resolution,
+          ),
+        );
+        if (context.isDesktop) {
+          return DesktopOrdersGrid(
+            itemCount: items.length,
+            header: error,
+            itemBuilder: (_, index) => buildCard(items[index]),
+          );
+        }
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -110,45 +150,8 @@ class _StaffOrderList extends ConsumerWidget {
                 constraints: const BoxConstraints(maxWidth: 640),
                 child: Column(
                   children: [
-                    if (actionState.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          actionState.errorMessage!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ),
-                    for (final order in items)
-                      _StaffOrderCard(
-                        order: order,
-                        isWorking: actionState.isWorking,
-                        isAdmin: isAdmin,
-                        now: now,
-                        onUpdate: (status) => controller.updateOrderStatus(
-                          orderId: order.id,
-                          status: status,
-                        ),
-                        onReject: () {
-                          controller.clearError();
-                          showDialog<void>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) =>
-                                RejectOrderDialog(orderId: order.id),
-                          );
-                        },
-                        onReportIncident: (reason) => controller.reportIncident(
-                          orderId: order.id,
-                          reason: reason,
-                        ),
-                        onResolveIncident: (resolution) =>
-                            controller.resolveIncident(
-                              orderId: order.id,
-                              resolution: resolution,
-                            ),
-                      ),
+                    ?error,
+                    for (final order in items) buildCard(order),
                   ],
                 ),
               ),

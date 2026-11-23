@@ -67,6 +67,9 @@ class Product {
     if (priceCents < 0) {
       throw const DomainException('El precio no puede ser negativo.');
     }
+    if (portionUnit != null && !isValidUnitCode(portionUnit)) {
+      throw const DomainException('El código de unidad no es válido.');
+    }
     if (this.complements.length > 6) {
       throw const DomainException(
         'Un producto puede tener hasta 6 complementos.',
@@ -142,7 +145,7 @@ class Product {
       portionAmount: map['portionAmount'] is int && map['portionAmount'] > 0
           ? map['portionAmount'] as int
           : null,
-      portionUnit: const {'g', 'ml', 'pz'}.contains(map['portionUnit'])
+      portionUnit: isValidUnitCode(map['portionUnit'])
           ? map['portionUnit'] as String
           : null,
     );
@@ -170,3 +173,6 @@ String _safeMenuImagePath(Object? raw) {
   final isMenuPath = path.startsWith('menu/') && !path.contains('..');
   return isMenuPath && !path.contains('//') ? path : '';
 }
+
+bool isValidUnitCode(Object? value) =>
+    value is String && RegExp(r'^[a-z0-9_]{1,10}$').hasMatch(value);

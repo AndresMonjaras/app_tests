@@ -8,6 +8,7 @@ import '../../../app/app_router.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../admin/presentation/admin_catalog_providers.dart';
+import '../../admin/presentation/admin_taxonomy_screen.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../biometrics/biometric_protection.dart';
 import '../../media/domain/private_avatar_cache.dart';
@@ -17,9 +18,7 @@ import '../data/firebase_profile_repository.dart';
 import '../domain/avatar_rules.dart';
 import '../domain/avatar_preset.dart';
 import 'profile_controller.dart';
-
-// Evita que las tarjetas de ajustes se estiren en escritorio.
-const _anchoMaximo = 640.0;
+import 'profile_layout.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -87,335 +86,329 @@ class ProfileScreen extends ConsumerWidget {
 
         return Scaffold(
           appBar: AppBar(title: const Text('Mi perfil')),
-          body: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _anchoMaximo),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
+          body: ProfileLayout(
+            avatar: [
+              _ProfileHeader(
+                avatar: ProfileAvatar(
+                  radius: 48,
+                  photoUrl: photoUrl,
+                  preset: selectedPreset,
+                ),
+                name: displayName,
+                email: user.email ?? '',
+                providerLabel: socialProviderLabel,
+                verified: user.emailVerified,
+              ),
+              const SizedBox(height: 16),
+              _SettingsGroup(
+                title: 'Tu avatar',
                 children: [
-                  _ProfileHeader(
-                    avatar: ProfileAvatar(
-                      radius: 48,
-                      photoUrl: photoUrl,
-                      preset: selectedPreset,
-                    ),
-                    name: displayName,
-                    email: user.email ?? '',
-                    providerLabel: socialProviderLabel,
-                    verified: user.emailVerified,
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingsGroup(
-                    title: 'Tu avatar',
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            if (canEditAvatar) ...[
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                alignment: WrapAlignment.center,
-                                children: [
-                                  FilledButton.tonalIcon(
-                                    onPressed: avatarState.isBusy
-                                        ? null
-                                        : () => unawaited(
-                                            ref
-                                                .read(
-                                                  profileControllerProvider
-                                                      .notifier,
-                                                )
-                                                .seleccionarAvatar(user.uid),
-                                          ),
-                                    icon: avatarState.isBusy
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.add_a_photo_outlined,
-                                          ),
-                                    label: Text(
-                                      photoUrl == null
-                                          ? 'Añadir avatar'
-                                          : 'Cambiar avatar',
-                                    ),
-                                  ),
-                                  if (photoUrl != null)
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .error,
-                                        side: avatarState.isBusy
-                                            ? null
-                                            : BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .error,
-                                              ),
-                                      ),
-                                      onPressed: avatarState.isBusy
-                                          ? null
-                                          : () => unawaited(
-                                              ref
-                                                  .read(
-                                                    profileControllerProvider
-                                                        .notifier,
-                                                  )
-                                                  .eliminarAvatar(user.uid),
-                                            ),
-                                      icon: const Icon(Icons.delete_outline),
-                                      label: const Text('Eliminar avatar'),
-                                    ),
-                                ],
-                              ),
-                            ],
-                            if (isEmailAccount && !user.emailVerified)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Verifica tu correo para cambiar el avatar.',
-                                ),
-                              ),
-                            if (isEmailAccount &&
-                                user.emailVerified &&
-                                !canEditAvatar)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  avatarEligibility.isLoading
-                                      ? 'Verificando permisos para el avatar…'
-                                      : 'La edición segura del avatar aún no está habilitada en Firebase.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            if (!isEmailAccount)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'La foto se administra desde $socialProviderLabel.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            if (avatarState.errorMessage != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                avatarState.errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            if (canPickPreset)
-                              DropdownButtonFormField<AvatarPreset>(
-                                key: ValueKey((
-                                  selectedPreset,
-                                  avatarState.errorMessage,
-                                )),
-                                initialValue: selectedPreset,
-                                isExpanded: true,
-                                borderRadius: BorderRadius.circular(16),
-                                menuMaxHeight: 320,
-                                decoration: const InputDecoration(
-                                  labelText: 'Avatar del perfil',
-                                ),
-                                items: [
-                                  for (final preset in AvatarPreset.values)
-                                    DropdownMenuItem(
-                                      value: preset,
-                                      enabled: preset.available,
-                                      child: Text(
-                                        preset.available
-                                            ? preset.label
-                                            : '${preset.label} · Próximamente',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                ],
-                                onChanged: avatarState.isBusy
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        if (canEditAvatar) ...[
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              FilledButton.tonalIcon(
+                                onPressed: avatarState.isBusy
                                     ? null
-                                    : (preset) {
-                                        if (preset == null) return;
-                                        unawaited(
+                                    : () => unawaited(
+                                        ref
+                                            .read(
+                                              profileControllerProvider
+                                                  .notifier,
+                                            )
+                                            .seleccionarAvatar(user.uid),
+                                      ),
+                                icon: avatarState.isBusy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.add_a_photo_outlined),
+                                label: Text(
+                                  photoUrl == null
+                                      ? 'Añadir avatar'
+                                      : 'Cambiar avatar',
+                                ),
+                              ),
+                              if (photoUrl != null)
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .error,
+                                    side: avatarState.isBusy
+                                        ? null
+                                        : BorderSide(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error,
+                                          ),
+                                  ),
+                                  onPressed: avatarState.isBusy
+                                      ? null
+                                      : () => unawaited(
                                           ref
                                               .read(
                                                 profileControllerProvider
                                                     .notifier,
                                               )
-                                              .seleccionarPreset(
-                                                user.uid,
-                                                preset,
-                                              ),
-                                        );
-                                      },
-                              ),
-                            if (presetState.hasError) ...[
-                              const SizedBox(height: 8),
-                              const Text(
-                                'No se pudo cargar el avatar guardado.',
-                              ),
+                                              .eliminarAvatar(user.uid),
+                                        ),
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Eliminar avatar'),
+                                ),
                             ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingsGroup(
-                    title: 'Mi cuenta',
-                    children: [
-                      if (ref.watch(staffPermissionProvider).value == true) ...[
-                        _SettingsTile(
-                          icon: Icons.storefront_outlined,
-                          title: 'Panel de cafetería',
-                          subtitle: 'Pedidos en cola y cambios de estado.',
-                          onTap: () =>
-                              Navigator.of(context)
-                                  .pushNamed(AppRouter.staffOrders),
-                        ),
-                        _SettingsTile(
-                          icon: Icons.qr_code_scanner,
-                          title: 'Escanear QR de entrega',
-                          subtitle: 'Valida el código del cliente al entregar.',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const PickupScannerScreen(),
+                          ),
+                        ],
+                        if (isEmailAccount && !user.emailVerified)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Verifica tu correo para cambiar el avatar.',
                             ),
                           ),
-                        ),
-                      ],
-                      if (ref.watch(catalogEditorAccessProvider).value == true)
-                        _SettingsTile(
-                          icon: Icons.admin_panel_settings_outlined,
-                          title: ref.watch(adminAccessProvider).value == true
-                              ? 'Administración'
-                              : 'Productos de cafetería',
-                          subtitle: ref.watch(adminAccessProvider).value == true
-                              ? 'Productos, precios y permisos del equipo.'
-                              : 'Administra el menú y su disponibilidad.',
-                          onTap: () =>
-                              Navigator.of(context).pushNamed(AppRouter.admin),
-                        ),
-                      _SettingsTile(
-                        icon: Icons.notifications_outlined,
-                        title: 'Notificaciones',
-                        subtitle: 'Configura los avisos de la cafetería.',
-                        onTap: () =>
-                            Navigator.of(context)
-                                .pushNamed(AppRouter.notificationPreferences),
-                      ),
-                      _SettingsTile(
-                        icon: Icons.workspace_premium_outlined,
-                        title: 'Planes de servicio',
-                        subtitle: 'Compara reservas de recogida.',
-                        onTap: () =>
-                            Navigator.of(context).pushNamed(AppRouter.plans),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingsGroup(
-                    title: 'Preferencias',
-                    children: [
-                      _SettingsTile(
-                        icon: Icons.palette_outlined,
-                        title: 'Apariencia',
-                        trailing: Semantics(
-                          label: 'Apariencia',
-                          child: DropdownButton<ThemeMode>(
-                            value: themeMode,
-                            underline: const SizedBox.shrink(),
+                        if (isEmailAccount &&
+                            user.emailVerified &&
+                            !canEditAvatar)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              avatarEligibility.isLoading
+                                  ? 'Verificando permisos para el avatar…'
+                                  : 'La edición segura del avatar aún no está habilitada en Firebase.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        if (!isEmailAccount)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'La foto se administra desde $socialProviderLabel.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        if (avatarState.errorMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            avatarState.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        if (canPickPreset)
+                          DropdownButtonFormField<AvatarPreset>(
+                            key: ValueKey((
+                              selectedPreset,
+                              avatarState.errorMessage,
+                            )),
+                            initialValue: selectedPreset,
+                            isExpanded: true,
                             borderRadius: BorderRadius.circular(16),
                             menuMaxHeight: 320,
-                            onChanged: preferences.isLoading
-                                ? null
-                                : (mode) {
-                                    if (mode != null) {
-                                      unawaited(
-                                        _changeTheme(context, ref, mode),
-                                      );
-                                    }
-                                  },
-                            items: const [
-                              DropdownMenuItem(
-                                value: ThemeMode.system,
-                                child: Text('Sistema'),
-                              ),
-                              DropdownMenuItem(
-                                value: ThemeMode.light,
-                                child: Text('Claro'),
-                              ),
-                              DropdownMenuItem(
-                                value: ThemeMode.dark,
-                                child: Text('Oscuro'),
-                              ),
+                            decoration: const InputDecoration(
+                              labelText: 'Avatar del perfil',
+                            ),
+                            items: [
+                              for (final preset in AvatarPreset.values)
+                                DropdownMenuItem(
+                                  value: preset,
+                                  enabled: preset.available,
+                                  child: Text(
+                                    preset.available
+                                        ? preset.label
+                                        : '${preset.label} · Próximamente',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                             ],
+                            onChanged: avatarState.isBusy
+                                ? null
+                                : (preset) {
+                                    if (preset == null) return;
+                                    unawaited(
+                                      ref
+                                          .read(
+                                            profileControllerProvider.notifier,
+                                          )
+                                          .seleccionarPreset(user.uid, preset),
+                                    );
+                                  },
                           ),
-                        ),
-                      ),
-                      SwitchListTile(
-                        secondary: const _IconBadge(icon: Icons.fingerprint),
-                        title: const Text('Proteger QR con biometría'),
-                        subtitle: const Text(
-                          'Solicita huella o rostro antes de mostrar el código de recogida.',
-                        ),
-                        value:
-                            preferences
-                                .asData
-                                ?.value
-                                .protectPickupQrWithBiometrics ??
-                            false,
-                        onChanged:
-                            preferences.isLoading ||
-                                biometricAvailability.isLoading
-                            ? null
-                            : (enabled) => unawaited(
-                                _setPickupQrProtection(context, ref, enabled),
-                              ),
-                      ),
-                    ],
+                        if (presetState.hasError) ...[
+                          const SizedBox(height: 8),
+                          const Text('No se pudo cargar el avatar guardado.'),
+                        ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  _SettingsGroup(
-                    title: 'Información',
-                    children: [
-                      _SettingsTile(
-                        icon: Icons.location_on_outlined,
-                        title: 'Ubicación de la cafetería',
-                        subtitle: 'Consulta el punto de recogida.',
-                        onTap: () =>
-                            Navigator.of(context)
-                                .pushNamed(AppRouter.cafeteriaLocation),
-                      ),
-                      _SettingsTile(
-                        icon: Icons.privacy_tip_outlined,
-                        title: 'Aviso de privacidad',
-                        subtitle: 'Qué datos usamos y para qué.',
-                        onTap: () =>
-                            Navigator.of(context).pushNamed(AppRouter.privacy),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  OutlinedButton.icon(
-                    onPressed: () => unawaited(_signOut(context, ref)),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Cerrar sesión'),
-                  ),
-                  const SizedBox(height: 8),
                 ],
               ),
-            ),
+            ],
+            settings: [
+              _SettingsGroup(
+                title: 'Mi cuenta',
+                children: [
+                  if (ref.watch(staffPermissionProvider).value == true) ...[
+                    _SettingsTile(
+                      icon: Icons.storefront_outlined,
+                      title: 'Panel de cafetería',
+                      subtitle: 'Pedidos en cola y cambios de estado.',
+                      onTap: () =>
+                          Navigator.of(context)
+                              .pushNamed(AppRouter.staffOrders),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.qr_code_scanner,
+                      title: 'Escanear QR de entrega',
+                      subtitle: 'Valida el código del cliente al entregar.',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PickupScannerScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (ref.watch(catalogEditorAccessProvider).value == true)
+                    _SettingsTile(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: ref.watch(adminAccessProvider).value == true
+                          ? 'Administración'
+                          : 'Productos de cafetería',
+                      subtitle: ref.watch(adminAccessProvider).value == true
+                          ? 'Productos, precios y permisos del equipo.'
+                          : 'Administra el menú y su disponibilidad.',
+                      onTap: () =>
+                          Navigator.of(context).pushNamed(AppRouter.admin),
+                    ),
+                  if (ref.watch(catalogEditorAccessProvider).value == true)
+                    _SettingsTile(
+                      icon: Icons.category_outlined,
+                      title: 'Categorías y unidades',
+                      subtitle: 'Edita las categorías y unidades del menú.',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AdminTaxonomyScreen(),
+                        ),
+                      ),
+                    ),
+                  _SettingsTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notificaciones',
+                    subtitle: 'Configura los avisos de la cafetería.',
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pushNamed(AppRouter.notificationPreferences),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.workspace_premium_outlined,
+                    title: 'Planes de servicio',
+                    subtitle: 'Compara reservas de recogida.',
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRouter.plans),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsGroup(
+                title: 'Preferencias',
+                children: [
+                  _SettingsTile(
+                    icon: Icons.palette_outlined,
+                    title: 'Apariencia',
+                    trailing: Semantics(
+                      label: 'Apariencia',
+                      child: DropdownButton<ThemeMode>(
+                        value: themeMode,
+                        underline: const SizedBox.shrink(),
+                        borderRadius: BorderRadius.circular(16),
+                        menuMaxHeight: 320,
+                        onChanged: preferences.isLoading
+                            ? null
+                            : (mode) {
+                                if (mode != null) {
+                                  unawaited(_changeTheme(context, ref, mode));
+                                }
+                              },
+                        items: const [
+                          DropdownMenuItem(
+                            value: ThemeMode.system,
+                            child: Text('Sistema'),
+                          ),
+                          DropdownMenuItem(
+                            value: ThemeMode.light,
+                            child: Text('Claro'),
+                          ),
+                          DropdownMenuItem(
+                            value: ThemeMode.dark,
+                            child: Text('Oscuro'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SwitchListTile(
+                    secondary: const _IconBadge(icon: Icons.fingerprint),
+                    title: const Text('Proteger QR con biometría'),
+                    subtitle: const Text(
+                      'Solicita huella o rostro antes de mostrar el código de recogida.',
+                    ),
+                    value:
+                        preferences
+                            .asData
+                            ?.value
+                            .protectPickupQrWithBiometrics ??
+                        false,
+                    onChanged:
+                        preferences.isLoading || biometricAvailability.isLoading
+                        ? null
+                        : (enabled) => unawaited(
+                            _setPickupQrProtection(context, ref, enabled),
+                          ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsGroup(
+                title: 'Información',
+                children: [
+                  _SettingsTile(
+                    icon: Icons.location_on_outlined,
+                    title: 'Ubicación de la cafetería',
+                    subtitle: 'Consulta el punto de recogida.',
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pushNamed(AppRouter.cafeteriaLocation),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Aviso de privacidad',
+                    subtitle: 'Qué datos usamos y para qué.',
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRouter.privacy),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () => unawaited(_signOut(context, ref)),
+                icon: const Icon(Icons.logout),
+                label: const Text('Cerrar sesión'),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },

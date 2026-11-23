@@ -83,6 +83,16 @@
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true"
     },
+    "units": {
+      ".read": "auth != null",
+      ".write": "auth != null && auth.token.admin === true",
+      "$code": {
+        ".validate": "$code.matches(/^[a-z0-9_]{1,10}$/) && newData.hasChildren(['label', 'symbol'])",
+        "label": { ".validate": "newData.isString() && newData.val().matches(/.*\\S.*/) && newData.val().length <= 100" },
+        "symbol": { ".validate": "newData.isString() && newData.val().matches(/.*\\S.*/) && newData.val().length <= 10" },
+        "$other": { ".validate": false }
+      }
+    },
     "products": {
       ".read": "auth != null",
       ".write": "auth != null && auth.token.admin === true",

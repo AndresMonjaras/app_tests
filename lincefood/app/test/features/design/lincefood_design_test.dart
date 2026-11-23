@@ -80,29 +80,27 @@ Future<void> _abrirCatalogo(
 }
 
 void main() {
-  testWidgets('en 360 px la cuadricula de categorias tiene dos columnas', (
+  testWidgets('en 360 px las secciones van en una tira con mini scroll', (
     tester,
   ) async {
     await _abrirCatalogo(tester, tamano: const Size(360, 800));
 
-    // El orden usa ids de Firebase; las etiquetas visibles están localizadas.
+    // Las tarjetas comparten fila y la tira muestra su barra de desplazamiento.
     final otros = tester.getTopLeft(find.text('Otros'));
     final bebidas = tester.getTopLeft(find.text('Bebidas'));
     final comidas = tester.getTopLeft(find.text('Comidas'));
     final desayunos = tester.getTopLeft(find.text('Desayunos'));
-
-    expect(otros.dy, desayunos.dy);
-    expect(bebidas.dy, comidas.dy);
-    expect(bebidas.dy, greaterThan(otros.dy));
+    expect(bebidas.dy, otros.dy);
+    expect(comidas.dy, otros.dy);
+    expect(desayunos.dy, otros.dy);
+    expect(find.byType(Scrollbar), findsWidgets);
     expect(find.text('breakfast'), findsNothing);
     expect(find.text('lunch'), findsNothing);
     expect(find.text('drinks'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('en 1280 px la cuadricula de categorias usa cuatro columnas', (
-    tester,
-  ) async {
+  testWidgets('en 1280 px las secciones comparten fila', (tester) async {
     await _abrirCatalogo(tester, tamano: const Size(1280, 800));
 
     final y = tester.getTopLeft(find.text('Otros')).dy;

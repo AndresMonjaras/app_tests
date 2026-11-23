@@ -122,6 +122,10 @@ export const consumePickupFolio = onCall(
 export { updateOrderStatus } from './src/orders/update_order_status.mjs';
 export { resolveOrderIncident } from './src/orders/resolve_order_incident.mjs';
 export {
+  upsertCategory,
+  deleteCategory,
+  upsertUnit,
+  deleteUnit,
   upsertProduct,
   updateProductPrice,
   setProductAvailability,

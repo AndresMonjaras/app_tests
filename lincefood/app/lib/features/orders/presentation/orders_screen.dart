@@ -11,6 +11,7 @@ import '../../../app/app_theme.dart';
 import '../../../core/errors/domain_exception.dart';
 import '../../../core/money/money.dart';
 import '../../cart/domain/cart.dart';
+import '../../../shared/responsive/breakpoints.dart';
 import '../../catalog/presentation/catalog_providers.dart';
 import '../../catalog/presentation/product_image.dart';
 import '../../media/presentation/menu_image_providers.dart';
@@ -22,9 +23,10 @@ import 'order_cancellation_providers.dart';
 import 'order_rejection_notice.dart';
 import 'order_receipt_screen.dart';
 import 'order_timeline.dart';
+import 'desktop_orders_grid.dart';
 import 'orders_providers.dart';
 
-// Evita que los tickets se estiren en escritorio.
+// Ancho de la lista de una columna.
 const _anchoMaximo = 720.0;
 
 final hiddenOrderIdsProvider = StreamProvider.autoDispose
@@ -106,6 +108,36 @@ class OrdersScreen extends ConsumerWidget {
                     first.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
                   );
             });
+          Widget buildTicket(BuildContext itemContext, int index) {
+            final order = sortedOrders[index];
+            final key = ValueKey(order.id);
+            final ticket = _TicketCard(key: key, order: order, now: now);
+            if (uid == null || !_canHide(order) || hidden?.hasValue != true) {
+              return ticket;
+            }
+            return Dismissible(
+              key: key,
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                color: Theme.of(itemContext).colorScheme.secondaryContainer,
+                child: const Icon(Icons.visibility_off_outlined),
+              ),
+              confirmDismiss: (_) async {
+                await _confirmHide(context, ref, uid, order.id);
+                return false;
+              },
+              child: ticket,
+            );
+          }
+
+          if (context.isDesktop) {
+            return DesktopOrdersGrid(
+              itemCount: sortedOrders.length,
+              itemBuilder: buildTicket,
+            );
+          }
           return Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -120,33 +152,7 @@ class OrdersScreen extends ConsumerWidget {
                   return index < 0 ? null : index;
                 },
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (itemContext, index) {
-                  final order = sortedOrders[index];
-                  final key = ValueKey(order.id);
-                  final ticket = _TicketCard(key: key, order: order, now: now);
-                  if (uid == null ||
-                      !_canHide(order) ||
-                      hidden?.hasValue != true) {
-                    return ticket;
-                  }
-                  return Dismissible(
-                    key: key,
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      color: Theme.of(itemContext)
-                          .colorScheme
-                          .secondaryContainer,
-                      child: const Icon(Icons.visibility_off_outlined),
-                    ),
-                    confirmDismiss: (_) async {
-                      await _confirmHide(context, ref, uid, order.id);
-                      return false;
-                    },
-                    child: ticket,
-                  );
-                },
+                itemBuilder: buildTicket,
               ),
             ),
           );

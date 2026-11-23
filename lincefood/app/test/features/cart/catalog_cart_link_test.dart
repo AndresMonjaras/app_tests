@@ -17,6 +17,10 @@ void main() {
       priceCents: 0,
       variants: [ProductVariant(label: 'Grande', priceCents: 1500)],
     );
+    // Ventana alta para que el producto quede visible bajo el encabezado.
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final container = ProviderContainer(
       overrides: [
         catalogRepositoryProvider.overrideWithValue(

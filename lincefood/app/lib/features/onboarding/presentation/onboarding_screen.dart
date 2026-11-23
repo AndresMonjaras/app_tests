@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/responsive/breakpoints.dart';
 import '../domain/onboarding_step.dart';
 import 'onboarding_controller.dart';
 
@@ -42,7 +43,9 @@ class OnboardingScreen extends ConsumerWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: BoxConstraints(
+              maxWidth: context.isDesktop ? 720 : 560,
+            ),
             child: Column(
               children: [
                 Expanded(
@@ -188,14 +191,17 @@ class OnboardingScreen extends ConsumerWidget {
                           onPressed: esUltimo
                               ? onCompleted
                               : controlador.siguiente,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(esUltimo ? 'Comenzar' : 'Siguiente'),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward, size: 20),
-                            ],
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(esUltimo ? 'Comenzar' : 'Siguiente'),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.arrow_forward, size: 20),
+                              ],
+                            ),
                           ),
                         ),
                       ),

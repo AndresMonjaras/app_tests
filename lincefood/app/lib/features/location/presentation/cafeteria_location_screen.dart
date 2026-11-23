@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../shared/responsive/breakpoints.dart';
 import '../domain/cafeteria_map_place.dart';
 
 const _mapsEnabled = bool.fromEnvironment('GOOGLE_MAPS_ENABLED');
@@ -22,8 +23,7 @@ final selectedCafeteriaProvider =
       SelectedCafeteriaNotifier.new,
     );
 
-// Evita que el mapa y las tarjetas se estiren en escritorio.
-const _anchoMaximo = 720.0;
+const _compactMaxWidth = 720.0;
 
 class CafeteriaLocationScreen extends ConsumerStatefulWidget {
   const CafeteriaLocationScreen({super.key, this.mapsEnabled = _mapsEnabled});
@@ -48,31 +48,79 @@ class _CafeteriaLocationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final desktop = context.isDesktop;
     return Scaffold(
       appBar: AppBar(title: const Text('Ubicación de cafetería')),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _anchoMaximo),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: _AvailabilityBanner(),
-              ),
-              Expanded(
-                child: widget.mapsEnabled ? _mapWithCarousel() : _setupList(),
-              ),
-            ],
+          constraints: BoxConstraints(
+            maxWidth: desktop ? desktopContentMaxWidth : _compactMaxWidth,
           ),
+          child: desktop
+              ? _desktopLayout()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      child: _AvailabilityBanner(),
+                    ),
+                    Expanded(
+                      child: widget.mapsEnabled ? _mapView() : _setupList(),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
   }
 
-  // Con Maps activo: mapa a todo lo ancho y tarjetas flotando abajo.
-  Widget _mapWithCarousel() {
+  Widget _desktopLayout() {
+    final selected = ref.watch(selectedCafeteriaProvider);
+    final places = ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      children: [
+        if (widget.mapsEnabled) const _AvailabilityBanner(),
+        for (var i = 0; i < cafeteriaMapPlaces.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: GestureDetector(
+              onTap: widget.mapsEnabled ? () => _select(i) : null,
+              child: _CafeteriaCard(
+                place: cafeteriaMapPlaces[i],
+                number: i + 1,
+                selected: widget.mapsEnabled && selected == i,
+                onShowOnMap: widget.mapsEnabled ? () => _select(i) : null,
+              ),
+            ),
+          ),
+      ],
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 380,
+          child: widget.mapsEnabled
+              ? places
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                  children: const [
+                    _AvailabilityBanner(),
+                    SizedBox(height: 12),
+                    _MapSetupCard(),
+                  ],
+                ),
+        ),
+        Expanded(
+          child: widget.mapsEnabled ? _mapView(carousel: false) : places,
+        ),
+      ],
+    );
+  }
+
+  Widget _mapView({bool carousel = true}) {
     final colors = Theme.of(context).colorScheme;
     final selected = ref.watch(selectedCafeteriaProvider);
     return Padding(
@@ -129,26 +177,28 @@ class _CafeteriaLocationScreenState
                 label: const Text('Ver todas'),
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 12,
-              height: 190,
-              child: PageView.builder(
-                controller: _pages,
-                itemCount: cafeteriaMapPlaces.length,
-                onPageChanged: (index) => _select(index),
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: _CafeteriaCard(
-                    place: cafeteriaMapPlaces[index],
-                    number: index + 1,
-                    selected: index == selected,
-                    onShowOnMap: () => _select(index, moveCards: true),
+            if (carousel)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 12,
+                height: 190,
+                child: PageView.builder(
+                  controller: _pages,
+                  itemCount: cafeteriaMapPlaces.length,
+                  onPageChanged: (index) => _select(index),
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: _CafeteriaCard(
+                      inCarousel: true,
+                      place: cafeteriaMapPlaces[index],
+                      number: index + 1,
+                      selected: index == selected,
+                      onShowOnMap: () => _select(index, moveCards: true),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -271,12 +321,14 @@ class _CafeteriaCard extends StatelessWidget {
     required this.number,
     required this.selected,
     this.onShowOnMap,
+    this.inCarousel = false,
   });
 
   final CafeteriaMapPlace place;
   final int number;
   final bool selected;
   final VoidCallback? onShowOnMap;
+  final bool inCarousel;
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +390,7 @@ class _CafeteriaCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // En el carrusel la altura es fija; en la lista se ajusta al contenido.
-          if (onShowOnMap != null)
+          if (inCarousel)
             Expanded(child: SingleChildScrollView(child: infoChips))
           else
             infoChips,

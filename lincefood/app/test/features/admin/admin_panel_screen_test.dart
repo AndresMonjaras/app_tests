@@ -96,6 +96,24 @@ Future<void> _openTab(WidgetTester tester, String name) async {
 }
 
 void main() {
+  for (final size in const [
+    Size(360, 800),
+    Size(768, 1024),
+    Size(1280, 800),
+    Size(1920, 1080),
+  ]) {
+    testWidgets('distribución en $size', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _openPanel(tester, _PanelFake());
+      final bounds = tester.getRect(find.byType(TabBarView));
+      expect(bounds.width, size.width.clamp(0, 1100));
+      expect(bounds.center.dx, size.width / 2);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('el panel no consulta usuarios sin acceso admin', (tester) async {
     final repo = _PanelFake();
     await _openPanel(tester, repo, allowed: false);

@@ -46,12 +46,16 @@ final adminPanelAccessProvider = FutureProvider.autoDispose<bool>(
   _hasAdminClaim,
 );
 
-final adminCatalogRepositoryProvider = Provider<AdminCatalogRepository>((ref) {
+final callableAdminCatalogRepositoryProvider = Provider((ref) {
   return CallableAdminCatalogRepository(
     FirebaseFunctions.instanceFor(region: 'us-central1'),
     FirebaseDatabase.instance,
   );
 });
+
+final adminCatalogRepositoryProvider = Provider<AdminCatalogRepository>(
+  (ref) => ref.watch(callableAdminCatalogRepositoryProvider),
+);
 
 final adminCatalogControllerProvider = Provider<AdminCatalogController>((ref) {
   return AdminCatalogController(
@@ -85,14 +89,17 @@ final adminProductsProvider = StreamProvider<List<Product>>((ref) {
 final adminCategoriesProvider = StreamProvider<Map<String, String>>((ref) {
   if (Firebase.apps.isEmpty) return Stream.value(const <String, String>{});
   return FirebaseDatabase.instance.ref('categories').onValue.map((event) {
-    final data = event.snapshot.value;
-    if (data is! Map) return const <String, String>{};
     final categories = <String, String>{};
-    data.forEach((key, value) {
-      if (key is String && value is Map && value['name'] is String) {
-        categories[key] = value['name'] as String;
+    for (final child in event.snapshot.children) {
+      final id = child.key;
+      final value = child.value;
+      if (id == null) continue;
+      if (value is String) {
+        categories[id] = value;
+      } else if (value is Map && value['name'] is String) {
+        categories[id] = value['name'] as String;
       }
-    });
+    }
     return Map.unmodifiable(categories);
   });
 });

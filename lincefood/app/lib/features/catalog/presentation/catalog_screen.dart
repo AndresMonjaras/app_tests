@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
+import '../../../shared/responsive/breakpoints.dart';
 import '../../admin/presentation/admin_catalog_providers.dart';
 import '../../cart/presentation/cart_controller.dart';
 import '../../profile/domain/avatar_preset.dart';
 import '../domain/product.dart';
 import 'catalog_product_actions.dart';
+import 'category_section_actions.dart';
 import 'catalog_providers.dart';
 import 'product_image.dart';
 
@@ -27,6 +29,7 @@ class CatalogScreen extends ConsumerWidget {
     final actions = ref.watch(catalogEditorAccessProvider).asData?.value == true
         ? CatalogProductActions(ref)
         : null;
+    final sections = actions == null ? null : CategorySectionActions(ref);
     final addButton = actions == null
         ? null
         : FilledButton.tonalIcon(
@@ -86,8 +89,14 @@ class CatalogScreen extends ConsumerWidget {
               ),
             );
           }
-          final categories = items.map((p) => p.categoryId).toSet().toList()
-            ..sort();
+          final dbCategories = actions == null
+              ? const <String, String>{}
+              : ref.watch(adminCategoriesProvider).value ??
+                    const <String, String>{};
+          final categories = {
+            ...items.map((p) => p.categoryId),
+            ...dbCategories.keys,
+          }.toList()..sort();
           final selected = categories.contains(category) ? category : null;
           final filtered = items
               .where(
@@ -96,10 +105,76 @@ class CatalogScreen extends ConsumerWidget {
                     p.name.toLowerCase().contains(query.toLowerCase()),
               )
               .toList();
+          final desktop = context.isDesktop;
+          final columns = desktop
+              ? (context.screenWidth / 420).round().clamp(2, 3)
+              : 1;
+          Widget buildProduct(BuildContext context, int index) {
+            final product = filtered[index];
+            final tile = _ProductTile(
+              product: product,
+              onEdit: actions == null ? null : () => actions.edit(product),
+              onDelete: desktop && actions != null
+                  ? () => actions.confirmDelete(product)
+                  : null,
+              catalog: items,
+              onAdd: (product, variant, complements) {
+                ref
+                    .read(cartControllerProvider.notifier)
+                    .addProduct(
+                      product: product,
+                      variant: variant,
+                      complements: complements,
+                    );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${product.name} se agregó al carrito.'),
+                  ),
+                );
+              },
+            );
+            if (actions == null) return tile;
+            return Dismissible(
+              key: ValueKey(product.id),
+              direction: DismissDirection.endToStart,
+              confirmDismiss: (_) async {
+                await actions.confirmDelete(product);
+                // El stream retira la tarjeta al confirmarse la escritura.
+                return false;
+              },
+              background: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(right: 24),
+                alignment: Alignment.centerRight,
+                decoration: BoxDecoration(
+                  color: colors.errorContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Quitar del menú',
+                      style: TextStyle(
+                        color: colors.onErrorContainer,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.delete_outline, color: colors.onErrorContainer),
+                  ],
+                ),
+              ),
+              child: tile,
+            );
+          }
+
           return Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _anchoMaximoCatalogo),
+              constraints: const BoxConstraints(
+                maxWidth: desktopContentMaxWidth,
+              ),
               child: CustomScrollView(
                 slivers: [
                   SliverPadding(
@@ -175,26 +250,39 @@ class CatalogScreen extends ConsumerWidget {
                           ),
                           ?addButton,
                           const SizedBox(height: 8),
-                          LayoutBuilder(
-                            builder: (context, constraints) => _CategoryGrid(
-                              columns: _columnasCategorias(
-                                constraints.maxWidth,
-                              ),
-                              children: [
-                                for (final categoria in categories)
-                                  _CategoryTile(
-                                    label: _categoryLabel(categoria),
-                                    count: items
-                                        .where((p) => p.categoryId == categoria)
-                                        .length,
-                                    icon: _categoryIcon(categoria),
-                                    selected: selected == categoria,
-                                    onTap: () => ref
-                                        .read(catalogFilterProvider.notifier)
-                                        .selectCategory(categoria),
-                                  ),
-                              ],
-                            ),
+                          _CategoryStrip(
+                            tiles: [
+                              for (final categoria in categories)
+                                _CategoryTile(
+                                  label:
+                                      dbCategories[categoria] ??
+                                      _categoryLabel(categoria),
+                                  count: items
+                                      .where((p) => p.categoryId == categoria)
+                                      .length,
+                                  icon: _categoryIcon(categoria),
+                                  selected: selected == categoria,
+                                  onTap: () => ref
+                                      .read(catalogFilterProvider.notifier)
+                                      .selectCategory(categoria),
+                                  onRename: sections == null
+                                      ? null
+                                      : () => sections.rename(
+                                          categoria,
+                                          dbCategories[categoria] ??
+                                              _categoryLabel(categoria),
+                                        ),
+                                  onDelete: sections == null
+                                      ? null
+                                      : () => sections.delete(
+                                          categoria,
+                                          dbCategories[categoria] ??
+                                              _categoryLabel(categoria),
+                                        ),
+                                ),
+                              if (sections != null)
+                                _AddCategoryTile(onTap: sections.create),
+                            ],
                           ),
                           const SizedBox(height: 24),
                           Text(
@@ -219,68 +307,21 @@ class CatalogScreen extends ConsumerWidget {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                     sliver: SliverList.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final product = filtered[index];
-                        final tile = _ProductTile(
-                          product: product,
-                          onEdit: actions == null
-                              ? null
-                              : () => actions.edit(product),
-                          catalog: items,
-                          onAdd: (product, variant, complements) {
-                            ref
-                                .read(cartControllerProvider.notifier)
-                                .addProduct(
-                                  product: product,
-                                  variant: variant,
-                                  complements: complements,
-                                );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${product.name} se agregó al carrito.',
-                                ),
+                      itemCount: (filtered.length / columns).ceil(),
+                      itemBuilder: (context, row) {
+                        if (columns == 1) return buildProduct(context, row);
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (var col = 0; col < columns; col++) ...[
+                              if (col > 0) const SizedBox(width: 12),
+                              Expanded(
+                                child: row * columns + col < filtered.length
+                                    ? buildProduct(context, row * columns + col)
+                                    : const SizedBox.shrink(),
                               ),
-                            );
-                          },
-                        );
-                        if (actions == null) return tile;
-                        return Dismissible(
-                          key: ValueKey(product.id),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (_) async {
-                            await actions.confirmDelete(product);
-                            // El stream retira la tarjeta al confirmarse la escritura.
-                            return false;
-                          },
-                          background: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.only(right: 24),
-                            alignment: Alignment.centerRight,
-                            decoration: BoxDecoration(
-                              color: colors.errorContainer,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Quitar del menú',
-                                  style: TextStyle(
-                                    color: colors.onErrorContainer,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.delete_outline,
-                                  color: colors.onErrorContainer,
-                                ),
-                              ],
-                            ),
-                          ),
-                          child: tile,
+                            ],
+                          ],
                         );
                       },
                     ),
@@ -294,9 +335,6 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 }
-
-// Evita que el contenido se estire en escritorio.
-const _anchoMaximoCatalogo = 960.0;
 
 // Los ids de Firebase se conservan; solo se traduce lo que ve el usuario.
 String _categoryLabel(String category) {
@@ -329,52 +367,6 @@ IconData _categoryIcon(String category) {
   return Icons.restaurant_outlined;
 }
 
-// Dos columnas en teléfono, tres en tablet y cuatro en ventanas anchas.
-int _columnasCategorias(double ancho) {
-  if (ancho < 560) return 2;
-  if (ancho < 900) return 3;
-  return 4;
-}
-
-// Cuadrícula por filas con altura intrínseca: las tarjetas crecen con el
-// texto si el usuario amplía la fuente, sin desbordarse.
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({required this.columns, required this.children});
-
-  final int columns;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final filas = <Widget>[];
-    for (var i = 0; i < children.length; i += columns) {
-      final grupo = children.skip(i).take(columns).toList();
-      final esUltimaFila = i + columns >= children.length;
-      filas.add(
-        Padding(
-          padding: EdgeInsets.only(bottom: esUltimaFila ? 0 : 12),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var j = 0; j < columns; j++) ...[
-                  if (j > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: j < grupo.length
-                        ? grupo[j]
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return Column(children: filas);
-  }
-}
-
 // Tarjeta de categoría: icono sobre una franja de color con nombre y contador.
 class _CategoryTile extends StatelessWidget {
   const _CategoryTile({
@@ -383,6 +375,8 @@ class _CategoryTile extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.onRename,
+    this.onDelete,
   });
 
   final String label;
@@ -390,6 +384,8 @@ class _CategoryTile extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -409,43 +405,161 @@ class _CategoryTile extends StatelessWidget {
               : BorderSide.none,
         ),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Icon(icon, size: 36, color: colors.primary),
+        child: Stack(
+          children: [
+            InkWell(
+              onTap: onTap,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Icon(icon, size: 36, color: colors.primary),
+                  ),
+                  Container(
+                    width: double.infinity,
+                    color: franja,
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: textoFranja,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          count == 1 ? '1 producto' : '$count productos',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: textoFranja.withValues(alpha: 0.9),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Container(
-                width: double.infinity,
-                color: franja,
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: textoFranja,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+            ),
+            if (onRename != null || onDelete != null)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: PopupMenuButton<String>(
+                  tooltip: 'Opciones de la sección',
+                  icon: Icon(Icons.more_vert, size: 20, color: colors.primary),
+                  onSelected: (value) =>
+                      value == 'rename' ? onRename?.call() : onDelete?.call(),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Renombrar'),
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    Text(
-                      count == 1 ? '1 producto' : '$count productos',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: textoFranja.withValues(alpha: 0.9),
-                        fontSize: 12,
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Eliminar'),
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Tarjeta final para crear una seccion nueva (solo personal).
+class _AddCategoryTile extends StatelessWidget {
+  const _AddCategoryTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.primaryContainer.withValues(alpha: 0.45),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colors.primary, width: 1.5),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline, size: 36, color: colors.primary),
+            const SizedBox(height: 8),
+            Text(
+              'Nueva sección',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Tira horizontal de secciones con una barra delgada para desplazarlas.
+class _CategoryStrip extends StatefulWidget {
+  const _CategoryStrip({required this.tiles});
+
+  final List<Widget> tiles;
+
+  @override
+  State<_CategoryStrip> createState() => _CategoryStripState();
+}
+
+// Solo conserva el controlador de desplazamiento que usa la barra.
+class _CategoryStripState extends State<_CategoryStrip> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _controller,
+      thumbVisibility: true,
+      thickness: 4,
+      radius: const Radius.circular(8),
+      child: SingleChildScrollView(
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 14),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < widget.tiles.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                SizedBox(width: 148, child: widget.tiles[i]),
+              ],
             ],
           ),
         ),
@@ -460,10 +574,12 @@ class _ProductTile extends StatelessWidget {
     required this.catalog,
     required this.onAdd,
     this.onEdit,
+    this.onDelete,
   });
   final Product product;
   final List<Product> catalog;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
   final void Function(Product, ProductVariant?, List<ProductVariant>) onAdd;
 
   @override
@@ -522,6 +638,12 @@ class _ProductTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (onEdit != null) const SizedBox(height: 40),
+                if (onDelete != null)
+                  IconButton(
+                    tooltip: 'Quitar del menú',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: onDelete,
+                  ),
                 IconButton.filled(
                   tooltip: !product.canOrder
                       ? 'Producto no disponible'

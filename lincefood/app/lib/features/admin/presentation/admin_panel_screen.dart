@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'admin_audit_section.dart';
 import 'admin_catalog_providers.dart';
+import 'admin_content_layout.dart';
 import 'admin_records_section.dart';
 import 'admin_users_section.dart';
 import '../data/admin_panel_repository.dart';
@@ -40,13 +41,17 @@ class AdminPanelScreen extends ConsumerWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            AdminUsersSection(currentUid: currentUid),
-            const AdminRecordsSection(collection: AdminCollection.promotions),
-            const AdminRecordsSection(collection: AdminCollection.scholarships),
-            const AdminAuditSection(),
-          ],
+        body: AdminContentLayout(
+          child: TabBarView(
+            children: [
+              AdminUsersSection(currentUid: currentUid),
+              const AdminRecordsSection(collection: AdminCollection.promotions),
+              const AdminRecordsSection(
+                collection: AdminCollection.scholarships,
+              ),
+              const AdminAuditSection(),
+            ],
+          ),
         ),
       ),
     );

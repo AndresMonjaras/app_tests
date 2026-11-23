@@ -12,7 +12,15 @@ abstract interface class AdminCatalogRepository {
   Future<void> restoreProduct(String productId);
 }
 
-class CallableAdminCatalogRepository implements AdminCatalogRepository {
+abstract interface class AdminTaxonomyRepository {
+  Future<String> upsertCategory(String name, {String? id});
+  Future<void> deleteCategory(String id);
+  Future<void> upsertUnit(String code, String label, String symbol);
+  Future<void> deleteUnit(String code);
+}
+
+class CallableAdminCatalogRepository
+    implements AdminCatalogRepository, AdminTaxonomyRepository {
   CallableAdminCatalogRepository(this._functions, this._database);
 
   final FirebaseFunctions _functions;
@@ -72,6 +80,25 @@ class CallableAdminCatalogRepository implements AdminCatalogRepository {
   @override
   Future<void> restoreProduct(String productId) =>
       _call('restoreProduct', {'productId': productId});
+
+  @override
+  Future<String> upsertCategory(String name, {String? id}) async {
+    final result = await _functions.httpsCallable('upsertCategory').call({
+      'id': ?id,
+      'name': name,
+    });
+    return result.data['id'] as String;
+  }
+
+  @override
+  Future<void> deleteCategory(String id) => _call('deleteCategory', {'id': id});
+
+  @override
+  Future<void> upsertUnit(String code, String label, String symbol) =>
+      _call('upsertUnit', {'code': code, 'label': label, 'symbol': symbol});
+
+  @override
+  Future<void> deleteUnit(String code) => _call('deleteUnit', {'code': code});
 
   Map<String, Object> _optionData(ProductVariant option) => {
     'label': option.label,

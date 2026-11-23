@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
+import '../../../shared/responsive/breakpoints.dart';
 import '../../catalog/domain/product.dart';
 import '../../catalog/presentation/product_image.dart';
 import 'admin_catalog_controller.dart';
 import 'admin_catalog_busy_controller.dart';
 import 'admin_catalog_providers.dart';
+import 'admin_content_layout.dart';
 import 'admin_product_form.dart';
 import 'admin_roles_panel.dart';
 import '../../catalog/presentation/catalog_providers.dart';
@@ -33,16 +35,18 @@ class AdminCatalogScreen extends ConsumerWidget {
                 )
               : null,
         ),
-        body: access.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const _AccessDenied(),
-          data: (allowed) {
-            if (!allowed) return const _AccessDenied();
-            if (!isAdmin) return const _AdminCatalogContent();
-            return const TabBarView(
-              children: [_AdminCatalogContent(), AdminRolesPanel()],
-            );
-          },
+        body: AdminContentLayout(
+          child: access.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => const _AccessDenied(),
+            data: (allowed) {
+              if (!allowed) return const _AccessDenied();
+              if (!isAdmin) return const _AdminCatalogContent();
+              return const TabBarView(
+                children: [_AdminCatalogContent(), AdminRolesPanel()],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -96,32 +100,46 @@ class _AdminCatalogContent extends ConsumerWidget {
                   ],
                 ),
               ),
-              data: (items) => items.isEmpty
-                  ? const Center(child: Text('No hay productos.'))
-                  : ListView.builder(
-                      itemCount: items.length,
-                      itemBuilder: (context, index) => _ProductAdminTile(
-                        product: items[index],
-                        onPrice: () => _editProduct(
-                          context,
-                          ref,
-                          product: items[index],
-                          priceOnly: true,
+              data: (items) {
+                if (items.isEmpty) {
+                  return const Center(child: Text('No hay productos.'));
+                }
+                Widget productTile(int index) => _ProductAdminTile(
+                  product: items[index],
+                  onPrice: () => _editProduct(
+                    context,
+                    ref,
+                    product: items[index],
+                    priceOnly: true,
+                  ),
+                  onEdit: () =>
+                      _editProduct(context, ref, product: items[index]),
+                  onAvailability: (available) =>
+                      _setAvailability(context, ref, items[index], available),
+                  onArchive: () => _confirmArchive(context, ref, items[index]),
+                  onRestore: () => _restoreProduct(context, ref, items[index]),
+                );
+                final desktop = context.isDesktop;
+                return ListView.builder(
+                  itemCount: desktop ? (items.length + 1) ~/ 2 : items.length,
+                  itemBuilder: (context, row) {
+                    if (!desktop) return productTile(row);
+                    final first = row * 2;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: productTile(first)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: first + 1 < items.length
+                              ? productTile(first + 1)
+                              : const SizedBox.shrink(),
                         ),
-                        onEdit: () =>
-                            _editProduct(context, ref, product: items[index]),
-                        onAvailability: (available) => _setAvailability(
-                          context,
-                          ref,
-                          items[index],
-                          available,
-                        ),
-                        onArchive: () =>
-                            _confirmArchive(context, ref, items[index]),
-                        onRestore: () =>
-                            _restoreProduct(context, ref, items[index]),
-                      ),
-                    ),
+                      ],
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],

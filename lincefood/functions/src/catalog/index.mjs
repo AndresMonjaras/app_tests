@@ -10,6 +10,13 @@ import {
   createUpsertProductHandler,
 } from './catalog_handlers.mjs';
 
+import {
+  createUpsertCategoryHandler,
+  createDeleteCategoryHandler,
+  createUpsertUnitHandler,
+  createDeleteUnitHandler
+} from './taxonomy_handlers.mjs';
+
 const region = 'us-central1';
 
 function withCallableErrors(handlerFactory) {
@@ -43,3 +50,8 @@ export const restoreProduct = onCall(
   { region },
   withCallableErrors(createRestoreProductHandler),
 );
+
+export const upsertCategory = onCall({ region }, withCallableErrors(createUpsertCategoryHandler));
+export const deleteCategory = onCall({ region }, withCallableErrors(createDeleteCategoryHandler));
+export const upsertUnit = onCall({ region }, withCallableErrors(createUpsertUnitHandler));
+export const deleteUnit = onCall({ region }, withCallableErrors(createDeleteUnitHandler));

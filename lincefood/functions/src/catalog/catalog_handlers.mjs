@@ -1,6 +1,7 @@
+import { defaultUnits, unitCodePattern } from './units.mjs';
 import { AppError } from '../app_error.mjs';
 
-function requireCatalogEditor(request) {
+export function requireCatalogEditor(request) {
   if (typeof request.auth?.uid !== 'string' || request.auth.uid.length === 0) {
     throw new AppError('unauthenticated', 'Inicia sesión para continuar.');
   }
@@ -58,7 +59,7 @@ function validateProduct(value) {
   if (portionAmount !== null && (!Number.isSafeInteger(portionAmount) || portionAmount <= 0)) {
     throw new AppError('invalid-argument', 'La cantidad de la porción debe ser un entero positivo.');
   }
-  if (portionUnit !== null && !['g', 'ml', 'pz'].includes(portionUnit)) {
+  if (portionUnit !== null && (typeof portionUnit !== 'string' || !unitCodePattern.test(portionUnit))) {
     throw new AppError('invalid-argument', 'La unidad de porción no es válida.');
   }
   if ((portionAmount === null) !== (portionUnit === null)) {
@@ -102,10 +103,6 @@ export function createUpsertProductHandler({ database, serverTimestamp = () => D
     const actor = requireCatalogEditor(request);
     const productId = requireProductId(request.data?.productId);
     const product = validateProduct(request.data?.product);
-    const categories = await database.ref('categories').get();
-    if (categories.exists() && !categories.child(product.categoryId).exists()) {
-      throw new AppError('failed-precondition', 'Selecciona una categoría existente.');
-    }
     const before = await readProduct(database, productId);
     const isNewProductImage = typeof product.imagePath === 'string' &&
       product.imagePath.startsWith(`menu/${productId}/`);
@@ -121,7 +118,7 @@ export function createUpsertProductHandler({ database, serverTimestamp = () => D
     const saved = await upsertExistingProduct(database, productId, {
       ...product,
     });
-    await recordProductAudit(database, serverTimestamp, actor, 'upsertProduct', productId, before, saved);
+    await recordCatalogAudit(database, serverTimestamp, actor, 'upsertProduct', productId, before, saved);
     return { productId, product: saved };
   };
 }
@@ -135,7 +132,7 @@ export function createUpdateProductPriceHandler({ database, serverTimestamp = ()
     const saved = await updateExistingProduct(database, productId, {
       priceCents,
     });
-    await recordProductAudit(database, serverTimestamp, actor, 'updateProductPrice', productId, before, saved);
+    await recordCatalogAudit(database, serverTimestamp, actor, 'updateProductPrice', productId, before, saved);
     return { productId, priceCents };
   };
 }
@@ -152,7 +149,7 @@ export function createSetProductAvailabilityHandler({ database, serverTimestamp 
     const product = await updateExistingProduct(database, productId, {
       available,
     });
-    await recordProductAudit(database, serverTimestamp, actor, 'setProductAvailability', productId, before, product);
+    await recordCatalogAudit(database, serverTimestamp, actor, 'setProductAvailability', productId, before, product);
     return { productId, available: product.available };
   };
 }
@@ -168,7 +165,7 @@ export function createDeleteProductHandler({ database, serverTimestamp = () => D
     const product = await updateExistingProduct(database, productId, {
       archived: true, available: false,
     });
-    await recordProductAudit(database, serverTimestamp, actor, 'archiveProduct', productId, before, product);
+    await recordCatalogAudit(database, serverTimestamp, actor, 'archiveProduct', productId, before, product);
     return { productId, archived: true };
   };
 }
@@ -184,7 +181,7 @@ export function createRestoreProductHandler({ database, serverTimestamp = () => 
     const product = await updateExistingProduct(database, productId, {
       archived: false, available: true,
     });
-    await recordProductAudit(database, serverTimestamp, actor, 'restoreProduct', productId, before, product);
+    await recordCatalogAudit(database, serverTimestamp, actor, 'restoreProduct', productId, before, product);
     return { productId, archived: false };
   };
 }
@@ -194,13 +191,13 @@ async function readProduct(database, productId) {
   return snapshot.exists() ? snapshot.val() : null;
 }
 
-async function recordProductAudit(database, serverTimestamp, actor, action, productId, before, after) {
+export async function recordCatalogAudit(database, serverTimestamp, actor, action, target, before, after) {
   const ref = database.ref('adminAudit').push();
   const record = {
     actorUid: actor.uid,
     actorRole: actor.role,
     action,
-    target: productId,
+    target,
     before: before ?? { exists: false },
     after: after ?? { exists: false },
     at: serverTimestamp(),
@@ -209,19 +206,32 @@ async function recordProductAudit(database, serverTimestamp, actor, action, prod
 }
 
 async function upsertExistingProduct(database, productId, fields) {
-  const result = await database.ref('products/' + productId).transaction((current) => {
-    if (current === null) return fields;
+  // Las referencias y el producto deben corresponder a la misma versión del catálogo.
+  let validationError;
+  const result = await database.ref('/').transaction((root) => {
+    validationError = null;
+    if (fields.portionUnit != null && !Object.hasOwn(root?.units ?? defaultUnits, fields.portionUnit)) {
+      validationError = new AppError('invalid-argument', 'La unidad de porción no es válida.');
+      return root;
+    }
+    if (root?.categories && !Object.hasOwn(root.categories, fields.categoryId)) {
+      validationError = new AppError('failed-precondition', 'Selecciona una categoría existente.');
+      return root;
+    }
+    root ??= {};
+    const current = root.products?.[productId];
     const product = { ...current, ...fields };
     for (const [key, value] of Object.entries(fields)) {
       if (value === null) delete product[key];
     }
     if (product.archived === true) product.available = false;
-    return product;
+    return { ...root, products: { ...root.products, [productId]: product } };
   });
+  if (validationError) throw validationError;
   if (!result.committed || !result.snapshot.exists()) {
     throw new AppError('aborted', 'No se pudo guardar el producto. Inténtalo de nuevo.');
   }
-  return result.snapshot.val();
+  return result.snapshot.val().products[productId];
 }
 
 async function updateExistingProduct(database, productId, fields) {

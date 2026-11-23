@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
+import '../../../shared/responsive/breakpoints.dart';
 import '../../../shared/widgets/fixed_bottom_bar.dart';
 import '../../catalog/domain/product.dart';
 import '../../catalog/presentation/catalog_providers.dart';
@@ -16,8 +17,7 @@ import '../domain/cart.dart';
 import 'cart_controller.dart';
 import 'cart_checkout_controller.dart';
 
-// Evita que el carrito y la barra de total se estiren en escritorio.
-const _anchoMaximo = 720.0;
+const _singleColumnMaxWidth = 720.0;
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -55,6 +55,195 @@ class CartScreen extends ConsumerWidget {
     final error = checkout.message;
     final busy = checkout.isWorking;
 
+    final desktop = context.isDesktop;
+    final products = <Widget>[
+      _CartHeader(items: lines.fold<int>(0, (sum, l) => sum + l.quantity)),
+      const SizedBox(height: 12),
+      if (!catalogReady) ...[
+        Text(
+          catalog.hasError
+              ? 'No se pudo verificar el menú. Reintenta antes de pagar.'
+              : 'Verificando disponibilidad y precios del menú…',
+          style: TextStyle(
+            color: catalog.hasError
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (catalog.hasError)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => ref.invalidate(catalogProductsProvider),
+              child: const Text('Reintentar'),
+            ),
+          ),
+      ],
+      for (final line in lines)
+        _CartLineTile(
+          line: line,
+          catalogIssue: catalogIssues[_cartLineKey(line)],
+          onDecrease: busy
+              ? null
+              : () => ref
+                    .read(cartControllerProvider.notifier)
+                    .changeQuantity(
+                      productId: line.product.id,
+                      variantLabel: line.variant?.label,
+                      complementLabels: line.complements
+                          .map((item) => item.label)
+                          .toList(),
+                      quantity: line.quantity - 1,
+                    ),
+          onIncrease: busy
+              ? null
+              : () => ref
+                    .read(cartControllerProvider.notifier)
+                    .changeQuantity(
+                      productId: line.product.id,
+                      variantLabel: line.variant?.label,
+                      complementLabels: line.complements
+                          .map((item) => item.label)
+                          .toList(),
+                      quantity: line.quantity + 1,
+                    ),
+          onRemove: busy
+              ? null
+              : () => ref
+                    .read(cartControllerProvider.notifier)
+                    .removeLine(
+                      productId: line.product.id,
+                      variantLabel: line.variant?.label,
+                      complementLabels: line.complements
+                          .map((item) => item.label)
+                          .toList(),
+                    ),
+        ),
+      if (catalogIssues.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text(
+          'El menú cambió. Quita los productos marcados y agrégalos de nuevo para confirmar los datos actuales.',
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      ],
+    ];
+    final pickup = <Widget>[
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.storefront_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Modalidad de recogida',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<PickupMode>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final mode in PickupMode.values)
+                      ButtonSegment<PickupMode>(
+                        value: mode,
+                        label: Text(
+                          mode.label,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                        ),
+                      ),
+                  ],
+                  selected: {pickupMode},
+                  onSelectionChanged: busy
+                      ? null
+                      : (selection) => ref
+                            .read(pickupModeProvider.notifier)
+                            .select(selection.first),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (uid == null || uid.isEmpty) ...[
+        const SizedBox(height: 12),
+        const Text('Inicia sesión para pagar tu pedido.'),
+      ],
+      if (!configured) const Text('Pagos no configurados'),
+      if (error != null) ...[
+        const SizedBox(height: 12),
+        Text(
+          error,
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      ],
+    ];
+    final summary = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [const Text('Subtotal'), Text(formatMoney(subtotal))],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Total', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              total,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              textStyle: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            onPressed:
+                uid == null ||
+                    uid.isEmpty ||
+                    !configured ||
+                    !catalogReady ||
+                    catalogIssues.isNotEmpty ||
+                    busy
+                ? null
+                : () => _submit(context, ref, cart, uid, pickupMode),
+            child: busy
+                ? SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      semanticsLabel: 'Procesando pago',
+                    ),
+                  )
+                : Text('Pagar $total'),
+          ),
+        ),
+      ],
+    );
     return PopScope(
       canPop: !busy,
       child: Scaffold(
@@ -62,231 +251,61 @@ class CartScreen extends ConsumerWidget {
         body: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _anchoMaximo),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (cart.isEmpty)
-                  const _EmptyCart()
-                else ...[
-                  _CartHeader(
-                    items: lines.fold<int>(0, (sum, l) => sum + l.quantity),
-                  ),
-                  const SizedBox(height: 12),
-                  if (!catalogReady) ...[
-                    Text(
-                      catalog.hasError
-                          ? 'No se pudo verificar el menú. Reintenta antes de pagar.'
-                          : 'Verificando disponibilidad y precios del menú…',
-                      style: TextStyle(
-                        color: catalog.hasError
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (catalog.hasError)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton(
-                          onPressed: () =>
-                              ref.invalidate(catalogProductsProvider),
-                          child: const Text('Reintentar'),
-                        ),
-                      ),
-                  ],
-                  for (final line in lines)
-                    _CartLineTile(
-                      line: line,
-                      catalogIssue: catalogIssues[_cartLineKey(line)],
-                      onDecrease: busy
-                          ? null
-                          : () => ref
-                                .read(cartControllerProvider.notifier)
-                                .changeQuantity(
-                                  productId: line.product.id,
-                                  variantLabel: line.variant?.label,
-                                  complementLabels: line.complements
-                                      .map((item) => item.label)
-                                      .toList(),
-                                  quantity: line.quantity - 1,
-                                ),
-                      onIncrease: busy
-                          ? null
-                          : () => ref
-                                .read(cartControllerProvider.notifier)
-                                .changeQuantity(
-                                  productId: line.product.id,
-                                  variantLabel: line.variant?.label,
-                                  complementLabels: line.complements
-                                      .map((item) => item.label)
-                                      .toList(),
-                                  quantity: line.quantity + 1,
-                                ),
-                      onRemove: busy
-                          ? null
-                          : () => ref
-                                .read(cartControllerProvider.notifier)
-                                .removeLine(
-                                  productId: line.product.id,
-                                  variantLabel: line.variant?.label,
-                                  complementLabels: line.complements
-                                      .map((item) => item.label)
-                                      .toList(),
-                                ),
-                    ),
-                  if (catalogIssues.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'El menú cambió. Quita los productos marcados y agrégalos de nuevo para confirmar los datos actuales.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+            constraints: BoxConstraints(
+              maxWidth: desktop
+                  ? desktopContentMaxWidth
+                  : _singleColumnMaxWidth,
+            ),
+            child: desktop && cart.isEmpty
+                ? const Center(
+                    child: SingleChildScrollView(child: _EmptyCart()),
+                  )
+                : desktop
+                ? Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: ListView(children: products)),
+                        const SizedBox(width: 24),
+                        SizedBox(
+                          width: 380,
+                          child: ListView(
+                            primary: false,
                             children: [
-                              Icon(
-                                Icons.storefront_outlined,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Modalidad de recogida',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
+                              ...pickup,
+                              const SizedBox(height: 12),
+                              Card(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: summary,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<PickupMode>(
-                              showSelectedIcon: false,
-                              segments: [
-                                for (final mode in PickupMode.values)
-                                  ButtonSegment<PickupMode>(
-                                    value: mode,
-                                    label: Text(
-                                      mode.label,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                    ),
-                                  ),
-                              ],
-                              selected: {pickupMode},
-                              onSelectionChanged: busy
-                                  ? null
-                                  : (selection) => ref
-                                        .read(pickupModeProvider.notifier)
-                                        .select(selection.first),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: cart.isEmpty
+                        ? const [_EmptyCart()]
+                        : [...products, const SizedBox(height: 4), ...pickup],
                   ),
-                  if (uid == null || uid.isEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text('Inicia sesión para pagar tu pedido.'),
-                  ],
-                  if (!configured) const Text('Pagos no configurados'),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      error,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
           ),
         ),
-        bottomNavigationBar: cart.isEmpty
+        bottomNavigationBar: desktop || cart.isEmpty
             ? null
             : FixedBottomBar(
                 child: Center(
                   heightFactor: 1,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: _anchoMaximo),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Subtotal'),
-                            Text(formatMoney(subtotal)),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Total',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            Text(
-                              total,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(54),
-                              textStyle: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            onPressed:
-                                uid == null ||
-                                    uid.isEmpty ||
-                                    !configured ||
-                                    !catalogReady ||
-                                    catalogIssues.isNotEmpty ||
-                                    busy
-                                ? null
-                                : () => _submit(
-                                    context,
-                                    ref,
-                                    cart,
-                                    uid,
-                                    pickupMode,
-                                  ),
-                            child: busy
-                                ? SizedBox.square(
-                                    dimension: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimary,
-                                      semanticsLabel: 'Procesando pago',
-                                    ),
-                                  )
-                                : Text('Pagar $total'),
-                          ),
-                        ),
-                      ],
+                    constraints: const BoxConstraints(
+                      maxWidth: _singleColumnMaxWidth,
                     ),
+                    child: summary,
                   ),
                 ),
               ),

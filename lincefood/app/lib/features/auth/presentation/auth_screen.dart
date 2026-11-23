@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/responsive/breakpoints.dart';
 import '../../../shared/widgets/food_background.dart';
 import 'auth_controller.dart';
 import 'widgets/auth_brand_header.dart';
+import 'widgets/auth_desktop_layout.dart';
 import 'widgets/auth_social_buttons.dart';
 
 /// Indica si la contraseña se muestra en texto plano en el formulario.
@@ -64,187 +66,181 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final isRecovering = mode == AuthFormMode.recover;
     final isSigningIn = mode == AuthFormMode.signIn;
 
-    return Scaffold(
-      body: FoodBackground(
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const AuthBrandHeader(),
-                    const SizedBox(height: 24),
-                    Text(
-                      _titleFor(mode),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall,
+    final form = SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!context.isDesktop) ...[
+            const AuthBrandHeader(),
+            const SizedBox(height: 24),
+          ],
+          Text(
+            _titleFor(mode),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _subtitleFor(mode),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 24),
+          AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  if (isRegistering) ...[
+                    TextFormField(
+                      enabled: !state.isBusy,
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.name],
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                      validator: (value) {
+                        final name = value?.trim() ?? '';
+                        if (name.isEmpty) return 'Escribe tu nombre.';
+                        if (name.length > 80) {
+                          return 'El nombre no puede superar 80 caracteres.';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _subtitleFor(mode),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    const SizedBox(height: 12),
+                  ],
+                  TextFormField(
+                    enabled: !state.isBusy,
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Correo electrónico',
                     ),
-                    const SizedBox(height: 24),
-                    AutofillGroup(
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            if (isRegistering) ...[
-                              TextFormField(
-                                enabled: !state.isBusy,
-                                controller: _nameController,
-                                textCapitalization: TextCapitalization.words,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.name],
-                                decoration: const InputDecoration(
-                                  labelText: 'Nombre',
-                                ),
-                                validator: (value) {
-                                  final name = value?.trim() ?? '';
-                                  if (name.isEmpty) return 'Escribe tu nombre.';
-                                  if (name.length > 80) {
-                                    return 'El nombre no puede superar 80 caracteres.';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            TextFormField(
-                              enabled: !state.isBusy,
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              autofillHints: const [AutofillHints.email],
-                              decoration: const InputDecoration(
-                                labelText: 'Correo electrónico',
-                              ),
-                              validator: _validateEmail,
-                              onFieldSubmitted: isRecovering
-                                  ? (_) => _submit()
-                                  : null,
-                            ),
-                            if (!isRecovering) ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                enabled: !state.isBusy,
-                                controller: _passwordController,
-                                obscureText: !showPassword,
-                                autofillHints: isRegistering
-                                    ? const [AutofillHints.newPassword]
-                                    : const [AutofillHints.password],
-                                textInputAction: isRegistering
-                                    ? TextInputAction.next
-                                    : TextInputAction.done,
-                                onFieldSubmitted: isSigningIn
-                                    ? (_) => _submit()
-                                    : null,
-                                decoration: InputDecoration(
-                                  labelText: 'Contraseña',
-                                  suffixIcon: IconButton(
-                                    tooltip: showPassword
-                                        ? 'Ocultar contraseña'
-                                        : 'Mostrar contraseña',
-                                    onPressed: state.isBusy
-                                        ? null
-                                        : () => ref
-                                              .read(
-                                                authPasswordVisibleProvider
-                                                    .notifier,
-                                              )
-                                              .toggle(),
-                                    icon: Icon(
-                                      showPassword
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) => isRegistering
-                                    ? _validatePassword(value)
-                                    : (value == null || value.isEmpty
-                                          ? 'Escribe tu contraseña.'
-                                          : null),
-                              ),
-                            ],
-                            if (isRegistering) ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                enabled: !state.isBusy,
-                                controller: _confirmationController,
-                                obscureText: !showPassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Confirmar contraseña',
-                                ),
-                                validator: (value) {
-                                  if (value != _passwordController.text) {
-                                    return 'Las contraseñas no coinciden.';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                            if (isSigningIn)
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: state.isBusy
-                                      ? null
-                                      : () => controller.selectMode(
-                                          AuthFormMode.recover,
-                                        ),
-                                  child: const Text('Olvidé mi contraseña'),
-                                ),
-                              ),
-                          ],
+                    validator: _validateEmail,
+                    onFieldSubmitted: isRecovering ? (_) => _submit() : null,
+                  ),
+                  if (!isRecovering) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      enabled: !state.isBusy,
+                      controller: _passwordController,
+                      obscureText: !showPassword,
+                      autofillHints: isRegistering
+                          ? const [AutofillHints.newPassword]
+                          : const [AutofillHints.password],
+                      textInputAction: isRegistering
+                          ? TextInputAction.next
+                          : TextInputAction.done,
+                      onFieldSubmitted: isSigningIn ? (_) => _submit() : null,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        suffixIcon: IconButton(
+                          tooltip: showPassword
+                              ? 'Ocultar contraseña'
+                              : 'Mostrar contraseña',
+                          onPressed: state.isBusy
+                              ? null
+                              : () => ref
+                                    .read(authPasswordVisibleProvider.notifier)
+                                    .toggle(),
+                          icon: Icon(
+                            showPassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (state.error != null || state.notice != null)
-                      _FeedbackBanner(
-                        message: state.error ?? state.notice!,
-                        isError: state.error != null,
-                      ),
-                    FilledButton(
-                      onPressed: state.isBusy ? null : _submit,
-                      child: state.isBusy
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(_actionLabelFor(mode)),
-                    ),
-                    if (!isRecovering) ...[
-                      const SizedBox(height: 24),
-                      AuthSocialButtons(
-                        busy: state.isBusy,
-                        googleEnabled: providers.google,
-                        githubEnabled: providers.github,
-                        onGoogle: controller.signInWithGoogle,
-                        onGitHub: controller.signInWithGitHub,
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: state.isBusy
-                          ? null
-                          : () => controller.selectMode(_switchTargetFor(mode)),
-                      child: Text(_switchLabelFor(mode)),
+                      validator: (value) => isRegistering
+                          ? _validatePassword(value)
+                          : (value == null || value.isEmpty
+                                ? 'Escribe tu contraseña.'
+                                : null),
                     ),
                   ],
-                ),
+                  if (isRegistering) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      enabled: !state.isBusy,
+                      controller: _confirmationController,
+                      obscureText: !showPassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submit(),
+                      decoration: const InputDecoration(
+                        labelText: 'Confirmar contraseña',
+                      ),
+                      validator: (value) {
+                        if (value != _passwordController.text) {
+                          return 'Las contraseñas no coinciden.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  if (isSigningIn)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: state.isBusy
+                            ? null
+                            : () => controller.selectMode(AuthFormMode.recover),
+                        child: const Text('Olvidé mi contraseña'),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          if (state.error != null || state.notice != null)
+            _FeedbackBanner(
+              message: state.error ?? state.notice!,
+              isError: state.error != null,
+            ),
+          FilledButton(
+            onPressed: state.isBusy ? null : _submit,
+            child: state.isBusy
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(_actionLabelFor(mode)),
+          ),
+          if (!isRecovering) ...[
+            const SizedBox(height: 24),
+            AuthSocialButtons(
+              busy: state.isBusy,
+              googleEnabled: providers.google,
+              githubEnabled: providers.github,
+              onGoogle: controller.signInWithGoogle,
+              onGitHub: controller.signInWithGitHub,
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: state.isBusy
+                ? null
+                : () => controller.selectMode(_switchTargetFor(mode)),
+            child: Text(_switchLabelFor(mode)),
+          ),
+        ],
+      ),
+    );
+    return Scaffold(
+      body: FoodBackground(
+        child: SafeArea(
+          child: context.isDesktop
+              ? AuthDesktopLayout(form: form)
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: form,
+                  ),
+                ),
         ),
       ),
     );

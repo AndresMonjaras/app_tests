@@ -8,6 +8,7 @@ import '../../catalog/domain/product.dart';
 import '../../catalog/presentation/product_image.dart';
 import '../../media/presentation/media_storage_provider.dart';
 import 'admin_catalog_providers.dart';
+import 'admin_taxonomy_providers.dart';
 import 'admin_product_variants_controller.dart';
 
 class _AvailabilityController extends Notifier<bool> {
@@ -37,6 +38,15 @@ class _FormRefreshController extends Notifier<int> {
 
 final _formRefreshProvider = NotifierProvider.autoDispose
     .family<_FormRefreshController, int, String>(_FormRefreshController.new);
+
+class _UnitSelection extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void select(String? code) => state = code;
+}
+
+final _unitSelection = NotifierProvider.autoDispose
+    .family<_UnitSelection, String?, String>((_) => _UnitSelection());
 
 class AdminProductForm extends ConsumerStatefulWidget {
   const AdminProductForm({
@@ -75,7 +85,6 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
   late final String productId =
       widget.product?.id ?? DateTime.now().microsecondsSinceEpoch.toString();
   String imagePath = '';
-  String portionUnit = 'pz';
   bool isUploadingImage = false;
   String? imageError;
 
@@ -83,7 +92,6 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
   void initState() {
     super.initState();
     imagePath = widget.product?.imagePath ?? '';
-    portionUnit = widget.product?.portionUnit ?? 'pz';
   }
 
   @override
@@ -123,225 +131,362 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
     final available = ref.watch(availability);
     final categories =
         ref.watch(adminCategoriesProvider).value ?? const <String, String>{};
+    final units =
+        ref.watch(adminUnitsProvider).value ?? const <String, CatalogUnit>{};
+    final preferred =
+        ref.watch(_unitSelection(productId)) ?? widget.product?.portionUnit;
+    final portionUnit = preferred == null
+        ? (units.containsKey('pz') ? 'pz' : units.keys.firstOrNull)
+        : units.containsKey(preferred)
+        ? preferred
+        : null;
     final archived = widget.product?.archived ?? false;
-    return AlertDialog(
-      title: Text(
-        widget.priceOnly
-            ? 'Editar precio'
-            : widget.product == null
-            ? 'Agregar producto'
-            : 'Editar producto',
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final title = widget.priceOnly
+        ? 'Editar precio'
+        : widget.product == null
+        ? 'Agregar producto'
+        : 'Editar producto';
+    return Theme(
+      data: theme.copyWith(
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.5),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: colors.primary, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: colors.error),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: colors.error, width: 2),
+          ),
+        ),
       ),
-      content: SizedBox(
-        width: 440,
-        child: SingleChildScrollView(
-          child: Form(
-            key: form,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!widget.priceOnly) ...[
-                  _productPhoto(context),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: name,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
-                    maxLength: 100,
-                    validator: (v) => v == null || v.trim().isEmpty
-                        ? 'Escribe un nombre.'
-                        : null,
-                  ),
-                  if (categories.isEmpty)
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                widget.priceOnly
+                    ? Icons.sell_outlined
+                    : widget.product == null
+                    ? Icons.add_business_outlined
+                    : Icons.edit_note_outlined,
+                color: colors.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Form(
+              key: form,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!widget.priceOnly) ...[
+                    _productPhoto(context),
+                    const SizedBox(height: 20),
+                    _sectionHeader(
+                      context,
+                      Icons.info_outline,
+                      'Datos del producto',
+                    ),
                     TextFormField(
-                      controller: category,
-                      decoration: const InputDecoration(
-                        labelText: 'Categoría (ID)',
-                      ),
+                      controller: name,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
                       maxLength: 100,
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Escribe el identificador de categoría.'
-                          : null,
-                    )
-                  else
-                    DropdownButtonFormField<String>(
-                      initialValue: categories.containsKey(category.text)
-                          ? category.text
-                          : null,
-                      decoration: const InputDecoration(labelText: 'Categoría'),
-                      items: [
-                        for (final entry in categories.entries)
-                          DropdownMenuItem(
-                            value: entry.key,
-                            child: Text(entry.value),
-                          ),
-                      ],
-                      onChanged: (value) => category.text = value ?? '',
-                      validator: (value) => value == null || value.isEmpty
-                          ? 'Selecciona una categoría.'
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Escribe un nombre.'
                           : null,
                     ),
-                  const SizedBox(height: 8),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final amountField = TextFormField(
-                        controller: portionAmount,
+                    if (categories.isEmpty)
+                      TextFormField(
+                        controller: category,
                         decoration: const InputDecoration(
-                          labelText: 'Porción (opcional)',
+                          labelText: 'Categoría (ID)',
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return null;
-                          }
-                          final amount = int.tryParse(value.trim());
-                          return amount == null || amount <= 0
-                              ? 'Usa una cantidad entera mayor a cero.'
-                              : null;
-                        },
-                      );
-                      final unitField = DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: portionUnit,
-                        decoration: const InputDecoration(labelText: 'Unidad'),
-                        items: const [
-                          DropdownMenuItem(value: 'g', child: Text('g')),
-                          DropdownMenuItem(value: 'ml', child: Text('ml')),
-                          DropdownMenuItem(value: 'pz', child: Text('pzas.')),
+                        maxLength: 100,
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Escribe el identificador de categoría.'
+                            : null,
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue: categories.containsKey(category.text)
+                            ? category.text
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría',
+                        ),
+                        items: [
+                          for (final entry in categories.entries)
+                            DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
                         ],
-                        onChanged: (value) {
-                          portionUnit = value ?? 'pz';
-                          ref
-                              .read(_formRefreshProvider(productId).notifier)
-                              .refresh();
-                        },
-                      );
-                      if (constraints.maxWidth < 360) {
-                        return Column(
+                        onChanged: (value) => category.text = value ?? '',
+                        validator: (value) => value == null || value.isEmpty
+                            ? 'Selecciona una categoría.'
+                            : null,
+                      ),
+                    const SizedBox(height: 16),
+                    _sectionHeader(
+                      context,
+                      Icons.scale_outlined,
+                      'Porción y preparación',
+                    ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final amountField = TextFormField(
+                          controller: portionAmount,
+                          decoration: const InputDecoration(
+                            labelText: 'Porción (opcional)',
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return null;
+                            }
+                            final amount = int.tryParse(value.trim());
+                            return amount == null || amount <= 0
+                                ? 'Usa una cantidad entera mayor a cero.'
+                                : null;
+                          },
+                        );
+                        final unitField = DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: portionUnit,
+                          decoration: const InputDecoration(
+                            labelText: 'Unidad',
+                          ),
+                          items: [
+                            for (final entry in units.entries)
+                              DropdownMenuItem(
+                                value: entry.key,
+                                child: Text(entry.value.label),
+                              ),
+                          ],
+                          validator: (_) =>
+                              portionAmount.text.trim().isNotEmpty &&
+                                  portionUnit == null
+                              ? 'Selecciona una unidad disponible.'
+                              : null,
+                          onChanged: ref
+                              .read(_unitSelection(productId).notifier)
+                              .select,
+                        );
+                        if (constraints.maxWidth < 360) {
+                          return Column(
+                            children: [
+                              amountField,
+                              const SizedBox(height: 12),
+                              unitField,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            amountField,
-                            const SizedBox(height: 12),
-                            unitField,
+                            Expanded(flex: 3, child: amountField),
+                            const SizedBox(width: 12),
+                            Expanded(flex: 2, child: unitField),
                           ],
                         );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 3, child: amountField),
-                          const SizedBox(width: 12),
-                          Expanded(flex: 2, child: unitField),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: prep,
-                    decoration: const InputDecoration(
-                      labelText: 'Preparación en minutos',
+                      },
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (v) {
-                      final n = int.tryParse(v ?? '');
-                      return n == null || n < 0 || n > 240
-                          ? 'Usa de 0 a 240 minutos.'
-                          : null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: description,
-                    decoration: const InputDecoration(labelText: 'Descripción'),
-                    maxLength: 1000,
-                    maxLines: 2,
-                  ),
-                  TextFormField(
-                    controller: ingredients,
-                    decoration: const InputDecoration(
-                      labelText: 'Ingredientes (uno por línea)',
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: prep,
+                      decoration: const InputDecoration(
+                        labelText: 'Preparación en minutos',
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (v) {
+                        final n = int.tryParse(v ?? '');
+                        return n == null || n < 0 || n > 240
+                            ? 'Usa de 0 a 240 minutos.'
+                            : null;
+                      },
                     ),
-                    maxLines: 3,
-                    validator: (_) =>
-                        _ingredients.length > 30 ||
-                            _ingredients.any((item) => item.length > 80)
-                        ? 'Usa hasta 30 ingredientes de hasta 80 caracteres.'
-                        : null,
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(archived ? 'Archivado' : 'Disponible'),
-                    value: available && !archived,
-                    onChanged: archived
-                        ? null
-                        : ref.read(availability.notifier).update,
-                  ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: description,
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción',
+                      ),
+                      maxLength: 1000,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: ingredients,
+                      decoration: const InputDecoration(
+                        labelText: 'Ingredientes (uno por línea)',
+                      ),
+                      maxLines: 3,
+                      validator: (_) =>
+                          _ingredients.length > 30 ||
+                              _ingredients.any((item) => item.length > 80)
+                          ? 'Usa hasta 30 ingredientes de hasta 80 caracteres.'
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Material(
+                      color: colors.secondaryContainer.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(16),
+                      clipBehavior: Clip.antiAlias,
+                      child: SwitchListTile(
+                        secondary: Icon(
+                          available && !archived
+                              ? Icons.check_circle_outline
+                              : Icons.remove_circle_outline,
+                        ),
+                        title: Text(archived ? 'Archivado' : 'Disponible'),
+                        subtitle: Text(
+                          available && !archived
+                              ? 'Los clientes pueden pedirlo.'
+                              : 'No aparece para pedir.',
+                        ),
+                        value: available && !archived,
+                        onChanged: archived
+                            ? null
+                            : ref.read(availability.notifier).update,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  _sectionHeader(context, Icons.payments_outlined, 'Precio'),
+                  _priceField(price, 'Precio en MXN'),
                   const SizedBox(height: 16),
-                ],
-                _priceField(price, 'Precio en MXN'),
-                const SizedBox(height: 16),
-                if (variants.isNotEmpty)
-                  const Text('Las variantes tienen su propio precio de venta.'),
-                _optionFields(variants, variantsController, 'variante'),
-                if (!widget.priceOnly)
-                  _optionFields(
-                    complements,
-                    complementsController,
-                    'complemento',
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actionsOverflowButtonSpacing: 4,
-      actions: [
-        if (!widget.priceOnly && !archived && widget.onArchive != null)
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              widget.onArchive!();
-            },
-            child: const Text('Archivar'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: isUploadingImage
-              ? null
-              : () {
-                  if (!form.currentState!.validate()) return;
-                  Navigator.pop(
-                    context,
-                    Product(
-                      id: productId,
-                      name: name.text.trim(),
-                      categoryId: category.text.trim(),
-                      priceCents: parseAdminPrice(price.text)!,
-                      prepMinutes: int.parse(prep.text),
-                      isAvailable: available && !archived,
-                      imagePath: imagePath,
-                      portionAmount: int.tryParse(portionAmount.text.trim()),
-                      portionUnit: portionAmount.text.trim().isEmpty
-                          ? null
-                          : portionUnit,
-                      archived: archived,
-                      description: description.text.trim(),
-                      ingredients: _ingredients,
-                      complements: widget.priceOnly
-                          ? widget.product?.complements ?? const []
-                          : _productOptions(complements),
-                      variants: _productOptions(variants),
+                  _sectionHeader(context, Icons.tune, 'Variantes'),
+                  if (variants.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'Las variantes tienen su propio precio de venta.',
+                      ),
                     ),
-                  );
-                },
-          child: Text(widget.priceOnly ? 'Guardar precio' : 'Guardar'),
+                  _optionFields(variants, variantsController, 'variante'),
+                  if (!widget.priceOnly) ...[
+                    const SizedBox(height: 16),
+                    _sectionHeader(
+                      context,
+                      Icons.add_circle_outline,
+                      'Complementos',
+                    ),
+                  ],
+                  if (!widget.priceOnly)
+                    _optionFields(
+                      complements,
+                      complementsController,
+                      'complemento',
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
-      ],
+        actionsOverflowButtonSpacing: 4,
+        actions: [
+          if (!widget.priceOnly && !archived && widget.onArchive != null)
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onArchive!();
+              },
+              child: const Text('Archivar'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.check),
+            onPressed: isUploadingImage
+                ? null
+                : () {
+                    if (!form.currentState!.validate()) return;
+                    Navigator.pop(
+                      context,
+                      Product(
+                        id: productId,
+                        name: name.text.trim(),
+                        categoryId: category.text.trim(),
+                        priceCents: parseAdminPrice(price.text)!,
+                        prepMinutes: int.parse(prep.text),
+                        isAvailable: available && !archived,
+                        imagePath: imagePath,
+                        portionAmount: int.tryParse(portionAmount.text.trim()),
+                        portionUnit: portionAmount.text.trim().isEmpty
+                            ? null
+                            : widget.priceOnly
+                            ? widget.product?.portionUnit
+                            : portionUnit,
+                        archived: archived,
+                        description: description.text.trim(),
+                        ingredients: _ingredients,
+                        complements: widget.priceOnly
+                            ? widget.product?.complements ?? const []
+                            : _productOptions(complements),
+                        variants: _productOptions(variants),
+                      ),
+                    );
+                  },
+            label: Text(widget.priceOnly ? 'Guardar precio' : 'Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Titulo de seccion con icono para ordenar el formulario.
+  Widget _sectionHeader(BuildContext context, IconData icon, String text) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: colors.primary),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(color: colors.primary, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Divider(color: colors.outlineVariant)),
+        ],
+      ),
     );
   }
 
@@ -474,12 +619,10 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
         Padding(
           key: ObjectKey(field),
           padding: const EdgeInsets.symmetric(vertical: 6),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-            ),
+          child: Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
               child: Column(
@@ -505,6 +648,7 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 4),
                   _priceField(field.price, 'Precio de $name en MXN'),
                   if (!widget.priceOnly) ...[
                     SwitchListTile(
@@ -531,7 +675,7 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
           ),
         ),
       if (!widget.priceOnly && fields.length < 6)
-        OutlinedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: controller.add,
           icon: const Icon(Icons.add),
           label: Text('Agregar $name'),
