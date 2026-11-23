@@ -2,7 +2,12 @@ import '../../../core/errors/domain_exception.dart';
 import '../../catalog/domain/product.dart';
 
 class CartLine {
-  CartLine({required this.product, required this.quantity, this.variant}) {
+  CartLine({
+    required this.product,
+    required this.quantity,
+    this.variant,
+    List<ProductVariant> complements = const [],
+  }) : complements = List.unmodifiable(complements) {
     if (quantity < 1) {
       throw const DomainException('La cantidad debe ser al menos 1.');
     }
@@ -15,22 +20,58 @@ class CartLine {
     if (variant != null && !product.variants.contains(variant)) {
       throw const DomainException('La variante no pertenece al producto.');
     }
+    if (this.complements.length > product.complements.length ||
+        this.complements.toSet().length != this.complements.length ||
+        this.complements.any(
+          (complement) => !product.complements.contains(complement),
+        )) {
+      throw const DomainException(
+        'Los complementos seleccionados no son válidos.',
+      );
+    }
+    if (this.complements.any((complement) => !complement.isAvailable)) {
+      throw const DomainException('Un complemento seleccionado está agotado.');
+    }
   }
 
   final Product product;
   final int quantity;
   final ProductVariant? variant;
+  final List<ProductVariant> complements;
 
-  int get unitPriceCents => variant?.priceCents ?? product.priceCents;
+  int get unitPriceCents =>
+      (variant?.priceCents ?? product.priceCents) +
+      complements.fold(0, (total, item) => total + item.priceCents);
 
   int get totalCents => unitPriceCents * quantity;
 
-  bool matches(String productId, String? variantLabel) =>
-      product.id == productId && variant?.label == variantLabel;
+  bool matches(
+    String productId,
+    String? variantLabel, [
+    List<String> complementLabels = const [],
+  ]) =>
+      product.id == productId &&
+      variant?.label == variantLabel &&
+      _sameLabels(complements.map((item) => item.label), complementLabels);
 
   CartLine withQuantity(int quantity) {
-    return CartLine(product: product, quantity: quantity, variant: variant);
+    return CartLine(
+      product: product,
+      quantity: quantity,
+      variant: variant,
+      complements: complements,
+    );
   }
+}
+
+bool _sameLabels(Iterable<String> left, Iterable<String> right) {
+  final leftLabels = left.toList()..sort();
+  final rightLabels = right.toList()..sort();
+  if (leftLabels.length != rightLabels.length) return false;
+  for (var index = 0; index < leftLabels.length; index++) {
+    if (leftLabels[index] != rightLabels[index]) return false;
+  }
+  return true;
 }
 
 class Cart {

@@ -92,12 +92,12 @@ void main() {
       final container = _container();
       final notifier = container.read(adminCatalogBusyProvider.notifier);
 
-      expect(await notifier.perform(() async {}), isTrue);
+      expect(await notifier.perform(() async {}), isNull);
       expect(container.read(adminCatalogBusyProvider), isFalse);
 
       expect(
         await notifier.perform(() async => throw StateError('falla')),
-        isFalse,
+        'No se pudo guardar el cambio en el catálogo.',
       );
       expect(container.read(adminCatalogBusyProvider), isFalse);
     });
@@ -110,8 +110,11 @@ void main() {
       );
 
       expect(container.read(adminCatalogBusyProvider), isTrue);
-      expect(await notifier.perform(() async {}), isFalse);
-      expect(await first, isTrue);
+      expect(
+        await notifier.perform(() async {}),
+        'Ya hay un cambio del catálogo en curso.',
+      );
+      expect(await first, isNull);
     });
   });
 

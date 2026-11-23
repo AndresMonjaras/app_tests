@@ -46,6 +46,26 @@ void main() {
     expect(readCart().totalCents, 2500);
   });
 
+  test('guarda complementos, suma precio y separa selecciones distintas', () {
+    final extraCheese = ProductVariant(label: 'Queso extra', priceCents: 300);
+    final olive = ProductVariant(label: 'Aceituna', priceCents: 200);
+    final pizza = Product(
+      id: 'p2',
+      name: 'Pizza especial',
+      priceCents: 1000,
+      complements: [extraCheese, olive],
+    );
+
+    controller().addProduct(product: pizza, complements: [extraCheese]);
+    controller().addProduct(product: pizza, complements: [olive]);
+    controller().addProduct(product: pizza, complements: [extraCheese]);
+
+    expect(readCart().lines, hasLength(2));
+    expect(readCart().lines.first.quantity, 2);
+    expect(readCart().lines.first.unitPriceCents, 1300);
+    expect(readCart().totalCents, 3800);
+  });
+
   test('limita las cantidades entre uno y veinte', () {
     controller().addProduct(product: product, variant: small, quantity: 50);
     expect(readCart().lines.single.quantity, 20);

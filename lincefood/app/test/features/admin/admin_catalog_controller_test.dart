@@ -36,15 +36,13 @@ class _Repository implements AdminCatalogRepository {
 }
 
 void main() {
-  test('el controlador exige confirmación explícita antes de borrar', () async {
+  test('el controlador delega confirmación al repositorio', () async {
     final repository = _Repository();
     final controller = AdminCatalogController(repository);
 
-    await expectLater(
-      controller.deleteProduct('p1', confirmed: false),
-      throwsA(isA<StateError>()),
-    );
-    expect(repository.deleted, isFalse);
+    await controller.deleteProduct('p1', confirmed: false);
+    expect(repository.deleted, isTrue);
+    expect(repository.confirmed, isFalse);
 
     await controller.deleteProduct('p1', confirmed: true);
     expect(repository.deleted, isTrue);

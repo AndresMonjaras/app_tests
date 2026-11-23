@@ -204,10 +204,14 @@ class CatalogScreen extends ConsumerWidget {
                       itemBuilder: (context, index) => _ProductTile(
                         product: filtered[index],
                         catalog: items,
-                        onAdd: (product, variant) {
+                        onAdd: (product, variant, complements) {
                           ref
                               .read(cartControllerProvider.notifier)
-                              .addProduct(product: product, variant: variant);
+                              .addProduct(
+                                product: product,
+                                variant: variant,
+                                complements: complements,
+                              );
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -396,7 +400,7 @@ class _ProductTile extends StatelessWidget {
   });
   final Product product;
   final List<Product> catalog;
-  final void Function(Product, ProductVariant?) onAdd;
+  final void Function(Product, ProductVariant?, List<ProductVariant>) onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -608,28 +612,88 @@ class _ProductTile extends StatelessWidget {
 
   Future<void> _chooseVariant(BuildContext context, Product product) async {
     if (!product.canOrder) return;
-    if (product.variants.isEmpty) {
-      onAdd(product, null);
-      return;
-    }
-    final selected = await showDialog<ProductVariant>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Elige una variante de ${product.name}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final variant in product.variants)
-                _optionTile(
-                  variant,
-                  onTap: () => Navigator.pop(context, variant),
-                ),
-            ],
+    ProductVariant? selected;
+    if (product.variants.isNotEmpty) {
+      selected = await showDialog<ProductVariant>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Elige una variante de ${product.name}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final variant in product.variants)
+                  _optionTile(
+                    variant,
+                    onTap: () => Navigator.pop(context, variant),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    if (context.mounted && selected != null) onAdd(product, selected);
+      );
+      if (selected == null || !context.mounted) return;
+    }
+
+    var selectedComplements = <ProductVariant>[];
+    if (product.complements.isNotEmpty) {
+      final chosen = await showDialog<List<ProductVariant>>(
+        context: context,
+        builder: (dialogContext) {
+          final choices = <String>{};
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: Text('Complementos para ${product.name}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final option in product.complements)
+                      CheckboxListTile(
+                        value: choices.contains(option.label),
+                        onChanged: option.isAvailable
+                            ? (checked) => setDialogState(() {
+                                if (checked == true) {
+                                  choices.add(option.label);
+                                } else {
+                                  choices.remove(option.label);
+                                }
+                              })
+                            : null,
+                        title: Text(option.label),
+                        subtitle: Text(
+                          option.isAvailable
+                              ? formatMoney(option.priceCents)
+                              : 'Agotado',
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(
+                    dialogContext,
+                    product.complements
+                        .where((item) => choices.contains(item.label))
+                        .toList(),
+                  ),
+                  child: const Text('Continuar'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      if (chosen == null || !context.mounted) return;
+      selectedComplements = chosen;
+    }
+    if (context.mounted) onAdd(product, selected, selectedComplements);
   }
 }

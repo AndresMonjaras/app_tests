@@ -75,7 +75,8 @@ void main() {
       await tester.tap(find.text('Café de olla'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Café con especias.'), findsOneWidget);
+      // La descripción aparece tanto en la tarjeta como en el detalle.
+      expect(find.text('Café con especias.'), findsNWidgets(2));
       expect(find.text('Café, Canela'), findsOneWidget);
       expect(find.text('Disponible'), findsOneWidget);
       expect(find.text('Complementos opcionales'), findsOneWidget);
@@ -94,7 +95,7 @@ void main() {
 
       await tester.tap(find.widgetWithText(ListTile, 'Agua'));
       await tester.pumpAndSettle();
-      expect(find.text('Agua natural.'), findsOneWidget);
+      expect(find.text('Agua natural.'), findsNWidgets(2));
     },
   );
 

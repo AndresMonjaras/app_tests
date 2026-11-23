@@ -36,8 +36,9 @@ function createMemoryDatabase(initial = {}, { coldPaths = [], beforeUpdate } = {
   return {
     data,
     ref(path = '') {
+      const parts = path.split('/').filter(Boolean);
       return {
-        key: undefined,
+        key: parts.length > 0 ? parts[parts.length - 1] : undefined,
         push() {
           pushCount += 1;
           return { key: 'PUSH' + String(pushCount).padStart(16, '0') };
@@ -914,7 +915,7 @@ test('cancelOrder no permite cancelar el pedido de otro cliente', async () => {
 
 test('cancelOrder deja el reembolso pendiente si Stripe falla', async () => {
   const database = createMemoryDatabase({
-    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'confirmed' } },
+    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'payment_pending' } },
     payments: { ORDER00000000000001: { status: 'succeeded', paymentIntentId: 'pi_1' } },
   });
   const cancelOrder = createCancelOrderHandler({
@@ -935,7 +936,7 @@ test('cancelOrder deja el reembolso pendiente si Stripe falla', async () => {
 
 test('cancelOrder no llama a Stripe si el pago no se completó', async () => {
   const database = createMemoryDatabase({
-    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'paid' } },
+    orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'payment_pending' } },
     payments: { ORDER00000000000001: { status: 'pending' } },
   });
   const stripe = fakeStripe();
@@ -953,7 +954,7 @@ test('cancelOrder no llama a Stripe si el pago no se completó', async () => {
 test('cancelOrder cancela aunque la primera pasada de la transacción llegue vacía', async () => {
   const database = createMemoryDatabase(
     {
-      orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'paid' } },
+      orders: { ORDER00000000000001: { ownerUid: 'user-1', status: 'payment_pending' } },
       payments: { ORDER00000000000001: { status: 'succeeded', paymentIntentId: 'pi_1' } },
     },
     { coldPaths: ['orders/ORDER00000000000001'] },

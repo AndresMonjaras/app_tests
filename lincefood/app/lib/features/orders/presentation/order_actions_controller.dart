@@ -88,7 +88,12 @@ class OrderActionsController extends Notifier<OrderActionsState> {
         'pickupMode': pickupMode.code,
         'lines': [
           for (final line in cart.lines)
-            [line.product.id, line.variant?.label, line.quantity],
+            [
+              line.product.id,
+              line.variant?.label,
+              line.complements.map((item) => item.label).toList()..sort(),
+              line.quantity,
+            ],
         ],
       });
       if (_pendingCreateSignature != signature || _pendingCreateKey == null) {

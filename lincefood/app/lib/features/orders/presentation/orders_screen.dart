@@ -147,11 +147,18 @@ class OrdersScreen extends ConsumerWidget {
             ),
           );
         },
-        error: (error, stackTrace) => const Center(
+        error: (error, stackTrace) => Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'No se pudieron cargar tus pedidos. Inténtalo de nuevo.',
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('No se pudieron cargar tus pedidos.'),
+                TextButton(
+                  onPressed: () => ref.invalidate(ordersStreamProvider),
+                  child: const Text('Reintentar'),
+                ),
+              ],
             ),
           ),
         ),
@@ -484,8 +491,8 @@ class _TicketCard extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: const Text('¿Cancelar el pedido?'),
         content: const Text(
-          'Si el pedido no ha entrado a cocina, se cancelará y se solicitará '
-          'el reembolso del pago.',
+          'Puedes cancelarlo mientras el pago siga pendiente. Cuando se '
+          'confirme, ya no podrás cancelarlo desde la app.',
         ),
         actions: [
           TextButton(
@@ -552,7 +559,8 @@ class _TicketProduct extends StatelessWidget {
             children: [
               Text(
                 '${line.product.name}'
-                '${line.variant == null ? '' : ' (${line.variant!.label})'}',
+                '${line.variant == null ? '' : ' (${line.variant!.label})'}'
+                '${line.complements.isEmpty ? '' : ' · ${line.complements.map((item) => item.label).join(', ')}'}',
                 style: text.titleSmall,
               ),
               Text(
