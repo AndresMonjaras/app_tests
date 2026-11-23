@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../catalog/domain/product.dart';
 import '../../catalog/presentation/product_image.dart';
 import '../../media/presentation/media_storage_provider.dart';
+import 'admin_catalog_providers.dart';
 import 'admin_product_variants_controller.dart';
 
 class _AvailabilityController extends Notifier<bool> {

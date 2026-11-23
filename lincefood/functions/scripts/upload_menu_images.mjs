@@ -12,7 +12,7 @@ if (!projectId || !databaseURL || !storageBucket) {
   process.exit(1);
 }
 
-initializeApp({ credential: applicationDefault(), projectId, databaseURL, storageBucket });
+const app = initializeApp({ credential: applicationDefault(), projectId, databaseURL, storageBucket });
 const database = getDatabase();
 const bucket = getStorage().bucket();
 const folder = new URL('../../app/assets/images/menu/', import.meta.url);
@@ -49,3 +49,5 @@ for (const entry of entries) {
   }
   console.log('Imagen registrada:', productId);
 }
+
+await app.delete();
