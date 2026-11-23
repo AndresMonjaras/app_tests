@@ -13,3 +13,6 @@ Las fotos de `app/assets/images/menu/` ilustran el menú de demostración. Se re
 | `refresco.jpg` | Ron Lach | [Pexels](https://www.pexels.com/license/), [A Cola on a Drinking Glass with Ice Cubes](https://www.pexels.com/photo/a-cola-on-a-drinking-glass-with-ice-cubes-8879626/) |
 | `jugo.jpg` | Grandmaster Huon | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Glass of orange juice](https://commons.wikimedia.org/wiki/File:Glass_of_orange_juice.jpeg) |
 | `cafe.jpg` | Toni Cuenca | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Coffee cup on coffee beans](https://commons.wikimedia.org/wiki/File:Coffee_cup_on_coffee_beans.jpg) |
+| `sandwich.jpg` | OpenAI ImageGen | Imagen generada con IA para el catálogo de demostración; no se usó una fuente externa. |
+| `water.jpg` | OpenAI ImageGen | Imagen generada con IA para el catálogo de demostración; no se usó una fuente externa. |
+| `torta.jpg` | OpenAI ImageGen | Imagen generada con IA para el catálogo de demostración; no se usó una fuente externa. |

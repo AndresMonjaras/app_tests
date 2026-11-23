@@ -16,16 +16,8 @@ final menuImagesEnabledProvider = Provider<bool>(
 
 String? menuImageAssetPath(String productId) {
   if (!RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(productId)) return null;
-  final generated = _generatedMenuImages[productId];
-  if (generated != null) return generated;
-  return 'assets/images/menu_$productId.jpg';
+  return 'assets/images/menu/$productId.jpg';
 }
-
-/// Fotos sin equivalente en `assets/images/menu_*.jpg`.
-const _generatedMenuImages = {
-  'torta-milanesa': 'assets/images/menu/torta-milanesa.jpg',
-  'torta-pierna': 'assets/images/menu/torta-pierna.jpg',
-};
 
 /// Caché en disco de fotos de menú. La clave es la ruta de Storage, no la URL
 /// (que lleva un token cambiante), para encontrar la copia sin red.
