@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_theme.dart';
 import '../../../core/money/money.dart';
 import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_record.dart';
@@ -280,6 +281,7 @@ class _IncidentMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
+      popUpAnimationStyle: AppTheme.popupMenuAnimationStyle,
       enabled: enabled,
       tooltip: label,
       onSelected: onSelected,

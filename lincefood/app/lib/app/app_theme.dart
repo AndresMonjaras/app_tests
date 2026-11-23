@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 // Identidad cálida de cafetería: rojo-naranja de marca, amarillo de acento y
 // superficies crema (claro) o marrón oscuro (oscuro).
 class AppTheme {
+  static const popupMenuAnimationStyle = AnimationStyle(
+    duration: Duration(milliseconds: 180),
+    reverseDuration: Duration(milliseconds: 120),
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeIn,
+  );
+
   static const _cafe = Color(0xFFB94716);
   static const _cafeOscuro = Color(0xFF2B1D15);
   static const _crema = Color(0xFFFFF8F2);
@@ -182,12 +189,6 @@ class AppTheme {
       ),
       popupMenuTheme: PopupMenuThemeData(
         shape: RoundedRectangleBorder(borderRadius: radioControl),
-        popUpAnimationStyle: const AnimationStyle(
-          duration: Duration(milliseconds: 180),
-          reverseDuration: Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeIn,
-        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_theme.dart';
 import '../data/admin_panel_repository.dart';
 import 'admin_panel_state.dart';
 import 'admin_record_forms.dart';
@@ -148,6 +149,7 @@ class AdminRecordsSection extends ConsumerWidget {
             : '${data['remainingUses']} usos de comida · ${adminDate(context, data['updatedAt'])}',
       ),
       trailing: PopupMenuButton<bool>(
+        popUpAnimationStyle: AppTheme.popupMenuAnimationStyle,
         tooltip: 'Acciones de $title',
         enabled: !busy,
         itemBuilder: (_) => [
