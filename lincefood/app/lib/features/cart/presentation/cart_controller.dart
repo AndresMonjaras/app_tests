@@ -16,11 +16,16 @@ class CartController extends Notifier<Cart> {
   void addProduct({
     required Product product,
     ProductVariant? variant,
+    List<ProductVariant> complements = const [],
     int quantity = 1,
   }) {
     final lines = [...state.lines];
     final index = lines.indexWhere(
-      (line) => line.matches(product.id, variant?.label),
+      (line) => line.matches(
+        product.id,
+        variant?.label,
+        complements.map((item) => item.label).toList(),
+      ),
     );
 
     if (index >= 0) {
@@ -33,6 +38,7 @@ class CartController extends Notifier<Cart> {
         CartLine(
           product: product,
           variant: variant,
+          complements: complements,
           quantity: _boundedQuantity(quantity),
         ),
       );
@@ -44,11 +50,12 @@ class CartController extends Notifier<Cart> {
   void changeQuantity({
     required String productId,
     String? variantLabel,
+    List<String> complementLabels = const [],
     required int quantity,
   }) {
     final lines = [...state.lines];
     final index = lines.indexWhere(
-      (line) => line.matches(productId, variantLabel),
+      (line) => line.matches(productId, variantLabel, complementLabels),
     );
     if (index < 0) return;
 
@@ -56,9 +63,15 @@ class CartController extends Notifier<Cart> {
     state = Cart(lines);
   }
 
-  void removeLine({required String productId, String? variantLabel}) {
+  void removeLine({
+    required String productId,
+    String? variantLabel,
+    List<String> complementLabels = const [],
+  }) {
     final lines = state.lines
-        .where((line) => !line.matches(productId, variantLabel))
+        .where(
+          (line) => !line.matches(productId, variantLabel, complementLabels),
+        )
         .toList();
     state = Cart(lines);
   }

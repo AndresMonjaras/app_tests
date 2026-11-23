@@ -14,6 +14,16 @@ const products = {
     ],
   },
   water: { name: 'Agua fresca', available: true, priceCents: 2000 },
+  coffee: {
+    name: 'Café',
+    available: true,
+    priceCents: 3500,
+    complements: [
+      { label: 'Leche extra', priceCents: 500 },
+      { label: 'Jarabe', priceCents: 700 },
+      { label: 'Agotado', priceCents: 300, available: false },
+    ],
+  },
   soldOut: { name: 'Agotado', available: false, priceCents: 1000 },
 };
 
@@ -31,10 +41,48 @@ test('calcula precios de catálogo y total en centavos', () => {
     productId: 'sandwich',
     productName: 'Sándwich',
     variantLabel: 'Grande',
+    complements: [],
     quantity: 2,
     unitPriceCents: 4000,
     totalCents: 8000,
   });
+});
+
+test('valida complementos y calcula su precio desde el catálogo', () => {
+  const result = validateAndPriceOrderLines(
+    [
+      {
+        productId: 'coffee',
+        complementLabels: ['Leche extra', 'Jarabe'],
+        quantity: 2,
+      },
+    ],
+    products,
+  );
+
+  assert.equal(result.totalCents, 9400);
+  assert.deepEqual(result.lines[0].complements, [
+    { label: 'Leche extra', priceCents: 500 },
+    { label: 'Jarabe', priceCents: 700 },
+  ]);
+  assert.equal(result.lines[0].unitPriceCents, 4700);
+});
+
+test('rechaza complementos inexistentes, agotados o duplicados', () => {
+  for (const complementLabels of [
+    ['No existe'],
+    ['Agotado'],
+    ['Jarabe', 'Jarabe'],
+  ]) {
+    assert.throws(
+      () =>
+        validateAndPriceOrderLines(
+          [{ productId: 'coffee', complementLabels, quantity: 1 }],
+          products,
+        ),
+      AppError,
+    );
+  }
 });
 
 test('rechaza cantidades fuera del rango permitido', () => {

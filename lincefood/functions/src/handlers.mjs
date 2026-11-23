@@ -45,11 +45,23 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
     const pickupMode = request.data?.pickupMode === 'take_away' ? 'take_away' : 'in_store';
     const rawLines = request.data?.lines;
     const requestLines = Array.isArray(rawLines)
-      ? rawLines.map((line) => ({
-        productId: line?.productId,
-        variantLabel: line?.variantLabel ?? null,
-        quantity: line?.quantity,
-      }))
+      ? rawLines.map((line) => {
+        const normalized = {
+          productId: line?.productId,
+          variantLabel: line?.variantLabel ?? null,
+          quantity: line?.quantity,
+        };
+        if (Array.isArray(line?.complementLabels) && line.complementLabels.length > 0) {
+          normalized.complementLabels = [...line.complementLabels].sort();
+        } else if (
+          line?.complementLabels !== undefined &&
+          line?.complementLabels !== null &&
+          !Array.isArray(line?.complementLabels)
+        ) {
+          normalized.complementLabels = line.complementLabels;
+        }
+        return normalized;
+      })
       : rawLines;
     const requestHash = createHash('sha256')
       .update(JSON.stringify({ lines: requestLines, pickupMode }))
@@ -65,6 +77,8 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
         return {
           orderId: existingReservation.orderId,
           folio: existingOrder.folio ?? 'LF-' + existingReservation.orderId.slice(-8).toUpperCase(),
+          lines: existingOrder.lines,
+          totalCents: existingOrder.totalCents,
         };
       }
     }
@@ -93,7 +107,13 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
     }
     const orderId = reserved.orderId;
     if ((await database.ref('orders/' + orderId).get()).val()) {
-      return { orderId, folio: 'LF-' + orderId.slice(-8).toUpperCase() };
+      const existingOrder = (await database.ref('orders/' + orderId).get()).val();
+      return {
+        orderId,
+        folio: existingOrder.folio ?? 'LF-' + orderId.slice(-8).toUpperCase(),
+        lines: existingOrder.lines,
+        totalCents: existingOrder.totalCents,
+      };
     }
     const folio = 'LF-' + orderId.slice(-8).toUpperCase();
     const order = {
@@ -110,7 +130,7 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
     updates['ordersByUser/' + uid + '/' + orderId] = order;
     await database.ref().update(updates);
 
-    return { orderId, folio };
+    return { orderId, folio, lines, totalCents };
   };
 }
 

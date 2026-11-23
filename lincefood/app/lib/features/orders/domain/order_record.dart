@@ -95,6 +95,13 @@ class OrderRecord {
           {
             'product': {'id': line.product.id, 'name': line.product.name},
             'variant': line.variant?.label,
+            'complements': [
+              for (final complement in line.complements)
+                {
+                  'label': complement.label,
+                  'priceCents': complement.priceCents,
+                },
+            ],
             'quantity': line.quantity,
             'priceCents': line.unitPriceCents,
           },
@@ -136,7 +143,7 @@ class OrderRecord {
   OrderRecord cancel() {
     if (isCancelled || !canCustomerCancel(status)) {
       throw const DomainException(
-        'No se puede cancelar un pedido que ya está en cocina.',
+        'Solo puedes cancelar un pedido mientras el pago siga pendiente.',
       );
     }
 
@@ -248,19 +255,53 @@ class OrderRecord {
           ? rawVariant
           : null;
       if (variantLabel != null && variantLabel.length > 40) continue;
+      final rawComplements = entry['complements'];
+      final complements = <ProductVariant>[];
+      if (rawComplements is List) {
+        for (final rawComplement in rawComplements) {
+          if (rawComplement is! Map) continue;
+          final label = rawComplement['label'];
+          final rawComplementPrice = rawComplement['priceCents'];
+          if (label is! String ||
+              label.isEmpty ||
+              label.length > 40 ||
+              rawComplementPrice is! num ||
+              !rawComplementPrice.isFinite ||
+              rawComplementPrice < 0 ||
+              rawComplementPrice % 1 != 0) {
+            continue;
+          }
+          complements.add(
+            ProductVariant(
+              label: label,
+              priceCents: rawComplementPrice.round(),
+            ),
+          );
+        }
+      }
+      final basePrice =
+          priceCents -
+          complements.fold<int>(0, (total, item) => total + item.priceCents);
+      if (basePrice < 0) continue;
       final variant = variantLabel == null
           ? null
-          : ProductVariant(label: variantLabel, priceCents: priceCents);
+          : ProductVariant(label: variantLabel, priceCents: basePrice);
       final product = Product(
         id: productId,
         name: productName,
-        priceCents: variant == null ? priceCents : 0,
+        priceCents: variant == null ? basePrice : 0,
+        complements: complements,
         variants: variant == null ? const [] : [variant],
       );
 
       try {
         lines.add(
-          CartLine(product: product, variant: variant, quantity: quantity),
+          CartLine(
+            product: product,
+            variant: variant,
+            complements: complements,
+            quantity: quantity,
+          ),
         );
       } on DomainException {
         continue;

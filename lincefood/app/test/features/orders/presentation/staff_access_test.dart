@@ -16,7 +16,10 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            orderClaimsProvider.overrideWith((ref) => Stream.value(claims)),
+            staffPermissionProvider.overrideWith(
+              (ref) async =>
+                  claims['staff'] == true || claims['admin'] == true,
+            ),
             ordersRepositoryProvider.overrideWithValue(repository),
           ],
           child: MaterialApp(

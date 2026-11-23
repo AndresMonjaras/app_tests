@@ -1,9 +1,12 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_router.dart';
 import '../../../core/money/money.dart';
 import '../../../shared/widgets/fixed_bottom_bar.dart';
+import '../../catalog/domain/product.dart';
+import '../../catalog/presentation/catalog_providers.dart';
 import '../../orders/domain/pickup_mode.dart';
 import '../../orders/presentation/order_actions_controller.dart';
 import '../../orders/presentation/orders_providers.dart';
@@ -25,11 +28,27 @@ class CartScreen extends ConsumerWidget {
     final checkout = ref.watch(cartCheckoutProvider);
     final configured = ref.watch(paymentConfiguredProvider);
     final uid = ref.watch(uidActivoProvider);
+    final catalog = ref.watch(catalogProductsProvider);
+    final firebaseConfigured = Firebase.apps.isNotEmpty;
+    final catalogReady =
+        !firebaseConfigured ||
+        (catalog.hasValue && !catalog.hasError && !catalog.isLoading);
     final matches = ref
         .read(cartCheckoutProvider.notifier)
         .matches(cart, uid, pickupMode);
     final serverOrder = matches ? checkout.order : null;
     final lines = serverOrder?.lines ?? cart.lines;
+    final latestProducts = {
+      for (final product in catalog.value ?? const <Product>[])
+        product.id: product,
+    };
+    final catalogIssues = <String, String>{};
+    if (firebaseConfigured && catalogReady) {
+      for (final line in lines) {
+        final issue = _catalogIssue(line, latestProducts);
+        if (issue != null) catalogIssues[_cartLineKey(line)] = issue;
+      }
+    }
     final total = formatMoney(serverOrder?.totalCents ?? cart.totalCents);
     final subtotal = lines.fold<int>(0, (sum, line) => sum + line.totalCents);
     final error = checkout.message;
@@ -52,9 +71,31 @@ class CartScreen extends ConsumerWidget {
                     child: Center(child: Text('Tu carrito está vacío.')),
                   )
                 else ...[
+                  if (!catalogReady) ...[
+                    Text(
+                      catalog.hasError
+                          ? 'No se pudo verificar el menú. Reintenta antes de pagar.'
+                          : 'Verificando disponibilidad y precios del menú…',
+                      style: TextStyle(
+                        color: catalog.hasError
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (catalog.hasError)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () =>
+                              ref.invalidate(catalogProductsProvider),
+                          child: const Text('Reintentar'),
+                        ),
+                      ),
+                  ],
                   for (final line in lines)
                     _CartLineTile(
                       line: line,
+                      catalogIssue: catalogIssues[_cartLineKey(line)],
                       onDecrease: busy
                           ? null
                           : () => ref
@@ -62,6 +103,9 @@ class CartScreen extends ConsumerWidget {
                                 .changeQuantity(
                                   productId: line.product.id,
                                   variantLabel: line.variant?.label,
+                                  complementLabels: line.complements
+                                      .map((item) => item.label)
+                                      .toList(),
                                   quantity: line.quantity - 1,
                                 ),
                       onIncrease: busy
@@ -71,6 +115,9 @@ class CartScreen extends ConsumerWidget {
                                 .changeQuantity(
                                   productId: line.product.id,
                                   variantLabel: line.variant?.label,
+                                  complementLabels: line.complements
+                                      .map((item) => item.label)
+                                      .toList(),
                                   quantity: line.quantity + 1,
                                 ),
                       onRemove: busy
@@ -80,8 +127,20 @@ class CartScreen extends ConsumerWidget {
                                 .removeLine(
                                   productId: line.product.id,
                                   variantLabel: line.variant?.label,
+                                  complementLabels: line.complements
+                                      .map((item) => item.label)
+                                      .toList(),
                                 ),
                     ),
+                  if (catalogIssues.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'El menú cambió. Quita los productos marcados y agrégalos de nuevo para confirmar los datos actuales.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                   const Divider(),
                   Text(
                     'Modalidad de recogida',
@@ -161,6 +220,8 @@ class CartScreen extends ConsumerWidget {
                                 uid == null ||
                                     uid.isEmpty ||
                                     !configured ||
+                                    !catalogReady ||
+                                    catalogIssues.isNotEmpty ||
                                     busy
                                 ? null
                                 : () => _submit(
@@ -227,9 +288,11 @@ class _CartLineTile extends StatelessWidget {
     required this.onDecrease,
     required this.onIncrease,
     required this.onRemove,
+    this.catalogIssue,
   });
 
   final CartLine line;
+  final String? catalogIssue;
   final VoidCallback? onDecrease;
   final VoidCallback? onIncrease;
   final VoidCallback? onRemove;
@@ -239,6 +302,9 @@ class _CartLineTile extends StatelessWidget {
     final variant = line.variant == null ? '' : ' (${line.variant!.label})';
     final theme = Theme.of(context);
     final nombre = '${line.product.name}$variant';
+    final complementLabels = line.complements
+        .map((item) => item.label)
+        .toList();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -257,6 +323,11 @@ class _CartLineTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(nombre, style: theme.textTheme.bodyLarge),
+                  if (complementLabels.isNotEmpty)
+                    Text(
+                      'Complementos: ${complementLabels.join(', ')}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   const SizedBox(height: 2),
                   Text(
                     '${formatMoney(line.unitPriceCents)} c/u',
@@ -268,6 +339,14 @@ class _CartLineTile extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  if (catalogIssue != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        catalogIssue!,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -294,4 +373,63 @@ class _CartLineTile extends StatelessWidget {
       ),
     );
   }
+}
+
+String _cartLineKey(CartLine line) =>
+    '${line.product.id}::${line.variant?.label ?? ''}::${(line.complements.map((item) => item.label).toList()..sort()).join('|')}';
+
+String? _catalogIssue(CartLine line, Map<String, Product> currentProducts) {
+  final current = currentProducts[line.product.id];
+  if (current == null) {
+    return 'Ya no aparece en el menú. Quítalo antes de pagar.';
+  }
+  if (!current.isAvailable) {
+    return 'Está agotado. Quítalo antes de pagar.';
+  }
+  if (current.name != line.product.name) {
+    return 'Ahora aparece como “${current.name}”. Quítalo y agrégalo de nuevo.';
+  }
+
+  for (final selected in line.complements) {
+    ProductVariant? currentComplement;
+    for (final option in current.complements) {
+      if (option.label == selected.label) currentComplement = option;
+    }
+    if (currentComplement == null || !currentComplement.isAvailable) {
+      return 'El complemento ${selected.label} ya no está disponible. Quítalo y agrégalo de nuevo.';
+    }
+    if (currentComplement.priceCents != selected.priceCents) {
+      return 'Cambió el precio del complemento ${selected.label}. Quítalo y agrégalo de nuevo.';
+    }
+  }
+
+  final selectedVariant = line.variant;
+  if (selectedVariant == null) {
+    if (current.variants.isNotEmpty) {
+      return 'Ahora tiene variantes. Quítalo y agrégalo de nuevo para elegir una.';
+    }
+    final selectedComplementPrice = line.complements.fold<int>(
+      0,
+      (total, item) => total + item.priceCents,
+    );
+    if (current.priceCents != line.unitPriceCents - selectedComplementPrice) {
+      return 'El precio cambió a ${formatMoney(current.priceCents)}. Agrégalo de nuevo para confirmarlo.';
+    }
+    return null;
+  }
+
+  ProductVariant? currentVariant;
+  for (final variant in current.variants) {
+    if (variant.label == selectedVariant.label) {
+      currentVariant = variant;
+      break;
+    }
+  }
+  if (currentVariant == null || !currentVariant.isAvailable) {
+    return 'La variante ya no está disponible. Quítala y vuelve a elegir.';
+  }
+  if (currentVariant.priceCents != selectedVariant.priceCents) {
+    return 'El precio cambió a ${formatMoney(currentVariant.priceCents)}. Agrégalo de nuevo para confirmarlo.';
+  }
+  return null;
 }
