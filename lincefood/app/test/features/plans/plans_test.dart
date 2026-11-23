@@ -154,7 +154,7 @@ void main() {
     await tester.tap(find.text('Semanal'));
     await tester.pumpAndSettle();
     expect(_payButton('10.00'), findsOneWidget);
-    expect(find.text('\$10.00 MXN (demostración)'), findsOneWidget);
+    expect(find.text('\$10.00 MXN'), findsOneWidget);
 
     await tester.tap(find.text('De por vida'));
     await tester.pumpAndSettle();

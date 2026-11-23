@@ -136,7 +136,6 @@ class PlansScreen extends ConsumerWidget {
                   isCurrent:
                       plan.id == currentPlan?.id && membership is AsyncData,
                   price: prices.value?[plan.id]?.amounts[checkout.period],
-                  demo: prices.value?[plan.id]?.demo ?? false,
                   period: checkout.period,
                   onPay:
                       canPay &&
@@ -377,7 +376,6 @@ class _PlanCard extends StatelessWidget {
     required this.plan,
     required this.isCurrent,
     required this.price,
-    required this.demo,
     required this.period,
     required this.onPay,
   });
@@ -385,7 +383,6 @@ class _PlanCard extends StatelessWidget {
   final ServicePlan plan;
   final bool isCurrent;
   final int? price;
-  final bool demo;
   final MembershipPeriod period;
   final VoidCallback? onPay;
 
@@ -400,7 +397,7 @@ class _PlanCard extends StatelessWidget {
         ? 'Sin costo'
         : amount == null
         ? 'Precio no disponible'
-        : '${formatMoney(amount)}${demo ? ' (demostración)' : ''}';
+        : formatMoney(amount);
 
     String? tierBadge;
     Color? tierBadgeBg;
