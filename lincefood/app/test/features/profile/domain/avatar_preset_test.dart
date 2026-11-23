@@ -30,7 +30,7 @@ void main() {
     );
   });
 
-  test('los tres avatares tienen imagen y están disponibles', () {
+  test('todos los avatares tienen imagen y están disponibles', () {
     for (final preset in AvatarPreset.values) {
       expect(preset.available, isTrue);
       expect(preset.assetPath, startsWith('assets/avatars/'));

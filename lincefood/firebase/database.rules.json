@@ -122,7 +122,7 @@
           ".validate": "newData.isString() && (newData.val() === 'estudiante' || newData.val() === 'personal')"
         },
         "avatarPreset": {
-          ".validate": "newData.isString() && (newData.val() === 'neutro' || newData.val() === 'lince_masculino' || newData.val() === 'lince_femenino') && auth.token.email_verified === true"
+          ".validate": "newData.isString() && (newData.val() === 'neutro' || newData.val() === 'lince_masculino' || newData.val() === 'lince_femenino' || newData.val() === 'mojarra' || newData.val() === 'rocky' || newData.val() === 'bunuelos') && auth.token.email_verified === true"
         }
       }
     },

@@ -11,7 +11,10 @@ enum AvatarPreset {
     'lince_femenino',
     'Lince femenino',
     'assets/avatars/lince_femenino.webp',
-  );
+  ),
+  mojarra('mojarra', 'Mojarra', 'assets/avatars/mojarra.webp'),
+  rocky('rocky', 'Rocky', 'assets/avatars/rocky.webp'),
+  bunuelos('bunuelos', 'Buñuelos', 'assets/avatars/bunuelos.webp');
 
   const AvatarPreset(this.value, this.label, this.assetPath);
 

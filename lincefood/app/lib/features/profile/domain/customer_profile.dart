@@ -19,7 +19,14 @@ class CustomerProfile {
 }
 
 Map<String, String> avatarPresetUpdate(String preset) {
-  const presets = {'neutro', 'lince_masculino', 'lince_femenino'};
+  const presets = {
+    'neutro',
+    'lince_masculino',
+    'lince_femenino',
+    'mojarra',
+    'rocky',
+    'bunuelos',
+  };
   if (!presets.contains(preset)) {
     throw ArgumentError.value(preset, 'preset');
   }
