@@ -5,6 +5,7 @@ import { AppError } from '../app_error.mjs';
 import {
   createDeleteProductHandler,
   createSetProductAvailabilityHandler,
+  createRestoreProductHandler,
   createUpdateProductPriceHandler,
   createUpsertProductHandler,
 } from './catalog_handlers.mjs';
@@ -37,4 +38,8 @@ export const setProductAvailability = onCall(
 export const deleteProduct = onCall(
   { region },
   withCallableErrors(createDeleteProductHandler),
+);
+export const restoreProduct = onCall(
+  { region },
+  withCallableErrors(createRestoreProductHandler),
 );

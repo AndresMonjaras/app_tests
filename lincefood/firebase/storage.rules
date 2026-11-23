@@ -8,8 +8,9 @@ service firebase.storage {
         && file.size <= 2097152;
     }
 
-    function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+    function canManageMenu() {
+      return request.auth != null
+        && (request.auth.token.admin == true || request.auth.token.staff == true);
     }
 
     function canEditAvatar(uid) {
@@ -23,7 +24,7 @@ service firebase.storage {
     match /menu/{productId}/{fileName} {
       allow read: if resource != null
         && resource.contentType.matches('^image/(jpeg|png|webp)$');
-      allow write: if isAdmin()
+      allow write: if canManageMenu()
         && (request.resource == null || isSupportedImage(request.resource));
     }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/money/money.dart';
 import '../../catalog/domain/product.dart';
+import '../../catalog/presentation/product_image.dart';
 import 'admin_catalog_controller.dart';
 import 'admin_catalog_busy_controller.dart';
 import 'admin_catalog_providers.dart';
@@ -15,13 +16,15 @@ class AdminCatalogScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final access = ref.watch(adminAccessProvider);
+    final access = ref.watch(catalogEditorAccessProvider);
+    final isAdmin = ref.watch(adminAccessProvider).value == true;
+    final showRoles = access.value == true && isAdmin;
     return DefaultTabController(
-      length: 2,
+      length: showRoles ? 2 : 1,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Administración'),
-          bottom: access.value == true
+          title: Text(isAdmin ? 'Administración' : 'Productos de cafetería'),
+          bottom: showRoles
               ? const TabBar(
                   tabs: [
                     Tab(text: 'Productos y precios'),
@@ -33,14 +36,13 @@ class AdminCatalogScreen extends ConsumerWidget {
         body: access.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => const _AccessDenied(),
-          data: (allowed) => allowed
-              ? TabBarView(
-                  children: [
-                    const _AdminCatalogContent(),
-                    const AdminRolesPanel(),
-                  ],
-                )
-              : const _AccessDenied(),
+          data: (allowed) {
+            if (!allowed) return const _AccessDenied();
+            if (!isAdmin) return const _AdminCatalogContent();
+            return const TabBarView(
+              children: [_AdminCatalogContent(), AdminRolesPanel()],
+            );
+          },
         ),
       ),
     );
@@ -82,8 +84,18 @@ class _AdminCatalogContent extends ConsumerWidget {
           Expanded(
             child: products.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) =>
-                  const Center(child: Text('No se pudo cargar el catálogo.')),
+              error: (_, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('No se pudo cargar el catálogo.'),
+                    TextButton(
+                      onPressed: () => ref.invalidate(adminProductsProvider),
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
               data: (items) => items.isEmpty
                   ? const Center(child: Text('No hay productos.'))
                   : ListView.builder(
@@ -106,6 +118,8 @@ class _AdminCatalogContent extends ConsumerWidget {
                         ),
                         onArchive: () =>
                             _confirmArchive(context, ref, items[index]),
+                        onRestore: () =>
+                            _restoreProduct(context, ref, items[index]),
                       ),
                     ),
             ),
@@ -189,6 +203,17 @@ class _AdminCatalogContent extends ConsumerWidget {
     );
   }
 
+  Future<void> _restoreProduct(
+    BuildContext context,
+    WidgetRef ref,
+    Product product,
+  ) async {
+    final controller = AdminCatalogController(
+      ref.read(adminCatalogRepositoryProvider),
+    );
+    await _perform(context, ref, () => controller.restoreProduct(product.id));
+  }
+
   /// Ejecuta una escritura del catálogo, refresca los listados y muestra el resultado.
   Future<void> _perform(
     BuildContext context,
@@ -196,21 +221,17 @@ class _AdminCatalogContent extends ConsumerWidget {
     Future<void> Function() operation,
   ) async {
     if (ref.read(adminCatalogBusyProvider)) return;
-    final ok = await ref
+    final errorMessage = await ref
         .read(adminCatalogBusyProvider.notifier)
         .perform(operation);
     if (!context.mounted) return;
-    if (ok) {
+    if (errorMessage == null) {
       ref.invalidate(adminProductsProvider);
       ref.invalidate(catalogProductsProvider);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Cambio guardado.' : 'No se pudo guardar el cambio.',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(errorMessage ?? 'Cambio guardado.')));
   }
 }
 
@@ -221,6 +242,7 @@ class _ProductAdminTile extends StatelessWidget {
     required this.onEdit,
     required this.onAvailability,
     required this.onArchive,
+    required this.onRestore,
   });
 
   final Product product;
@@ -228,6 +250,7 @@ class _ProductAdminTile extends StatelessWidget {
   final VoidCallback onEdit;
   final ValueChanged<bool> onAvailability;
   final VoidCallback onArchive;
+  final VoidCallback onRestore;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -235,9 +258,24 @@ class _ProductAdminTile extends StatelessWidget {
       children: [
         ListTile(
           title: Text(product.name),
-          leading: product.demo ? const Chip(label: Text('Demo')) : null,
+          leading: product.demo
+              ? const Chip(label: Text('Demo'))
+              : ProductImage(
+                  imagePath: product.imagePath,
+                  productId: product.id,
+                  fallbackIcon: Icons.restaurant_outlined,
+                  width: 48,
+                  height: 48,
+                  borderRadius: 10,
+                ),
           subtitle: Text(
-            '${product.categoryId.isEmpty ? 'Sin categoría' : product.categoryId} · ${formatMoney(product.displayPriceCents)}',
+            '${product.categoryId.isEmpty ? 'Sin categoría' : product.categoryId} · ${formatMoney(product.displayPriceCents)}'
+            '${product.portionAmount == null ? '' : ' · ${product.portionAmount} ${product.portionUnit}'}'
+            '${product.archived
+                ? ' · Archivado'
+                : product.isAvailable
+                ? ' · Disponible'
+                : ' · Agotado'}',
           ),
           onTap: onEdit,
           trailing: IconButton(
@@ -259,9 +297,13 @@ class _ProductAdminTile extends StatelessWidget {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: product.archived ? null : onArchive,
-            icon: const Icon(Icons.archive_outlined),
-            label: const Text('Archivar'),
+            onPressed: product.archived ? onRestore : onArchive,
+            icon: Icon(
+              product.archived
+                  ? Icons.unarchive_outlined
+                  : Icons.archive_outlined,
+            ),
+            label: Text(product.archived ? 'Restaurar' : 'Archivar'),
           ),
         ),
       ],

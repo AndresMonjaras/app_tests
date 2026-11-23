@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../domain/catalog_repository.dart';
 import '../domain/product.dart';
 
@@ -9,4 +11,8 @@ class InMemoryCatalogRepository implements CatalogRepository {
 
   @override
   Future<List<Product>> fetchProducts() async => List.unmodifiable(_products);
+
+  @override
+  Stream<List<Product>> watchProducts() =>
+      Stream.value(List.unmodifiable(_products));
 }

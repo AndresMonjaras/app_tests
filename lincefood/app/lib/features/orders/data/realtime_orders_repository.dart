@@ -48,7 +48,7 @@ class RealtimeOrdersRepository implements OrdersRepository {
 
       void emitOrders() {
         final orders = ordersById.values.where(_isPaidAndActive).toList()
-          ..sort(_newestFirst);
+          ..sort(_oldestFirst);
         controller.add(List.unmodifiable(orders));
       }
 
@@ -94,6 +94,7 @@ class RealtimeOrdersRepository implements OrdersRepository {
     required String ownerUid,
     required Cart cart,
     required PickupMode pickupMode,
+    required String idempotencyKey,
     DateTime? createdAt,
   }) async {
     if (ownerUid.isEmpty) {
@@ -112,6 +113,7 @@ class RealtimeOrdersRepository implements OrdersRepository {
     final result = await _callableOrThrow('createOrder', {
       'lines': lines,
       'pickupMode': pickupMode.code,
+      'idempotencyKey': idempotencyKey,
     });
     if (result is! Map) {
       throw const DomainException(
@@ -264,8 +266,8 @@ class RealtimeOrdersRepository implements OrdersRepository {
         order.status == OrderStatus.incident;
   }
 
-  static int _newestFirst(OrderRecord first, OrderRecord second) {
-    return (second.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-        .compareTo(first.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0));
+  static int _oldestFirst(OrderRecord first, OrderRecord second) {
+    return (first.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+        .compareTo(second.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0));
   }
 }

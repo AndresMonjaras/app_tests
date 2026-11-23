@@ -12,6 +12,7 @@ abstract interface class OrdersRepository {
     required String ownerUid,
     required Cart cart,
     required PickupMode pickupMode,
+    required String idempotencyKey,
     DateTime? createdAt,
   });
 

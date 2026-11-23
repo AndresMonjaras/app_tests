@@ -37,9 +37,8 @@ export const nextStaffStatus = {
   preparing: 'ready',
 };
 
-// El cliente puede cancelar mientras el pedido no haya entrado a cocina.
-// El cliente puede cancelar mientras el pedido no haya entrado a cocina.
-export const cancellableStatuses = new Set(['payment_pending', 'paid', 'confirmed']);
+// Solo se puede cancelar mientras el pago sigue pendiente.
+export const cancellableStatuses = new Set(['payment_pending']);
 
 // Estados en los que un pedido ya pagado puede pasar a incidencia.
 export const activeStatuses = new Set([

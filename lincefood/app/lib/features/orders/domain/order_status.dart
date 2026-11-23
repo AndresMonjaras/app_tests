@@ -7,6 +7,7 @@ enum OrderStatus {
   delivered,
   incident,
   rejected,
+  cancelled,
 }
 
 extension OrderStatusCode on OrderStatus {
@@ -19,6 +20,7 @@ extension OrderStatusCode on OrderStatus {
     OrderStatus.delivered => 'delivered',
     OrderStatus.incident => 'incident',
     OrderStatus.rejected => 'rejected',
+    OrderStatus.cancelled => 'cancelled',
   };
 
   String get label => switch (this) {
@@ -30,14 +32,13 @@ extension OrderStatusCode on OrderStatus {
     OrderStatus.delivered => 'Entregado',
     OrderStatus.incident => 'Revisar pedido',
     OrderStatus.rejected => 'Rechazado',
+    OrderStatus.cancelled => 'Cancelado',
   };
 }
 
-/// El cliente puede cancelar mientras el pedido no haya entrado a cocina.
+/// El cliente solo puede cancelar antes de que el pago quede confirmado.
 bool canCustomerCancel(OrderStatus status) {
-  return status == OrderStatus.paymentPending ||
-      status == OrderStatus.paid ||
-      status == OrderStatus.confirmed;
+  return status == OrderStatus.paymentPending;
 }
 
 OrderStatus orderStatusFromCode(Object? value) {
@@ -57,6 +58,7 @@ OrderStatus orderStatusFromCode(Object? value) {
     'entregado' => OrderStatus.delivered,
     'incidente' => OrderStatus.incident,
     'rechazado' => OrderStatus.rejected,
+    'cancelado' || 'canceled' => OrderStatus.cancelled,
     _ => OrderStatus.paymentPending,
   };
 }

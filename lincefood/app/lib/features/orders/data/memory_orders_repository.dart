@@ -64,6 +64,7 @@ class MemoryOrdersRepository implements OrdersRepository {
     required String ownerUid,
     required Cart cart,
     required PickupMode pickupMode,
+    required String idempotencyKey,
     DateTime? createdAt,
   }) async {
     _comprobarDisponible();

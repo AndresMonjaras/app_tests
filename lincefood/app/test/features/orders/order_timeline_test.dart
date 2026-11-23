@@ -21,10 +21,10 @@ Widget _app(
 }
 
 void main() {
-  test('el cliente puede cancelar hasta que el pedido entra a cocina', () {
+  test('el cliente solo puede cancelar mientras el pago está pendiente', () {
     expect(canCustomerCancel(OrderStatus.paymentPending), isTrue);
-    expect(canCustomerCancel(OrderStatus.paid), isTrue);
-    expect(canCustomerCancel(OrderStatus.confirmed), isTrue);
+    expect(canCustomerCancel(OrderStatus.paid), isFalse);
+    expect(canCustomerCancel(OrderStatus.confirmed), isFalse);
     expect(canCustomerCancel(OrderStatus.preparing), isFalse);
     expect(canCustomerCancel(OrderStatus.ready), isFalse);
     expect(canCustomerCancel(OrderStatus.delivered), isFalse);

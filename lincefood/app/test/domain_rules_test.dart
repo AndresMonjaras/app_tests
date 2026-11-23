@@ -94,6 +94,7 @@ void main() {
         'delivered',
         'incident',
         'rejected',
+        'cancelled',
       ]);
     });
 
@@ -172,14 +173,14 @@ void main() {
       },
     );
 
-    test('permite cancelar desde paid y confirmed antes de cocina', () {
+    test('impide cancelar después de que el pedido fue pagado', () {
       for (final status in [OrderStatus.paid, OrderStatus.confirmed]) {
         final order = OrderRecord(
           id: 'pedido-1',
           status: status,
           lines: const [],
         );
-        expect(order.cancel().isCancelled, isTrue);
+        expect(() => order.cancel(), throwsA(isA<DomainException>()));
       }
     });
 

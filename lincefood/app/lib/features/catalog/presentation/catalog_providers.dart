@@ -9,9 +9,15 @@ final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
   return RealtimeDatabaseCatalogRepository(FirebaseDatabase.instance);
 });
 
-final catalogProductsProvider = FutureProvider<List<Product>>((ref) async {
-  final products = await ref.watch(catalogRepositoryProvider).fetchProducts();
-  return products.where((product) => !product.archived).toList(growable: false);
+final catalogProductsProvider = StreamProvider<List<Product>>((ref) {
+  return ref
+      .watch(catalogRepositoryProvider)
+      .watchProducts()
+      .map(
+        (products) => products
+            .where((product) => !product.archived)
+            .toList(growable: false),
+      );
 });
 
 /// Filtros del menú: texto de búsqueda y categoría elegida (null = todas).

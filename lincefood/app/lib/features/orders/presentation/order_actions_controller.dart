@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,6 +55,9 @@ class OrderActionsState {
 }
 
 class OrderActionsController extends Notifier<OrderActionsState> {
+  String? _pendingCreateSignature;
+  String? _pendingCreateKey;
+
   @override
   OrderActionsState build() => const OrderActionsState();
 
@@ -60,6 +66,7 @@ class OrderActionsController extends Notifier<OrderActionsState> {
     required Cart cart,
     required PickupMode pickupMode,
   }) async {
+    if (state.isWorking) return null;
     state = const OrderActionsState(isWorking: true);
     if (ownerUid.isEmpty) {
       state = const OrderActionsState(
@@ -76,14 +83,32 @@ class OrderActionsController extends Notifier<OrderActionsState> {
 
     try {
       final repository = ref.read(ordersRepositoryProvider);
+      final signature = jsonEncode({
+        'ownerUid': ownerUid,
+        'pickupMode': pickupMode.code,
+        'lines': [
+          for (final line in cart.lines)
+            [line.product.id, line.variant?.label, line.quantity],
+        ],
+      });
+      if (_pendingCreateSignature != signature || _pendingCreateKey == null) {
+        _pendingCreateSignature = signature;
+        final random = Random.secure();
+        _pendingCreateKey = base64Url
+            .encode(List.generate(24, (_) => random.nextInt(256)))
+            .replaceAll('=', '');
+      }
       final order = await _trackWrite(
         'Crear pedido',
         () => repository.createOrder(
           ownerUid: ownerUid,
           cart: cart,
           pickupMode: pickupMode,
+          idempotencyKey: _pendingCreateKey!,
         ),
       );
+      _pendingCreateSignature = null;
+      _pendingCreateKey = null;
       state = state.copyWith(isWorking: false, order: order, clearError: true);
       return order;
     } catch (error) {

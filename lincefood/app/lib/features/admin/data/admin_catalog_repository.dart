@@ -9,6 +9,7 @@ abstract interface class AdminCatalogRepository {
   Future<void> updateProductPrice(String productId, int priceCents);
   Future<void> setProductAvailability(String productId, bool available);
   Future<void> deleteProduct(String productId, {required bool confirmed});
+  Future<void> restoreProduct(String productId);
 }
 
 class CallableAdminCatalogRepository implements AdminCatalogRepository {
@@ -40,6 +41,9 @@ class CallableAdminCatalogRepository implements AdminCatalogRepository {
       'categoryId': product.categoryId,
       'priceCents': product.priceCents,
       'available': product.isAvailable,
+      'imagePath': product.imagePath,
+      'portionAmount': product.portionAmount,
+      'portionUnit': product.portionUnit,
       'prepMinutes': product.prepMinutes,
       'description': product.description,
       'ingredients': product.ingredients,
@@ -64,6 +68,10 @@ class CallableAdminCatalogRepository implements AdminCatalogRepository {
   @override
   Future<void> deleteProduct(String productId, {required bool confirmed}) =>
       _call('deleteProduct', {'productId': productId, 'confirmed': confirmed});
+
+  @override
+  Future<void> restoreProduct(String productId) =>
+      _call('restoreProduct', {'productId': productId});
 
   Map<String, Object> _optionData(ProductVariant option) => {
     'label': option.label,

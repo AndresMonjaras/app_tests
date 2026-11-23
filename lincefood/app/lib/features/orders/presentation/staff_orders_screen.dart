@@ -5,6 +5,7 @@ import '../../../core/money/money.dart';
 import '../../pickup_qr/presentation/pickup_scanner_screen.dart';
 import '../domain/order_record.dart';
 import '../domain/order_status.dart';
+import '../domain/order_elapsed_time.dart';
 import 'order_actions_controller.dart';
 import 'orders_providers.dart';
 import 'reject_order_dialog.dart';
@@ -76,6 +77,7 @@ class _StaffOrderList extends ConsumerWidget {
     final orders = ref.watch(staffOrdersStreamProvider);
     final actionState = ref.watch(orderActionsProvider);
     final isAdmin = ref.watch(adminPermissionProvider).value ?? false;
+    final now = ref.watch(orderClockProvider).value ?? DateTime.now();
     final controller = ref.read(orderActionsProvider.notifier);
 
     return orders.when(
@@ -101,6 +103,7 @@ class _StaffOrderList extends ConsumerWidget {
                 order: order,
                 isWorking: actionState.isWorking,
                 isAdmin: isAdmin,
+                now: now,
                 onUpdate: (status) => controller.updateOrderStatus(
                   orderId: order.id,
                   status: status,
@@ -145,6 +148,7 @@ class _StaffOrderCard extends StatelessWidget {
     required this.order,
     required this.isWorking,
     required this.isAdmin,
+    required this.now,
     required this.onUpdate,
     required this.onReject,
     required this.onReportIncident,
@@ -154,6 +158,7 @@ class _StaffOrderCard extends StatelessWidget {
   final OrderRecord order;
   final bool isWorking;
   final bool isAdmin;
+  final DateTime now;
   final ValueChanged<OrderStatus> onUpdate;
   final VoidCallback onReject;
   final ValueChanged<String> onReportIncident;
@@ -184,6 +189,30 @@ class _StaffOrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text('${order.status.label} · ${formatMoney(order.totalCents)}'),
+            if (order.status == OrderStatus.ready) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Pide al estudiante que muestre su QR y escanéalo para confirmar la entrega.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+            if (order.createdAt != null) ...[
+              const SizedBox(height: 4),
+              Text(formatElapsedTime(order.createdAt!, now: now)),
+            ],
+            const SizedBox(height: 4),
+            Text('Modalidad: ${order.pickupMode.label}'),
+            if (order.lines.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final line in order.lines)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    '${line.quantity} × ${line.product.name}'
+                    '${line.variant == null ? '' : ' · ${line.variant!.label}'}',
+                  ),
+                ),
+            ],
             if (nextStatus != null && actionLabel != null) ...[
               const SizedBox(height: 12),
               FilledButton(

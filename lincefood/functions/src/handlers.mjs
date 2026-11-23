@@ -1,4 +1,5 @@
 import { error as logError } from 'firebase-functions/logger';
+import { createHash } from 'node:crypto';
 
 import { customerOrderView } from './orders/order_status_rules.mjs';
 import { restoreRejectedTicket } from './orders/order_projection.mjs';
@@ -37,6 +38,36 @@ function matchesOrderIntent(order, intent) {
 export function createCreateOrderHandler({ database, serverTimestamp }) {
   return async (request) => {
     const uid = requireUid(request);
+    const idempotencyKey = request.data?.idempotencyKey;
+    if (typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey)) {
+      throw new AppError('invalid-argument', 'La solicitud de pedido no es válida. Inténtalo de nuevo.');
+    }
+    const pickupMode = request.data?.pickupMode === 'take_away' ? 'take_away' : 'in_store';
+    const rawLines = request.data?.lines;
+    const requestLines = Array.isArray(rawLines)
+      ? rawLines.map((line) => ({
+        productId: line?.productId,
+        variantLabel: line?.variantLabel ?? null,
+        quantity: line?.quantity,
+      }))
+      : rawLines;
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ lines: requestLines, pickupMode }))
+      .digest('hex');
+    const keyRef = database.ref('orderCreationKeys/' + uid + '/' + idempotencyKey);
+    const existingReservation = (await keyRef.get()).val();
+    if (existingReservation) {
+      if (existingReservation.requestHash !== requestHash) {
+        throw new AppError('already-exists', 'Esta solicitud ya se usó para otro pedido.');
+      }
+      const existingOrder = (await database.ref('orders/' + existingReservation.orderId).get()).val();
+      if (existingOrder) {
+        return {
+          orderId: existingReservation.orderId,
+          folio: existingOrder.folio ?? 'LF-' + existingReservation.orderId.slice(-8).toUpperCase(),
+        };
+      }
+    }
     const productSnapshot = await database.ref('products').get();
     const products = productSnapshot.val();
     const { lines, totalCents } = validateAndPriceOrderLines(
@@ -44,9 +75,25 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
       products,
     );
 
-    const orderId = database.ref('orders').push().key;
-    if (typeof orderId !== 'string' || orderId.length === 0) {
+    const proposedOrderId = database.ref('orders').push().key;
+    if (typeof proposedOrderId !== 'string' || proposedOrderId.length === 0) {
       throw new AppError('internal', 'No se pudo crear el pedido.');
+    }
+    const reservation = await keyRef.transaction((current) => current ?? {
+      orderId: proposedOrderId,
+      requestHash,
+      createdAt: serverTimestamp(),
+    });
+    const reserved = reservation.snapshot?.val();
+    if (!reservation.committed || !reserved?.orderId) {
+      throw new AppError('aborted', 'No se pudo reservar el pedido. Inténtalo de nuevo.');
+    }
+    if (reserved.requestHash !== requestHash) {
+      throw new AppError('already-exists', 'Esta solicitud ya se usó para otro pedido.');
+    }
+    const orderId = reserved.orderId;
+    if ((await database.ref('orders/' + orderId).get()).val()) {
+      return { orderId, folio: 'LF-' + orderId.slice(-8).toUpperCase() };
     }
     const folio = 'LF-' + orderId.slice(-8).toUpperCase();
     const order = {
@@ -55,8 +102,7 @@ export function createCreateOrderHandler({ database, serverTimestamp }) {
       status: 'pendiente_pago',
       totalCents,
       lines,
-      pickupMode:
-        request.data?.pickupMode === 'take_away' ? 'take_away' : 'in_store',
+      pickupMode,
       createdAt: serverTimestamp(),
     };
     const updates = {};
@@ -165,6 +211,35 @@ export function createStripeWebhookHandler({
       return;
     }
 
+    let eventRef;
+    if (typeof event.id === 'string' && /^[A-Za-z0-9_:-]{1,128}$/.test(event.id)) {
+      eventRef = database.ref('stripeWebhookEvents/' + event.id);
+      const now = Date.now();
+      const claim = await eventRef.transaction((current) => {
+        if (current?.status === 'processed') return undefined;
+        if (current?.status === 'processing' && current.leaseUntil > now) return undefined;
+        return {
+          eventType: event.type,
+          status: 'processing',
+          receivedAt: current?.receivedAt ?? now,
+          leaseUntil: now + 120_000,
+        };
+      });
+      if (!claim.committed) {
+        const existing = claim.snapshot.val();
+        if (existing?.status === 'processed') {
+          response.status(200).send('Evento duplicado ya procesado.');
+          return;
+        }
+        response.status(503).send('El evento ya está en proceso; Stripe puede reintentarlo.');
+        return;
+      }
+    }
+    const markEventProcessed = async () => {
+      if (!eventRef) return;
+      await eventRef.update({ status: 'processed', processedAt: Date.now(), leaseUntil: null });
+    };
+
     const ruleByType = {
       'payment_intent.succeeded': { outcome: 'succeeded' },
       'payment_intent.payment_failed': {
@@ -178,6 +253,7 @@ export function createStripeWebhookHandler({
     };
     const rule = ruleByType[event.type];
     if (!rule) {
+      await markEventProcessed();
       response.status(200).send('Evento ignorado.');
       return;
     }
@@ -186,12 +262,14 @@ export function createStripeWebhookHandler({
     const intent = event.data?.object;
     if (intent?.metadata?.type === 'membership') {
       if (event.type !== 'payment_intent.succeeded') {
+        await markEventProcessed();
         response.status(200).send('Evento de membresía ignorado.');
         return;
       }
       try {
         const { activateMembershipFromPayment } = await import('./memberships/membership_handlers.mjs');
         const activated = await activateMembershipFromPayment(database, intent);
+        await markEventProcessed();
         response.status(200).send(activated ? 'OK' : 'El cobro no coincide con la membresía.');
       } catch (_) {
         response.status(500).send('No se pudo confirmar la membresía.');
@@ -200,6 +278,7 @@ export function createStripeWebhookHandler({
     }
     const orderId = intent?.metadata?.orderId;
     if (typeof orderId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(orderId)) {
+      await markEventProcessed();
       response.status(200).send('Evento sin pedido asociado.');
       return;
     }
@@ -230,6 +309,7 @@ export function createStripeWebhookHandler({
 
     if (intentMismatch) {
       console.error('El cobro no coincide con el pedido.', orderId, intent.id);
+      await markEventProcessed();
       response.status(200).send('El cobro no coincide con el pedido.');
       return;
     }
@@ -260,6 +340,7 @@ export function createStripeWebhookHandler({
         );
     }
 
+    await markEventProcessed();
     response.status(200).send('OK');
   };
 }

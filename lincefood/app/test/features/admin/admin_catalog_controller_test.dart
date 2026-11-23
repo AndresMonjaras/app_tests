@@ -6,6 +6,7 @@ import 'package:lincefood_app/features/catalog/domain/product.dart';
 class _Repository implements AdminCatalogRepository {
   bool deleted = false;
   bool? confirmed;
+  bool restored = false;
 
   @override
   Future<void> deleteProduct(
@@ -14,6 +15,11 @@ class _Repository implements AdminCatalogRepository {
   }) async {
     deleted = true;
     this.confirmed = confirmed;
+  }
+
+  @override
+  Future<void> restoreProduct(String productId) async {
+    restored = true;
   }
 
   @override

@@ -6,9 +6,10 @@ class AdminCatalogController {
   final AdminCatalogRepository _repository;
 
   Future<void> deleteProduct(String productId, {required bool confirmed}) {
-    if (!confirmed) {
-      return Future.error(StateError('Falta confirmar la eliminación.'));
-    }
-    return _repository.deleteProduct(productId, confirmed: true);
+    return _repository.deleteProduct(productId, confirmed: confirmed);
+  }
+
+  Future<void> restoreProduct(String productId) {
+    return _repository.restoreProduct(productId);
   }
 }

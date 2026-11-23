@@ -27,6 +27,7 @@ class _OrdersRepository extends MemoryOrdersRepository {
     required String ownerUid,
     required Cart cart,
     required PickupMode pickupMode,
+    required String idempotencyKey,
     DateTime? createdAt,
   }) async {
     creations++;
@@ -40,6 +41,7 @@ class _OrdersRepository extends MemoryOrdersRepository {
         ),
       ]),
       pickupMode: pickupMode,
+      idempotencyKey: idempotencyKey,
       createdAt: createdAt,
     );
     createdOrder = order;

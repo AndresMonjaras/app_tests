@@ -27,6 +27,12 @@ function getPrice(product, variantLabel, lineNumber) {
         'La variante de la línea ' + lineNumber + ' no existe.',
       );
     }
+    if (variant.available === false) {
+      throw new AppError(
+        'failed-precondition',
+        'La variante seleccionada en la línea ' + lineNumber + ' está agotada.',
+      );
+    }
     return { priceCents: variant.priceCents, variantLabel: variant.label };
   }
 
@@ -74,7 +80,7 @@ export function validateAndPriceOrderLines(rawLines, products) {
     }
 
     const product = products[productId];
-    if (!product || product.available !== true) {
+    if (!product || product.archived === true || product.available !== true) {
       throw new AppError(
         'failed-precondition',
         'El producto de la línea ' + lineNumber + ' no está disponible.',

@@ -279,6 +279,7 @@ class _TicketCard extends ConsumerWidget {
       OrderStatus.delivered => 'Pedido entregado',
       OrderStatus.incident => 'Pedido en revisión',
       OrderStatus.rejected => order.status.label,
+      OrderStatus.cancelled => 'Pedido cancelado',
     };
   }
 

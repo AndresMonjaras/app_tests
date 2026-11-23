@@ -96,6 +96,7 @@ test('createOrder calcula el importe del catálogo e ignora el total del cliente
       ],
       totalCents: 1,
       pickupMode: 'take_away',
+      idempotencyKey: '0123456789abcdef0123456789abcdef',
     },
   });
 
@@ -844,10 +845,10 @@ function fakeStripe({ fail = false } = {}) {
   };
 }
 
-test('cancelOrder cancela un pedido pagado, reembolsa y lo saca de la cola', async () => {
+test('cancelOrder reembolsa un cobro confirmado que aún conserva estado pendiente', async () => {
   const database = createMemoryDatabase({
     orders: {
-      ORDER00000000000001: { ownerUid: 'user-1', status: 'paid', totalCents: 5000 },
+      ORDER00000000000001: { ownerUid: 'user-1', status: 'payment_pending', totalCents: 5000 },
     },
     payments: {
       ORDER00000000000001: { status: 'succeeded', paymentIntentId: 'pi_1' },

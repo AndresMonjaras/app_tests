@@ -126,6 +126,7 @@ export {
   updateProductPrice,
   setProductAvailability,
   deleteProduct,
+  restoreProduct,
 } from './src/catalog/index.mjs';
 export { setStaffRole, setAdminRole } from './src/roles/index.mjs';
 export { synchronizeAvatarEligibility } from './src/profile/index.mjs';

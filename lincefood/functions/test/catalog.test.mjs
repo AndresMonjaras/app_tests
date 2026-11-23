@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { AppError } from '../src/app_error.mjs';
 import {
   createDeleteProductHandler,
+  createRestoreProductHandler,
   createSetProductAvailabilityHandler,
   createUpdateProductPriceHandler,
   createUpsertProductHandler,
@@ -12,6 +13,7 @@ import {
 function createDatabase({ coldCache = false } = {}) {
   const values = new Map();
   const writes = [];
+  let auditCount = 0;
   return {
     values,
     writes,
@@ -32,12 +34,26 @@ function createDatabase({ coldCache = false } = {}) {
           return { committed: true, snapshot: { exists: () => value !== null, val: () => value } };
         },
         async get() {
-          return { exists: () => values.has(path) };
+          return {
+            exists: () => values.has(path),
+            val: () => values.get(path) ?? null,
+            child: (key) => ({ exists: () => values.has(path + '/' + key) }),
+          };
         },
         async update(fields) {
           const value = { ...values.get(path), ...fields };
           values.set(path, value);
           writes.push({ path, value });
+        },
+        push() {
+          auditCount += 1;
+          const auditPath = path + '/audit-' + auditCount;
+          return {
+            async set(value) {
+              values.set(auditPath, value);
+              writes.push({ path: auditPath, value });
+            },
+          };
         },
       };
     },
@@ -46,14 +62,15 @@ function createDatabase({ coldCache = false } = {}) {
 
 const adminRequest = (data) => ({ auth: { uid: 'admin', token: { admin: true } }, data });
 
-test('todas las operaciones del catálogo rechazan a quien no tiene claim admin', async () => {
+test('las operaciones del catálogo permiten staff y rechazan usuarios sin rol', async () => {
   const database = createDatabase();
-  const request = { auth: { uid: 'staff', token: { staff: true } }, data: { productId: 'coffee' } };
+  const request = { auth: { uid: 'user', token: {} }, data: { productId: 'coffee' } };
   for (const makeHandler of [
     createUpsertProductHandler,
     createUpdateProductPriceHandler,
     createSetProductAvailabilityHandler,
     createDeleteProductHandler,
+    createRestoreProductHandler,
   ]) {
     await assert.rejects(
       makeHandler({ database })(request),

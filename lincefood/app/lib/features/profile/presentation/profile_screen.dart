@@ -248,15 +248,21 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  if (ref.watch(adminAccessProvider).value == true)
+                  if (ref.watch(catalogEditorAccessProvider).value == true)
                     Card(
                       child: ListTile(
                         leading: const Icon(
                           Icons.admin_panel_settings_outlined,
                         ),
-                        title: const Text('Administración'),
-                        subtitle: const Text(
-                          'Productos, precios y permisos del equipo.',
+                        title: Text(
+                          ref.watch(adminAccessProvider).value == true
+                              ? 'Administración'
+                              : 'Productos de cafetería',
+                        ),
+                        subtitle: Text(
+                          ref.watch(adminAccessProvider).value == true
+                              ? 'Productos, precios y permisos del equipo.'
+                              : 'Administra el menú y su disponibilidad.',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () =>

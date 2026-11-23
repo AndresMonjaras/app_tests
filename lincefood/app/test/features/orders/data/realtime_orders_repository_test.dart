@@ -36,6 +36,7 @@ void main() {
         ownerUid: 'user-1',
         cart: Cart([CartLine(product: product, variant: variant, quantity: 2)]),
         pickupMode: PickupMode.takeAway,
+        idempotencyKey: '0123456789abcdef0123456789abcdef',
         createdAt: DateTime(2026, 11, 22),
       );
 

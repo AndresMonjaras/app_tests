@@ -61,6 +61,7 @@ class OrderRecord {
       isCancelled:
           map['isCancelled'] == true ||
           statusCode == 'cancelled' ||
+          statusCode == 'canceled' ||
           statusCode == 'cancelado',
       createdAt: _parseDate(map['fecha'] ?? map['createdAt']),
       rejectionReason: reason is String ? reason : null,
@@ -139,7 +140,7 @@ class OrderRecord {
       );
     }
 
-    return _copyWith(isCancelled: true);
+    return _copyWith(status: OrderStatus.cancelled, isCancelled: true);
   }
 
   OrderRecord reject(String reason, DateTime rejectedAt) {

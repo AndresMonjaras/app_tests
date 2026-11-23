@@ -116,6 +116,7 @@ class _BlockedOrdersRepository extends MemoryOrdersRepository {
     required String ownerUid,
     required Cart cart,
     required PickupMode pickupMode,
+    required String idempotencyKey,
     DateTime? createdAt,
   }) async {
     throw StateError('Las reglas actuales no permiten crear pedidos.');

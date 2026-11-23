@@ -56,6 +56,8 @@ class Product {
     this.description = '',
     this.archived = false,
     this.demo = false,
+    this.portionAmount,
+    this.portionUnit,
     List<String> ingredients = const [],
     List<ProductVariant> complements = const [],
     List<ProductVariant> variants = const [],
@@ -87,6 +89,8 @@ class Product {
   final List<String> ingredients;
   final bool archived;
   final bool demo;
+  final int? portionAmount;
+  final String? portionUnit;
 
   bool get canOrder =>
       isAvailable &&
@@ -135,6 +139,12 @@ class Product {
           .toList(),
       archived: map['archived'] == true,
       demo: map['demo'] == true,
+      portionAmount: map['portionAmount'] is int && map['portionAmount'] > 0
+          ? map['portionAmount'] as int
+          : null,
+      portionUnit: const {'g', 'ml', 'pz'}.contains(map['portionUnit'])
+          ? map['portionUnit'] as String
+          : null,
     );
   }
 }

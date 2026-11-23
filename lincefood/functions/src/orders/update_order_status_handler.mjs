@@ -17,6 +17,11 @@ import {
 const cancellationStatuses = new Set(['cancelled', 'canceled', 'cancelado']);
 const paymentOnlyStatuses = new Set(['paid', 'payment_pending']);
 const staffTargetStatuses = new Set(Object.values(nextStaffStatus));
+const previousStaffStatus = {
+  confirmed: 'paid',
+  preparing: 'confirmed',
+  ready: 'preparing',
+};
 
 
 export function createUpdateOrderStatusHandler({
@@ -87,6 +92,12 @@ export function createUpdateOrderStatusHandler({
         }
 
         if (nextStaffStatus[currentStatus] !== target) {
+          const stamp = stampFieldsByStatus[target];
+          if (currentStatus === target && stamp && order[stamp.by] === actor.uid) {
+            previousStatus = previousStaffStatus[target];
+            validationError = undefined;
+            return order;
+          }
           throw new AppError(
             'failed-precondition',
             'Ese cambio de estado no está permitido para este pedido.',
@@ -117,7 +128,9 @@ export function createUpdateOrderStatusHandler({
     }
 
     const updatedOrder = result.snapshot.val();
-    const eventRef = database.ref('orderEvents/' + orderId).push();
+    const eventRef = isIncident
+      ? database.ref('orderEvents/' + orderId).push()
+      : database.ref('orderEvents/' + orderId + '/status_' + target);
     const event = {
       type: isIncident ? 'incident_reported' : 'status_changed',
       from: previousStatus,
