@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
@@ -710,6 +711,9 @@ class _DashedDivider extends StatelessWidget {
 /// lugar de empezar de cero.
 final DateTime _fishEpoch = DateTime.now();
 
+/// `flutter test` define esta variable de entorno; en la app no existe.
+final bool _runningInTests = Platform.environment.containsKey('FLUTTER_TEST');
+
 /// Franja libre (sin datos) arriba o abajo del ticket donde nadan mojarritas.
 /// Nunca cruza texto importante y no recibe toques. La animacion es finita para
 /// no dejar frames pendientes y se apaga si se pidio reducir movimiento.
@@ -755,11 +759,16 @@ class _FishLaneState extends State<_FishLane>
     final resume = (elapsed % _periodMs) / _periodMs;
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.value = resume;
-    } else {
-      // Retoma desde donde iba el reloj global y completa dos ciclos mas.
+    } else if (_runningInTests) {
+      // Las pruebas necesitan que la animacion termine para poder asentarse.
       _controller.forward(from: resume).then((_) {
         if (mounted) _controller.repeat(count: 1);
       });
+    } else {
+      // En la app nadan sin parar y siempre retoman desde el reloj global, asi
+      // que reconstruir la pantalla o cambiar de pestana no las reinicia.
+      _controller.value = resume;
+      _controller.repeat();
     }
   }
 
