@@ -36,12 +36,18 @@ class StaffOrdersScreen extends ConsumerWidget {
         title: const Text('Pedidos de cafetería'),
         actions: [
           if (staffPermission.value == true)
-            TextButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PickupScannerScreen()),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PickupScannerScreen(),
+                  ),
+                ),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Escanear QR'),
               ),
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Escanear QR'),
             ),
         ],
       ),

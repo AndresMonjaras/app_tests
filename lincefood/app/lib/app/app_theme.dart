@@ -12,6 +12,8 @@ class AppTheme {
   static const _radioTarjeta = 20.0;
   static const _radioControl = 16.0;
   static const _alturaBoton = 52.0;
+  // Mínimo táctil recomendado por Flutter/Material (48dp).
+  static const _areaTactil = 48.0;
 
   static Color successColor(Brightness brightness) {
     return brightness == Brightness.dark
@@ -90,14 +92,66 @@ class AppTheme {
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, _alturaBoton),
+        style:
+            OutlinedButton.styleFrom(
+              minimumSize: const Size(0, _alturaBoton),
+              foregroundColor: scheme.primary,
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: radioControl),
+            ).copyWith(
+              // Contorno visible en reposo, más grueso con foco y atenuado si
+              // el botón está deshabilitado.
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) {
+                  return BorderSide(
+                    color: scheme.onSurface.withValues(alpha: 0.12),
+                  );
+                }
+                if (states.contains(WidgetState.focused)) {
+                  return BorderSide(color: scheme.primary, width: 2);
+                }
+                return BorderSide(color: scheme.primary.withValues(alpha: 0.7));
+              }),
+            ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(_areaTactil, _areaTactil),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           shape: RoundedRectangleBorder(borderRadius: radioControl),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(_areaTactil, _areaTactil),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          minimumSize: const Size(0, _areaTactil),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          side: BorderSide(color: scheme.outline),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: esClaro ? Colors.white : scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: radioTarjeta),
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Jakarta',
         ),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        side: BorderSide(color: scheme.outlineVariant),
+        side: BorderSide(color: scheme.outline),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         selectedColor: scheme.primary,
         checkmarkColor: scheme.onPrimary,
         labelStyle: TextStyle(
@@ -111,7 +165,19 @@ class AppTheme {
         border: OutlineInputBorder(borderRadius: radioControl),
         enabledBorder: OutlineInputBorder(
           borderRadius: radioControl,
-          borderSide: BorderSide(color: scheme.outlineVariant),
+          borderSide: BorderSide(color: scheme.outline.withValues(alpha: 0.7)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: radioControl,
+          borderSide: BorderSide(color: scheme.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: radioControl,
+          borderSide: BorderSide(color: scheme.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: radioControl,
+          borderSide: BorderSide(color: scheme.error, width: 2),
         ),
       ),
       snackBarTheme: SnackBarThemeData(

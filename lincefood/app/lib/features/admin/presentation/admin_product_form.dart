@@ -284,6 +284,9 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
       actions: [
         if (!widget.priceOnly && !archived && widget.onArchive != null)
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.pop(context);
               widget.onArchive!();
@@ -357,16 +360,17 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                         : 'Foto guardada',
                   ),
                   Wrap(
-                    spacing: 4,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      TextButton.icon(
+                      OutlinedButton.icon(
                         onPressed: isUploadingImage
                             ? null
                             : () => _pickAndUploadImage(ImageSource.camera),
                         icon: const Icon(Icons.camera_alt_outlined),
                         label: const Text('Cámara'),
                       ),
-                      TextButton.icon(
+                      OutlinedButton.icon(
                         onPressed: isUploadingImage
                             ? null
                             : () => _pickAndUploadImage(ImageSource.gallery),
@@ -486,7 +490,13 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
                   onChanged: (value) =>
                       controller.setAvailability(field, value),
                 ),
-                TextButton(
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                   onPressed: () => controller.remove(field),
                   child: Text('Quitar $name'),
                 ),
@@ -495,7 +505,7 @@ class _AdminProductFormState extends ConsumerState<AdminProductForm> {
           ),
         ),
       if (!widget.priceOnly && fields.length < 6)
-        TextButton.icon(
+        OutlinedButton.icon(
           onPressed: controller.add,
           icon: const Icon(Icons.add),
           label: Text('Agregar $name'),

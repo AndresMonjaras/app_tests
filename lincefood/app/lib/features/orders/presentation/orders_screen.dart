@@ -461,6 +461,12 @@ class _TicketCard extends ConsumerWidget {
             if (!order.isCancelled && canCustomerCancel(order.status)) ...[
               const SizedBox(height: 8),
               OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                  side: isCancelling
+                      ? null
+                      : BorderSide(color: Theme.of(context).colorScheme.error),
+                ),
                 onPressed: isCancelling
                     ? null
                     : () => _confirmarCancelacion(context, ref),
@@ -500,6 +506,10 @@ class _TicketCard extends ConsumerWidget {
             child: const Text('Volver'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Sí, cancelar'),
           ),

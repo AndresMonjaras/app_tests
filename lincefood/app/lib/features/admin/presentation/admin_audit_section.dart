@@ -113,7 +113,7 @@ class AdminAuditSection extends ConsumerWidget {
                     const ListTile(title: Text('Sin eventos de auditoría.')),
                   for (final event in visible) _AuditTile(event: event),
                   if (events.length >= filter.limit)
-                    TextButton(
+                    OutlinedButton(
                       onPressed: controller.loadMore,
                       child: const Text('Ver eventos anteriores'),
                     ),

@@ -166,12 +166,12 @@ class _AdminUsersSectionState extends ConsumerState<AdminUsersSection> {
                     alignment: MainAxisAlignment.end,
                     children: [
                       if (query.pageToken != null)
-                        TextButton(
+                        OutlinedButton(
                           onPressed: busy ? null : () => controller.page(null),
                           child: const Text('Primera página'),
                         ),
                       if (page.nextPageToken != null)
-                        TextButton(
+                        OutlinedButton(
                           onPressed: busy
                               ? null
                               : () => controller.page(page.nextPageToken),

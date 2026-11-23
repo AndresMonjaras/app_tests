@@ -139,6 +139,18 @@ class ProfileScreen extends ConsumerWidget {
                               ),
                               if (photoUrl != null)
                                 OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .error,
+                                    side: avatarState.isBusy
+                                        ? null
+                                        : BorderSide(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error,
+                                          ),
+                                  ),
                                   onPressed: avatarState.isBusy
                                       ? null
                                       : () => unawaited(
