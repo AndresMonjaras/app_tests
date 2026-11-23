@@ -29,15 +29,19 @@ class NotificationsInboxScreen extends ConsumerWidget {
         title: const Text('Avisos'),
         actions: [
           if (unread > 0)
-            TextButton(
-              onPressed: () => _markAllAsRead(context, ref),
-              style: TextButton.styleFrom(
-                minimumSize: const Size(0, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.tonal(
+                onPressed: () => _markAllAsRead(context, ref),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                child: const Text('Marcar todos'),
               ),
-              child: const Text('Marcar todos'),
             ),
         ],
       ),

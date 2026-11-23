@@ -108,7 +108,7 @@ class AdminFeedState<T> extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text('No se pudieron cargar los datos.'),
-          TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+          OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
         ],
       ),
     ),

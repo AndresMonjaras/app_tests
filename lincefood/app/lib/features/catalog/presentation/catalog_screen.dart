@@ -55,7 +55,7 @@ class CatalogScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('No se pudo cargar el catálogo. Inténtalo de nuevo.'),
-              TextButton(
+              OutlinedButton(
                 onPressed: () => ref.invalidate(catalogProductsProvider),
                 child: const Text('Reintentar'),
               ),
@@ -147,11 +147,22 @@ class CatalogScreen extends ConsumerWidget {
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                               ),
-                              TextButton(
+                              FilledButton.tonalIcon(
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size(0, 48),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                                 onPressed: () => ref
                                     .read(catalogFilterProvider.notifier)
                                     .selectCategory(null),
-                                child: const Text('Ver todo'),
+                                icon: const Icon(Icons.apps, size: 18),
+                                label: const Text('Ver todo'),
                               ),
                             ],
                           ),

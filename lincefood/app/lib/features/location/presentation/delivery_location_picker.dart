@@ -57,7 +57,7 @@ class _DeliveryLocationPickerState
     final area = ref.watch(deliveryCoverageProvider);
     return area.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => TextButton(
+      error: (_, _) => OutlinedButton(
         onPressed: () => ref.invalidate(deliveryCoverageProvider),
         child: const Text('Reintentar cargar la cobertura de entrega'),
       ),

@@ -34,7 +34,7 @@ class CafeteriaLocationScreen extends ConsumerWidget {
           icon: Icons.location_off_outlined,
           title: 'No se pudo cargar la ubicación',
           message: 'Comprueba tu conexión e inténtalo de nuevo.',
-          action: TextButton.icon(
+          action: OutlinedButton.icon(
             onPressed: () => ref.invalidate(cafeteriaLocationProvider),
             icon: const Icon(Icons.refresh),
             label: const Text('Reintentar'),

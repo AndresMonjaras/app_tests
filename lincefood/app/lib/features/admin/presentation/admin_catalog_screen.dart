@@ -89,7 +89,7 @@ class _AdminCatalogContent extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text('No se pudo cargar el catálogo.'),
-                    TextButton(
+                    OutlinedButton(
                       onPressed: () => ref.invalidate(adminProductsProvider),
                       child: const Text('Reintentar'),
                     ),
@@ -284,7 +284,7 @@ class _ProductAdminTile extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined),
           ),
         ),
-        TextButton.icon(
+        OutlinedButton.icon(
           onPressed: onEdit,
           icon: const Icon(Icons.tune),
           label: const Text('Editar producto'),
@@ -296,7 +296,7 @@ class _ProductAdminTile extends StatelessWidget {
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton.icon(
+          child: OutlinedButton.icon(
             onPressed: product.archived ? onRestore : onArchive,
             icon: Icon(
               product.archived
